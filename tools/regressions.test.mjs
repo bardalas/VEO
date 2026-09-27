@@ -864,3 +864,10 @@ test('on live TV, OK with the info banner up opens the sound sync - one channel 
   assert.match(k, /if \(live && bannerOpen\) openSyncPanel\(\) else showBanner\(\)/);
   assert.match(k, /if \(ok && live && !walking && bannerOpen\) \{\s+if \(!down\) openSyncPanel\(\)/);
 });
+
+test('a film does not open on its audio-description track when the stream marks that one DEFAULT (#267)', async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /private fun avoidAudioDescription\(tracks: androidx\.media3\.common\.Tracks\)/);
+  assert.match(k, /roleFlags and C\.ROLE_FLAG_DESCRIBES_VIDEO != 0/);
+  assert.match(k, /avoidAudioDescription\(tracks\)/);
+});
