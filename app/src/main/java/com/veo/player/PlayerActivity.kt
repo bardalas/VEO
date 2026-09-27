@@ -706,6 +706,7 @@ class PlayerActivity : AppCompatActivity() {
                         streamBps = tracks.groups.filter { g -> g.type == C.TRACK_TYPE_VIDEO && g.isSelected }
                             .flatMap { g -> (0 until g.length).filter { i -> g.isTrackSelected(i) }.map { i -> g.getTrackFormat(i).bitrate } }
                             .maxOrNull()?.toLong()?.takeIf { it > 0 } ?: 0L
+                        avoidAudioDescription(tracks)
                     }
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) = showPaused(!playWhenReady)
                     override fun onPlaybackStateChanged(state: Int) {
@@ -1144,6 +1145,29 @@ class PlayerActivity : AppCompatActivity() {
             dividerHeight = dp(1)
             setPadding(0, dp(10), 0, dp(10))
             setBackgroundColor(fade(skin.night, 0xF5))
+        }
+    }
+
+    /**
+     * A stream that carries an audio-description track ("spoken subtitles" for a blind viewer) sometimes marks it the
+     * DEFAULT one - and a player with no preference of its own takes the stream's word for it, opening on narration
+     * instead of the film's own sound (#267). The first time the audio lands on one, this steers it to a plain track
+     * instead - once only, so a viewer who chose the description track themselves (openAudioPanel) keeps it.
+     */
+    private var steeredOffAd = false
+    private fun avoidAudioDescription(tracks: androidx.media3.common.Tracks) {
+        if (steeredOffAd) return
+        val p = player ?: return
+        val groups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        val onAd = groups.any { g -> (0 until g.length).any { i -> g.isTrackSelected(i) && g.getTrackFormat(i).roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0 } }
+        if (!onAd) { if (groups.isNotEmpty()) steeredOffAd = true; return }
+        steeredOffAd = true
+        for (g in groups) for (i in 0 until g.length) {
+            if (!g.isTrackSupported(i) || g.getTrackFormat(i).roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0) continue
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, i))
+                .build()
+            return
         }
     }
 
