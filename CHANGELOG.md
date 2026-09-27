@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.38 — 2026-09-27
+- **A film no longer opens on its audio-description track.** A stream that marks that track (spoken narration for a
+  blind viewer) as its default one is now steered to the plain audio instead, unless the viewer picks the
+  description track themselves. (#267)
+
 ## 0.45.37 — 2026-09-26
 - **The sound's sync is reachable from any remote.** On live TV, OK with the info banner up opens "הזזת השמע" (one channel
   or many); on a film, Up opens the subtitles panel, which holds it. No Menu, Captions or Yellow key is needed. (#264)
