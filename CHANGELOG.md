@@ -1,5 +1,12 @@
 # VEO Android changelog
 
+## 0.45.39 — 2026-09-28
+- **"Pilot" is no longer translated as an airplane pilot.** The first episode of a series is now פרק בכורה. (#270)
+- **Continue Watching no longer drops a series** the moment its last-played episode finishes; a movie fully watched
+  still leaves the row. (#271)
+- **Search forgives a typo, and finds a title from just one of its words** - locally: the suggestions while typing,
+  and the broadcasters' own catalogues. (#272)
+
 ## 0.45.38 — 2026-09-27
 - **A film no longer opens on its audio-description track.** A stream that marks that track (spoken narration for a
   blind viewer) as its default one is now steered to the plain audio instead, unless the viewer picks the
