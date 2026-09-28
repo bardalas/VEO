@@ -3,6 +3,7 @@ import {$, esc, showErr} from '../core/dom.js';
 import {addons, catalogFetch, fetchMeta} from '../data/addons.js';
 import {hasHebrew, hebrewSearch} from '../data/hebrew.js';
 import {kidsChild, kidsOn, kidsPick} from '../data/kids.js';
+import {score} from '../data/known.js';
 import {typeName} from '../data/names.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
@@ -17,7 +18,9 @@ import {card, skeletons} from '../ui/cards.js';
   */
 async function searchChannels(q, host){
   const needle = q.trim().toLowerCase();
-  const hit = name => (name || '').toLowerCase().includes(needle);
+  // the same lenient match the local suggestions use (data/known.js): a typo, or only the programme's second word,
+  // still finds it here too
+  const hit = name => score(needle, name) >= 0;
   const rows = [];
   await Promise.all([
     kanBox().then(secs => {

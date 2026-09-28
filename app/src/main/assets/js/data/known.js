@@ -19,13 +19,41 @@ export function noteKnown(m){
 
 const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
-/** How well [q] matches [name]: 0 it starts it, 1 it starts a word of it, 2 it is somewhere in it, -1 not at all. */
+/** How many single-letter edits (change, add, remove) turn [a] into [b] - capped at [max] (the callers need only
+    know whether it is close, not how far a wild miss is), so a pair of long, unrelated words costs little to rule out. */
+function editDistance(a, b, max){
+  if(Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for(let i = 1; i <= a.length; i++){
+    const row = [i];
+    let best = row[0];
+    for(let j = 1; j <= b.length; j++){
+      row.push(a[i - 1] === b[j - 1] ? prev[j - 1] : 1 + Math.min(prev[j - 1], prev[j], row[j - 1]));
+      best = Math.min(best, row[j]);
+    }
+    if(best > max) return max + 1;                     // every cell this row is already past the cap: no way back under it
+    prev = row;
+  }
+  return prev[b.length];
+}
+/** [w] is close enough to a typo of [target] to count as it: nothing for a short word (too easy to hit another
+    real word by accident), one slip for a middling one, two for a long one - a transposed or swapped letter
+    either way (ביביסיתר for בייביסיטר). */
+const typoOf = (w, target) => target.length >= 4 && editDistance(w, target, target.length >= 7 ? 2 : 1) <= (target.length >= 7 ? 2 : 1);
+
+/** How well [q] matches [name]: 0 it starts it, 1 it starts a word of it, 2 it is somewhere in it, 3 every word of
+    [q] is (a prefix of, or a plain typo of) some word of [name] - so a query of just the name's second word, or
+    one with a slip in it, still finds it - -1 not at all. */
 export function score(q, name){
   const n = norm(name);
   if(!n) return -1;
   if(n.startsWith(q)) return 0;
   if(n.includes(' ' + q)) return 1;
-  return n.includes(q) ? 2 : -1;
+  if(n.includes(q)) return 2;
+  const nWords = n.split(' ');
+  const qWords = q.split(' ').filter(Boolean);
+  if(qWords.length && qWords.every(qw => nWords.some(nw => nw.startsWith(qw) || typoOf(qw, nw)))) return 3;
+  return -1;
 }
 
 /** Rank [pool] ({id, type, names[], boost, poster}) against [q]: best match first, what the viewer has touched before
