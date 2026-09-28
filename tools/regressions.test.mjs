@@ -913,3 +913,12 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
 });
+
+test('Movies/Series has no source-icon filter bar any more - just the All link (#288)', async () => {
+  const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
+  assert.doesNotMatch(home, /srctab all/);
+  assert.doesNotMatch(home, /function sourceRows/);
+  assert.doesNotMatch(home, /function noServiceRows/);
+  assert.match(home, /<div class="srctabs" role="tablist"><a class="libgo" href="#\/all\/\$\{type\}">/);
+  assert.match(home, /document\.querySelector\('\.libgo'\)\.onclick = \(\) => libraryFrom\(type\);/);
+});
