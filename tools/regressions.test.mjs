@@ -871,3 +871,9 @@ test('a film does not open on its audio-description track when the stream marks 
   assert.match(k, /roleFlags and C\.ROLE_FLAG_DESCRIBES_VIDEO != 0/);
   assert.match(k, /avoidAudioDescription\(tracks\)/);
 });
+
+test('the episode name "Pilot" is not machine-translated as an airplane pilot (#270)', async () => {
+  const {known} = await mini('data/translate.js', {'core/bridge.js': {fetchText: async () => ''}, 'core/store.js': {store: memStore().store}});
+  assert.equal(known('Pilot'), 'פרק בכורה');
+  assert.equal(known('pilot'), 'פרק בכורה');
+});
