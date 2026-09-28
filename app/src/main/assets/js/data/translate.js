@@ -15,13 +15,20 @@ const COOL_MS = 90_000;                                // after a failure, no re
 const mem = store.get(KEY, {});
 let coolUntil = 0;
 
+/* A handful of standard TV terms that Google's word-for-word translation gets wrong (it does not know they
+   are television jargon): "Pilot", alone, is an episode's own name for the one that opens a series - not
+   the person flying a plane. Checked (case-insensitively) before the memory a request already filled, so a
+   name translated before this table existed is corrected too. */
+const OVERRIDES = {pilot: 'פרק בכורה'};
+
+
 /** Text already in Hebrew (or with nothing to read) is not translated. */
 export const translatable = s => !!s && /\S/.test(s) && !/[֐-׿]/.test(s);
 /** One line: the batch is told apart by its line breaks, so a text must not have any. */
 export const oneLine = s => String(s || '').replace(/\s+/g, ' ').trim();
 
 /** What is already known of [text]'s translation - nothing, or the Hebrew. */
-export const known = text => mem[oneLine(text)] || '';
+export const known = text => OVERRIDES[oneLine(text).toLowerCase()] || mem[oneLine(text)] || '';
 
 /** Split [texts] into batches that fit one address: [[a, b, c], [d], ...]. */
 export function batches(texts, max = ADDRESS_MAX){

@@ -881,3 +881,14 @@ test("search: a typo, or only a title's second word, still matches it (#272)", a
   assert.ok(k.score('reloaded', 'Matrix Reloaded') >= 0);   // only the name's second word
   assert.ok(k.score('xyz', 'The Matrix') < 0);              // not everything matches everything
 });
+
+test('the last thing watched stays in Continue Watching once that one episode is finished, if the series may not be (#271)', async () => {
+  const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
+  assert.match(home, /\.filter\(x => \(x\.type === 'series' \|\| !x\.done\) && \(!type \|\| x\.type === type\)/);
+});
+
+test('the episode name "Pilot" is not machine-translated as an airplane pilot (#270)', async () => {
+  const {known} = await mini('data/translate.js', {'core/bridge.js': {fetchText: async () => ''}, 'core/store.js': {store: memStore().store}});
+  assert.equal(known('Pilot'), 'פרק בכורה');
+  assert.equal(known('pilot'), 'פרק בכורה');
+});
