@@ -872,6 +872,16 @@ test('a film does not open on its audio-description track when the stream marks 
   assert.match(k, /avoidAudioDescription\(tracks\)/);
 });
 
+test("search: a typo, or only a title's second word, still matches it (#272)", async () => {
+  const {store} = memStore();
+  const k = await mini('data/known.js', {'core/store.js': {store}, 'data/watch.js': {library: {}, progress: {}}, 'data/hebrew.js': {heCache: {}}}, {Object});
+  assert.ok(k.score('ביביסיתר', 'בייביסיטר') >= 0);        // a transposed/missing letter
+  assert.ok(k.score('קיטר', 'בייביסיטר') < 0);              // too short a slip to trust as a typo of a long word, and not a substring either
+  assert.ok(k.score('matrx', 'The Matrix') >= 0);
+  assert.ok(k.score('reloaded', 'Matrix Reloaded') >= 0);   // only the name's second word
+  assert.ok(k.score('xyz', 'The Matrix') < 0);              // not everything matches everything
+});
+
 test('the last thing watched stays in Continue Watching once that one episode is finished, if the series may not be (#271)', async () => {
   const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
   assert.match(home, /\.filter\(x => \(x\.type === 'series' \|\| !x\.done\) && \(!type \|\| x\.type === type\)/);
