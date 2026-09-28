@@ -10,7 +10,7 @@ import {KID_GENRES, kidsChild, kidsOn, kidsOwn} from '../data/kids.js';
 import {GENRES, gridFrom, pageFilters, rateOf, sortActive, sortBar, wireSortBar, yearOfMeta} from '../data/sort.js';
 import {svcOf} from '../data/services.js';
 import {TASTE_ADDON, becauseTitles, hasTaste} from '../data/taste.js';
-import {latestPerTitle, progress} from '../data/watch.js';
+import {dismissedContinue, latestPerTitle, progress} from '../data/watch.js';
 import {tr} from '../i18n.js';
 import {originMark, originName, originsFor} from '../ui/origins.js';
 import {renderRows} from '../ui/rows.js';
@@ -99,7 +99,7 @@ const unfinished = type => {
   // watched" out of Continue Watching the moment it finished (#271). Only a fetch of every episode could say a
   // series itself is done, which the home row does not do.
   return latestPerTitle()
-    .filter(x => (x.type === 'series' || !x.done) && (!type || x.type === type) && !(kidsOn() && !kidsOwn(x.metaId)))
+    .filter(x => (x.type === 'series' || !x.done) && !(x.metaId in dismissedContinue) && (!type || x.type === type) && !(kidsOn() && !kidsOwn(x.metaId)))
     .sort((x, y) => (y.at || 0) - (x.at || 0)).slice(0, 12);
 };
 

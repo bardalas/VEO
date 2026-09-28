@@ -13,7 +13,7 @@ import {enterProfile, needsPicker} from './data/profiles.js';
 import {checkReminders} from './data/reminders.js';
 import {loadServices} from './data/services.js';
 import {learnFromHistory} from './data/taste.js';
-import {indexProgress, progress, pruneProgress} from './data/watch.js';
+import {indexProgress, progress, pruneProgress, undismiss} from './data/watch.js';
 import {tr} from './i18n.js';
 import {viewKanProgram} from './providers/kan.js';
 import {liveChannels, watchChannel} from './providers/live.js';
@@ -159,6 +159,7 @@ window.boothProgress = json => {
       w.done = w.t > w.d - 60;            // watched to the end: a tick on the poster, and out of "continue watching"
       if(e.pid && e.pid !== profileId) (others[e.pid] ||= {})[videoId] = w;
       else progress[videoId] = w;
+      if(!e.pid || e.pid === profileId) undismiss(w.metaId);   // watched again: back in Continue Watching
     }
     for(const [pid, ws] of Object.entries(others)) store.setFor(pid, 'progress', {...store.getFor(pid, 'progress', {}), ...ws});
     pruneProgress();
