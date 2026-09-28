@@ -6,11 +6,24 @@ import {store} from '../core/store.js';
 export let library = store.get('library', {});
 export let progress = store.get('progress', {});
 
+/* A title dismissed from Continue Watching (a long press on its card): kept apart from progress itself, so its
+   resume point survives - opening the title again still continues where it was, the row just does not name it
+   any more. Cleared the moment something new is played under that id (the viewer chose to watch it again). */
+export let dismissedContinue = store.get('dismissedContinue', {});
+export function dismissContinue(metaId){
+  dismissedContinue[metaId] = Date.now();
+  store.set('dismissedContinue', dismissedContinue);
+}
+
 
 
 
 export let progressIdx = new Map();
 /** A title shows the newest thing watched under it (a series: its last episode). */
+/** A dismissed title played again: the dismissal no longer applies to what is about to become a new entry. */
+export function undismiss(metaId){
+  if(metaId in dismissedContinue){ delete dismissedContinue[metaId]; store.set('dismissedContinue', dismissedContinue); }
+}
 export function indexProgress(){
   progressIdx = new Map();
   for(const x of Object.values(progress).sort((a, b) => (a.at || 0) - (b.at || 0))) progressIdx.set(x.metaId, x);
