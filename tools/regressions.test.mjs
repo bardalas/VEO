@@ -913,3 +913,12 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
 });
+
+test('the Israeli Film Archive movie source is gone (#284)', async () => {
+  const files = ['js/ui/origins.js', 'js/screens/broadcasters.js', 'js/app.js', 'js/ui/rows.js', 'js/i18n.js', 'js/core/store.js'];
+  for(const f of files){
+    const src = await readFile(path.join(assets, f), 'utf8');
+    assert.doesNotMatch(src, /jfc/i, f);
+  }
+  await assert.rejects(readFile(path.join(assets, 'js/providers/jfc.js'), 'utf8'));
+});
