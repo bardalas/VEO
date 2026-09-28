@@ -70,6 +70,9 @@
    slower still. Running along a row would then paint both, for every title passed, at every frame of
    the animation. Only the movement is animated - movement is the one thing a screen does for free. */
 [data-layout="tv"] .poster .art{transition:transform var(--quick) var(--ease)}
+/* the rail's own highlight moves with the remote, not a moment behind it: a run of Down presses outpaced the ordinary
+   press-feedback fade above and the highlight visibly caught up after landing (#279) */
+[data-layout="tv"] .nav a{transition:none}
 [data-layout="tv"] .poster:focus .art,[data-layout="tv"] .poster:focus-visible .art{
   filter:none;box-shadow:0 10px 22px -12px #000c;
   outline:3px solid var(--light);outline-offset:3px}      /* an outline neither reflows nor blurs */

@@ -892,3 +892,8 @@ test('the episode name "Pilot" is not machine-translated as an airplane pilot (#
   assert.equal(known('Pilot'), 'פרק בכורה');
   assert.equal(known('pilot'), 'פרק בכורה');
 });
+
+test('the side menu's focus moves at once on TV, with no press-feedback fade lagging behind a run of presses (#279)', async () => {
+  const css = await readFile(path.join(assets, 'css/motion.css'), 'utf8');
+  assert.match(css, /\[data-layout="tv"\] \.nav a\{transition:none\}/);
+});
