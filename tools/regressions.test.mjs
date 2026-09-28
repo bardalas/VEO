@@ -913,3 +913,8 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
 });
+
+test('removing a Continue Watching card stops the click reaching reel.js\'s own click listener, which opened the title regardless (#282)', async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
+});
