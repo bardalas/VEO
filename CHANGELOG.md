@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.40 — 2026-09-28
+- **Remove a title from Continue Watching.** A long press on a card (touch hold, remote OK held, or right-click)
+  asks first; removing it only hides it from the row, its resume point stays. (#277)
+- **The side menu no longer bumps on a run of presses.** Its highlight now moves at once on TV. (#279)
+
 ## 0.45.39 — 2026-09-28
 - **"Pilot" is no longer translated as an airplane pilot.** The first episode of a series is now פרק בכורה. (#270)
 - **Continue Watching no longer drops a series** the moment its last-played episode finishes; a movie fully watched
