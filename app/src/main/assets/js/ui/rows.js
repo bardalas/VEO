@@ -3,6 +3,7 @@ import {$, esc, showErr} from '../core/dom.js';
 import {rowMax} from '../core/settings.js';
 import {catalogFetch} from '../data/addons.js';
 import {kidsOn} from '../data/kids.js';
+import {dismissContinue} from '../data/watch.js';
 import {srcName, typeName} from '../data/names.js';
 import {tr} from '../i18n.js';
 import {kanBox, kanCard} from '../providers/kan.js';
@@ -11,6 +12,7 @@ import {r13card, r13row} from '../providers/reshet.js';
 import {webEpisodeCard, webLatest, webShowCard, webShows} from '../providers/web.js';
 import {card, skeletons} from './cards.js';
 import {ORIGINS, interleave, loadOrigin, moreOfOrigin} from './origins.js';
+import {pickFrom} from './sheets.js';
 import {autoSpot, clearSpot, reelable} from './reel.js';
 
 export const rowTag = x => {
@@ -26,6 +28,32 @@ export const rowTag = x => {
 export const reel = (inner, id = '') =>
   `<div class="reelwrap"><div class="strip${reelable() ? ' reel' : ''}"${id ? ` id="${id}"` : ''}>${inner}</div></div>`;
 
+
+/** A long press on a Continue Watching card (touch hold, remote OK held, or right-click) asks whether to remove
+    the title from the row - it stays where the viewer left it (dismissContinue keeps the resume point), the row
+    simply does not name it any more. */
+function wireRemovable(strip){
+  if(!strip) return;
+  strip.querySelectorAll('.poster').forEach(b => {
+    let longPressed = false, timer = 0;
+    const ask = async () => {
+      longPressed = true;
+      const name = b.dataset.title || b.querySelector('[data-heid]')?.textContent || '';
+      const yes = await pickFrom(tr('cont.removeQ', {name}), [['yes', tr('common.remove')], ['no', tr('common.cancel')]], 'no');
+      if(yes === 'yes'){
+        dismissContinue(b.dataset.id);
+        const row = b.closest('.row');
+        b.remove();
+        if(row && !row.querySelector('.poster')) row.remove(); else strip.querySelector('.poster')?.focus();
+      }else b.focus();
+    };
+    b.oncontextmenu = e => { e.preventDefault(); ask(); };
+    b.onpointerdown = () => { longPressed = false; clearTimeout(timer); timer = setTimeout(ask, 600); };
+    b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(timer);
+    b.addEventListener('keydown', e => { if(e.key === 'Enter' && e.repeat && !longPressed){ e.preventDefault(); ask(); } });
+    b.addEventListener('click', e => { if(longPressed){ e.preventDefault(); longPressed = false; } });
+  });
+}
 
 /** [contAt]: how many rows come before "continue watching" - on Movies and Series it follows the wheel
     the tabs turn, so nothing comes between the tabs and their row. */
@@ -48,7 +76,7 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
         <div class="t" dir="auto">${esc(x.name)}</div></button>`;
     }
     return card({id:x.metaId,type:x.type,name:x.name,poster:x.poster}, {tag: ep});
-  }).join(''))}</div>`);
+  }).join(''), 'contRow')}</div>`);
   app.innerHTML = `
     ${heading ? `<div class="page"><h1>${esc(heading)}</h1></div>` : ''}
     ${top}
@@ -56,6 +84,7 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
     ${!rows.length ? `<p class="note">${tr('row.noCatalogs')}</p>` : ''}`;
 
   autoSpot($('#app .strip'));
+  wireRemovable($('#contRow'));
   // Each title appears once per page: it stays in the first (highest) row that has it.
   const claimed = new Map();
   const dedupe = (i, metas) => metas.filter(m => {

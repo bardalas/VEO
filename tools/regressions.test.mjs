@@ -884,7 +884,7 @@ test("search: a typo, or only a title's second word, still matches it (#272)", a
 
 test('the last thing watched stays in Continue Watching once that one episode is finished, if the series may not be (#271)', async () => {
   const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
-  assert.match(home, /\.filter\(x => \(x\.type === 'series' \|\| !x\.done\) && \(!type \|\| x\.type === type\)/);
+  assert.match(home, /\.filter\(x => \(x\.type === 'series' \|\| !x\.done\) && !\(x\.metaId in dismissedContinue\)/);
 });
 
 test('the episode name "Pilot" is not machine-translated as an airplane pilot (#270)', async () => {
@@ -896,4 +896,20 @@ test('the episode name "Pilot" is not machine-translated as an airplane pilot (#
 test("the side menu's focus moves at once on TV, with no press-feedback fade lagging behind a run of presses (#279)", async () => {
   const css = await readFile(path.join(assets, 'css/motion.css'), 'utf8');
   assert.match(css, /\[data-layout="tv"\] \.nav a\{transition:none\}/);
+});
+
+test('a long press on a Continue Watching card asks before removing it, and the removal only hides it there (#277)', async () => {
+  const watch = await readFile(path.join(assets, 'js/data/watch.js'), 'utf8');
+  const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  const app = await readFile(path.join(assets, 'js/app.js'), 'utf8');
+  assert.match(watch, /export function dismissContinue\(metaId\)/);
+  assert.match(watch, /export function undismiss\(metaId\)/);
+  const body = watch.slice(watch.indexOf('export function dismissContinue'), watch.indexOf('export function undismiss'));
+  assert.doesNotMatch(body, /delete progress\[/);                      // dismissing writes only to dismissedContinue - the resume point is untouched
+  assert.match(home, /!\(x\.metaId in dismissedContinue\)/);
+  assert.match(rows, /b\.onpointerdown = \(\) => \{ longPressed = false; clearTimeout\(timer\); timer = setTimeout\(ask, 600\); \};/);
+  assert.match(rows, /b\.oncontextmenu = e => \{ e\.preventDefault\(\); ask\(\); \};/);
+  assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
+  assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
 });
