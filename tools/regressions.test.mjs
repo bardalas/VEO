@@ -893,6 +893,11 @@ test('the episode name "Pilot" is not machine-translated as an airplane pilot (#
   assert.equal(known('pilot'), 'פרק בכורה');
 });
 
+test("the side menu's focus moves at once on TV, with no press-feedback fade lagging behind a run of presses (#279)", async () => {
+  const css = await readFile(path.join(assets, 'css/motion.css'), 'utf8');
+  assert.match(css, /\[data-layout="tv"\] \.nav a\{transition:none\}/);
+});
+
 test('a long press on a Continue Watching card asks before removing it, and the removal only hides it there (#277)', async () => {
   const watch = await readFile(path.join(assets, 'js/data/watch.js'), 'utf8');
   const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
