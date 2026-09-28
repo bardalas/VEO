@@ -871,3 +871,8 @@ test('a film does not open on its audio-description track when the stream marks 
   assert.match(k, /roleFlags and C\.ROLE_FLAG_DESCRIBES_VIDEO != 0/);
   assert.match(k, /avoidAudioDescription\(tracks\)/);
 });
+
+test('the last thing watched stays in Continue Watching once that one episode is finished, if the series may not be (#271)', async () => {
+  const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
+  assert.match(home, /\.filter\(x => \(x\.type === 'series' \|\| !x\.done\) && \(!type \|\| x\.type === type\)/);
+});

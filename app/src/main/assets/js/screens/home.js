@@ -93,10 +93,13 @@ function sourceRows(type, o){
 /** What was left in the middle, of one type (or of every type) - in the kids profile, only what a child started. */
 const unfinished = type => {
   // Progress is stored per video so resume and watched marks remain exact. The home row, however,
-  // represents titles: one card for a series, whichever of its episodes was played last - and if that one was
-  // watched to the end the series is not in the middle of anything, whatever else was once half-seen.
+  // represents titles: one card for a series, whichever of its episodes was played last. A film watched to the
+  // end is done, and drops from the row - but a series is not: finishing one episode says nothing about the
+  // rest of it (the next one was never started), and dropping the row on that alone lost "the last thing I
+  // watched" out of Continue Watching the moment it finished (#271). Only a fetch of every episode could say a
+  // series itself is done, which the home row does not do.
   return latestPerTitle()
-    .filter(x => !x.done && (!type || x.type === type) && !(kidsOn() && !kidsOwn(x.metaId)))
+    .filter(x => (x.type === 'series' || !x.done) && (!type || x.type === type) && !(kidsOn() && !kidsOwn(x.metaId)))
     .sort((x, y) => (y.at || 0) - (x.at || 0)).slice(0, 12);
 };
 
