@@ -922,3 +922,8 @@ test('the Israeli Film Archive movie source is gone (#284)', async () => {
   }
   await assert.rejects(readFile(path.join(assets, 'js/providers/jfc.js'), 'utf8'));
 });
+
+test("removing a Continue Watching card stops the click reaching reel.js's own click listener, which opened the title regardless (#282)", async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
+});
