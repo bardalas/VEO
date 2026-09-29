@@ -944,6 +944,13 @@ test("removing a Continue Watching card stops the click reaching reel.js's own c
   assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
 });
 
+test('the two document-body MutationObservers in tvnav.js are one, not two walking every mutation (#296)', async () => {
+  const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
+  const count = (nav.match(/new MutationObserver/g) || []).length;
+  assert.equal(count, 1);
+  assert.match(nav, /for\(const m of muts\) for\(const n of m\.addedNodes\) if\(n\.nodeType === 1\) armInputs/);
+});
+
 test('Continue Watching remove: the remote long-press is timed (keydown/keyup), not read off repeat:true (#292)', async () => {
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.doesNotMatch(rows, /e\.repeat/);
