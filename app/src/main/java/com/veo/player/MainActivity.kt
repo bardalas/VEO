@@ -79,6 +79,12 @@ class MainActivity : AppCompatActivity() {
         val assetsAt = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebBundle.handler(this))
             .build()
+        // The WebView's own long-press on a link (its "Open link", "Copy link" menu, or - held long enough on some
+        // devices - just re-firing the link's own navigation) got there before the page's JS ever saw a clean
+        // press: a long press meant to remove a Continue Watching card (js/ui/rows.js) opened the title instead,
+        // on the real device, even once the JS side of it (#292) was solid. Swallowing it here leaves the touch
+        // and key handling entirely to the page.
+        web.setOnLongClickListener { true }
         web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW   // IPTV and LAN devices are http
         // The page is served from inside the app, so the WebView is allowed to keep it - and would go on
         // showing the old one after an update. A new version throws that copy away, once.
