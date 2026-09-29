@@ -35,7 +35,7 @@ export const reel = (inner, id = '') =>
 function wireRemovable(strip){
   if(!strip) return;
   strip.querySelectorAll('.poster').forEach(b => {
-    let longPressed = false, timer = 0;
+    let longPressed = false, timer = 0, keyHeld = false;
     const ask = async () => {
       longPressed = true;
       const name = b.dataset.title || b.querySelector('[data-heid]')?.textContent || '';
@@ -47,10 +47,16 @@ function wireRemovable(strip){
         if(row && !row.querySelector('.poster')) row.remove(); else strip.querySelector('.poster')?.focus();
       }else b.focus();
     };
+    const start = () => { longPressed = false; clearTimeout(timer); timer = setTimeout(ask, 600); };
+    const cancel = () => clearTimeout(timer);
     b.oncontextmenu = e => { e.preventDefault(); ask(); };
-    b.onpointerdown = () => { longPressed = false; clearTimeout(timer); timer = setTimeout(ask, 600); };
-    b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(timer);
-    b.addEventListener('keydown', e => { if(e.key === 'Enter' && e.repeat && !longPressed){ e.preventDefault(); ask(); } });
+    b.onpointerdown = start;
+    b.onpointerup = b.onpointerleave = b.onpointercancel = cancel;
+    // Timed like the touch press above, not read off the key's own repeat flag: a remote's OK does not always
+    // reach the page with repeat:true on every device (#292 - a held OK opened the title outright, the timer
+    // having never started), while a keydown/keyup pair is always there to time against.
+    b.addEventListener('keydown', e => { if(e.key === 'Enter' && !keyHeld){ keyHeld = true; start(); } });
+    b.addEventListener('keyup', e => { if(e.key === 'Enter'){ keyHeld = false; cancel(); } });
     // reel.js's own document-level click listener opens the centred ('spot') card regardless of this element's
     // default being prevented - it never looks at defaultPrevented, only at what was clicked. Stopping the event
     // here, not just its default, is what actually keeps a long press from opening the title (#282).

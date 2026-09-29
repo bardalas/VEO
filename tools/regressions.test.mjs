@@ -828,7 +828,7 @@ test('an update is installed through a PackageInstaller session, so the app is n
 
 test('on a television the live channels are a list, one to a row with room between (#254)', async () => {
   const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
-  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:8px\}/);
+  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
   assert.match(css, /html\[data-device="tv"\] \.chmain\{display:grid;/);
   assert.match(css, /grid-template-areas:"top name foot" "top now bar"/);          // the times and the small progress bar of what is on now, at the far end
 });
@@ -908,7 +908,7 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   const body = watch.slice(watch.indexOf('export function dismissContinue'), watch.indexOf('export function undismiss'));
   assert.doesNotMatch(body, /delete progress\[/);                      // dismissing writes only to dismissedContinue - the resume point is untouched
   assert.match(home, /!\(x\.metaId in dismissedContinue\)/);
-  assert.match(rows, /b\.onpointerdown = \(\) => \{ longPressed = false; clearTimeout\(timer\); timer = setTimeout\(ask, 600\); \};/);
+  assert.match(rows, /timer = setTimeout\(ask, 600\)/);
   assert.match(rows, /b\.oncontextmenu = e => \{ e\.preventDefault\(\); ask\(\); \};/);
   assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
@@ -949,4 +949,18 @@ test('the two document-body MutationObservers in tvnav.js are one, not two walki
   const count = (nav.match(/new MutationObserver/g) || []).length;
   assert.equal(count, 1);
   assert.match(nav, /for\(const m of muts\) for\(const n of m\.addedNodes\) if\(n\.nodeType === 1\) armInputs/);
+});
+
+test('Continue Watching remove: the remote long-press is timed (keydown/keyup), not read off repeat:true (#292)', async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.doesNotMatch(rows, /e\.repeat/);
+  assert.match(rows, /if\(e\.key === 'Enter' && !keyHeld\)\{ keyHeld = true; start\(\); \}/);
+  assert.match(rows, /if\(e\.key === 'Enter'\)\{ keyHeld = false; cancel\(\); \}/);
+});
+
+test('the live-TV row list is larger and more comfortable, not squeezed to fit exactly six (#293)', async () => {
+  const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
+  assert.match(css, /html\[data-device="tv"\] \.chlogo\{height:52px;border-radius:10px\}/);
+  assert.match(css, /html\[data-device="tv"\] \.chmain>\.chname\{grid-area:name;margin:0;font-size:20px/);
+  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
 });
