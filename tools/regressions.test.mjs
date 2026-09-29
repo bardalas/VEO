@@ -914,6 +914,13 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
 });
 
+test('noteKnown evicts the oldest title in O(1), not by recomputing every key (#286)', async () => {
+  const k = await readFile(path.join(assets, 'js/data/known.js'), 'utf8');
+  assert.match(k, /const order = new Map\(Object\.keys\(seen\)\.map\(id => \[id, 1\]\)\);/);
+  assert.match(k, /const oldest = order\.keys\(\)\.next\(\)\.value; order\.delete\(oldest\); delete seen\[oldest\];/);
+  assert.doesNotMatch(k, /Object\.keys\(seen\)\[0\]/);
+});
+
 test('the Israeli Film Archive movie source is gone (#284)', async () => {
   const files = ['js/ui/origins.js', 'js/screens/broadcasters.js', 'js/app.js', 'js/ui/rows.js', 'js/i18n.js', 'js/core/store.js'];
   for(const f of files){
