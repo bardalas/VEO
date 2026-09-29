@@ -943,3 +943,10 @@ test("removing a Continue Watching card stops the click reaching reel.js's own c
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
 });
+
+test('Continue Watching remove: the remote long-press is timed (keydown/keyup), not read off repeat:true (#292)', async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.doesNotMatch(rows, /e\.repeat/);
+  assert.match(rows, /if\(e\.key === 'Enter' && !keyHeld\)\{ keyHeld = true; start\(\); \}/);
+  assert.match(rows, /if\(e\.key === 'Enter'\)\{ keyHeld = false; cancel\(\); \}/);
+});
