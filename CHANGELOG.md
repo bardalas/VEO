@@ -1,5 +1,13 @@
 # VEO Android changelog
 
+## 0.45.41 — 2026-09-29
+- **Removing a title from Continue Watching no longer opens it** by mistake. (#282)
+- **The Israeli Film Archive source is gone** - not relevant. (#284)
+- **The app should feel lighter over time.** A long-time viewer's title cache was doing an O(n) scan on every
+  new-to-them title a grid showed, once it filled - now O(1); posters were visibly slower to appear because of it. (#286)
+- **Movies and Series lost their source-icon filter bar.** All Movies/All Series already filters by service on
+  its own, so the tabs only duplicated it. (#288)
+
 ## 0.45.40 — 2026-09-28
 - **Remove a title from Continue Watching.** A long press on a card (touch hold, remote OK held, or right-click)
   asks first; removing it only hides it from the row, its resume point stays. (#277)
