@@ -87,7 +87,7 @@ function sourceRows(type, o){
     const local = addons.find(a => a.manifest.id === BOOTH_ID);
     return (local?.manifest.catalogs || []).filter(c => c.type === type).map(c => ({a: local, c, title: catalogName(c.name)}));
   }
-  return [];                                           // the archive: its wheel is all of it (and #/tv/jfc the rest)
+  return [];                                           // a source with nothing of its own beyond the wheel of it
 }
 
 /** What was left in the middle, of one type (or of every type) - in the kids profile, only what a child started. */

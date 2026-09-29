@@ -230,7 +230,7 @@ function showRow(el, x){
 /** How long a row of several sources waits for the slow ones before it is drawn from the rest. */
 const FIRST_PAINT_MS = 2500;
 /** What a row of one source says when that source cannot be reached. */
-const FAILED = {kan: 'row.failedKan', mako: 'row.failedMako', r13: 'row.failedR13', jfc: 'row.failedJfc'};
+const FAILED = {kan: 'row.failedKan', mako: 'row.failedMako', r13: 'row.failedR13'};
 /** The screen's rows, so that a row can be told to show something else (the source tabs). */
 let current = null;
 /** Show [origins] in row [i] - the source tabs over Movies and Series. */

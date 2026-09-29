@@ -6,7 +6,6 @@ import {BOOTH_ID, SC_ID} from '../data/catalogs.js';
 import {kidsChild} from '../data/kids.js';
 import {PROVIDERS, SERVICES, noteServices, svcGlyph} from '../data/services.js';
 import {tr} from '../i18n.js';
-import {JFC_LOBBIES, jfcCard, jfcLobby} from '../providers/jfc.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
 import {r13card, r13row} from '../providers/reshet.js';
@@ -21,7 +20,6 @@ export const ORIGINS = [
   {id: 'kan', types: ['movie', 'series'], shows: true},    // the broadcasters: their own section, Shows
   {id: 'mako', types: ['series'], shows: true},
   {id: 'r13', types: ['series'], shows: true},
-  {id: 'jfc', types: ['movie']},
   {id: 'il', types: ['movie', 'series']},                 // the Israeli catalogues (data/catalogs.js)
 ];
 export const originName = o => o.svc ? SERVICES[o.svc] : tr('origin.' + o.id);
@@ -31,12 +29,11 @@ export const originsFor = type => ORIGINS.filter(o => o.types.includes(type)
   && (o.svc ? scCatalog(o.svc, type) : !kidsChild() && (o.id !== 'il' || localCatalogs(type).length)));
 
 /* A source's mark, in one colour like the services' glyphs: a broadcaster by its name or its channel
-   number, the film archive by a reel and the Israeli catalogues by a star, both drawn in strokes the way
+   number, the Israeli catalogues by a star, both drawn in strokes the way
    the app's other icons are - so the tabs and the corner of a poster read as one quiet family. */
 const stroke = body => `<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 const GLYPHS = {
   kan: '<b class="glyph txt">כאן</b>', mako: '<b class="glyph txt">12</b>', r13: '<b class="glyph txt">13</b>',
-  jfc: stroke('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="7.5" r="1.6"/><circle cx="12" cy="16.5" r="1.6"/><circle cx="7.5" cy="12" r="1.6"/><circle cx="16.5" cy="12" r="1.6"/>'),
   il: stroke('<path d="M12 3.5 20 17H4z"/><path d="M12 20.5 4 7h16z"/>'),
 };
 export const originMark = o => o.svc ? svcGlyph(SERVICES[o.svc]) : GLYPHS[o.id];
@@ -77,11 +74,6 @@ export async function loadOrigin(o, type, badge = false){
   }
   if(o.id === 'mako') return (await makoPrograms('')).map(it => ({id: it.path, name: it.name, origin: o.id, html: dress(makoCard(it), it.path)}));
   if(o.id === 'r13') return (await r13row('series')).map(it => ({id: String(it.id), name: it.name, origin: o.id, html: dress(r13card(it), String(it.id))}));
-  if(o.id === 'jfc'){
-    const seen = new Set();
-    const items = (await jfcLobby(JFC_LOBBIES[0][0])).flatMap(r => r.items).filter(it => !seen.has(it.url) && seen.add(it.url));
-    return items.map(it => ({id: it.url, name: it.title, origin: o.id, html: dress(jfcCard(it), it.url)}));
-  }
   return [];
 }
 
