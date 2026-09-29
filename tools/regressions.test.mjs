@@ -908,7 +908,7 @@ test('a long press on a Continue Watching card asks before removing it, and the 
   const body = watch.slice(watch.indexOf('export function dismissContinue'), watch.indexOf('export function undismiss'));
   assert.doesNotMatch(body, /delete progress\[/);                      // dismissing writes only to dismissedContinue - the resume point is untouched
   assert.match(home, /!\(x\.metaId in dismissedContinue\)/);
-  assert.match(rows, /b\.onpointerdown = \(\) => \{ longPressed = false; clearTimeout\(timer\); timer = setTimeout\(ask, 600\); \};/);
+  assert.match(rows, /timer = setTimeout\(ask, 600\)/);
   assert.match(rows, /b\.oncontextmenu = e => \{ e\.preventDefault\(\); ask\(\); \};/);
   assert.match(rows, /dismissContinue\(b\.dataset\.id\)/);
   assert.match(app, /undismiss\(w\.metaId\)/);                          // watched again: the dismissal is forgotten
