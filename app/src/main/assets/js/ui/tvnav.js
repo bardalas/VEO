@@ -95,10 +95,36 @@ const lookAgain = () => {
    arrows can reach. Treating all of that as a new screen threw the cache above away on every single
    press, which is the cost it exists to avoid. Only the status card hides itself with an inline
    style; everything else that comes and goes does so as an element, or with `hidden`. */
+// Remote control (Android TV): text fields stay locked while focus passes over them, so the on-screen
+// keyboard doesn't pop up; OK (Enter) unlocks the field and opens the keyboard.
+export function armInput(i){
+  if(i.dataset.tvArmed) return;
+  i.dataset.tvArmed = 1;
+  // readOnly stops edits; inputmode="none" is what actually keeps the IME closed on boxes
+  // whose keyboard still pops for a focused read-only field
+  const lock = () => { if(IS_TV_DEVICE){ i.readOnly = true; i.inputMode = 'none'; } };
+  const unlock = e => {
+    if(!IS_TV_DEVICE || !i.readOnly) return;
+    e?.preventDefault();
+    i.readOnly = false;
+    i.inputMode = '';
+    i.focus();
+    window.BoothAndroid?.showKeyboard?.();
+  };
+  lock();
+  i.addEventListener('keydown', e => { if(e.key === 'Enter' && i.readOnly) unlock(e); });
+  i.addEventListener('click', unlock);
+  i.addEventListener('blur', lock);
+}
+export const armInputs = root => root.querySelectorAll?.('input[type="search"], input.field:not([type="checkbox"]), #q').forEach(armInput);
+armInputs(document);
 const cosmetic = n => n.nodeType !== 1 || n.classList.contains('spotact')
   || n.classList.contains('spotinfo') || n.classList.contains('taste');
 const inTrim = el => el?.nodeType === 1 && !!el.closest?.('.spotact, .art');
+// One observer, not two: a second MutationObserver on the same document.body walked every mutation the whole
+// app produces a second time, purely to arm a text field that had just arrived (#291/#296).
 new MutationObserver(muts => {
+  for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) armInputs(n.matches('input') ? n.parentNode : n);
   if(pendingLook) return;
   for(const m of muts){
     const changed = m.type === 'childList'
@@ -382,31 +408,6 @@ addEventListener('keydown', e => {
   tvMove(dir);
 }, true);
 
-// Remote control (Android TV): text fields stay locked while focus passes over them, so the on-screen
-// keyboard doesn't pop up; OK (Enter) unlocks the field and opens the keyboard.
-export function armInput(i){
-  if(i.dataset.tvArmed) return;
-  i.dataset.tvArmed = 1;
-  // readOnly stops edits; inputmode="none" is what actually keeps the IME closed on boxes
-  // whose keyboard still pops for a focused read-only field
-  const lock = () => { if(IS_TV_DEVICE){ i.readOnly = true; i.inputMode = 'none'; } };
-  const unlock = e => {
-    if(!IS_TV_DEVICE || !i.readOnly) return;
-    e?.preventDefault();
-    i.readOnly = false;
-    i.inputMode = '';
-    i.focus();
-    window.BoothAndroid?.showKeyboard?.();
-  };
-  lock();
-  i.addEventListener('keydown', e => { if(e.key === 'Enter' && i.readOnly) unlock(e); });
-  i.addEventListener('click', unlock);
-  i.addEventListener('blur', lock);
-}
-export const armInputs = root => root.querySelectorAll?.('input[type="search"], input.field:not([type="checkbox"]), #q').forEach(armInput);
-armInputs(document);
-new MutationObserver(muts => { for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) armInputs(n.matches('input') ? n.parentNode : n); })
-  .observe(document.body, {childList: true, subtree: true});
 // Back on the remote/phone: close an open panel or keyboard first (called by the app before going back).
 /** The longest Down from the source tabs waits for the row they turn (above). */
 const TABS_WAIT_MS = 2500;
