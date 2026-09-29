@@ -88,7 +88,9 @@
 .strip{display:flex;gap:16px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}
 .strip{scrollbar-width:none} .strip::-webkit-scrollbar{width:0;height:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--poster-w),1fr));gap:22px 16px}
-.poster{flex:0 0 var(--poster-w);scroll-snap-align:start;text-decoration:none;display:block}
+/* the browser's own long-press menu on a link/image never gets the chance to open over a card - the app's own
+   long press (removing one from Continue Watching, js/ui/rows.js) is the only thing a long press does here */
+.poster{flex:0 0 var(--poster-w);scroll-snap-align:start;text-decoration:none;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .poster .art{aspect-ratio:2/3;border-radius:6px;background:var(--surface) center/cover;position:relative;overflow:hidden;transition:transform .2s}
 .poster:hover .art{transform:translateY(-2px)}
 .poster .t{margin-top:8px;font-weight:600;font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

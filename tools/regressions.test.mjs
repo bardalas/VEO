@@ -964,3 +964,10 @@ test('the live-TV row list is larger and more comfortable, not squeezed to fit e
   assert.match(css, /html\[data-device="tv"\] \.chmain>\.chname\{grid-area:name;margin:0;font-size:20px/);
   assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
 });
+
+test('the WebView does not intercept a long press on a poster with its own native handling (#299)', async () => {
+  const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  const css = await readFile(path.join(assets, 'css/content.css'), 'utf8');
+  assert.match(main, /web\.setOnLongClickListener \{ true \}/);
+  assert.match(css, /\.poster\{[^}]*-webkit-touch-callout:none/);
+});
