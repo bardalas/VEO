@@ -920,3 +920,17 @@ test('noteKnown evicts the oldest title in O(1), not by recomputing every key (#
   assert.match(k, /const oldest = order\.keys\(\)\.next\(\)\.value; order\.delete\(oldest\); delete seen\[oldest\];/);
   assert.doesNotMatch(k, /Object\.keys\(seen\)\[0\]/);
 });
+
+test('the Israeli Film Archive movie source is gone (#284)', async () => {
+  const files = ['js/ui/origins.js', 'js/screens/broadcasters.js', 'js/app.js', 'js/ui/rows.js', 'js/i18n.js', 'js/core/store.js'];
+  for(const f of files){
+    const src = await readFile(path.join(assets, f), 'utf8');
+    assert.doesNotMatch(src, /jfc/i, f);
+  }
+  await assert.rejects(readFile(path.join(assets, 'js/providers/jfc.js'), 'utf8'));
+});
+
+test("removing a Continue Watching card stops the click reaching reel.js's own click listener, which opened the title regardless (#282)", async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
+});

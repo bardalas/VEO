@@ -7,7 +7,7 @@
    its name alone and gets the copy of the profile the page was opened in. Switching profile opens the
    page again (data/profiles.js), so no module goes on holding the previous profile's copy. */
 export const PROFILE_KEYS = new Set(['settings', 'progress', 'library', 'kidsIds', 'kidsTeenIds', 'remind', 'remindAt', 'quality', 'taste', 'tasteSeeded',
-  'sort', 'libSort:movie', 'libSort:series', 'srcTab', 'tvTab', 'jfcLobby', 'mkGenre', 'livePl', 'liveGroup', 'lastChannel']);
+  'sort', 'libSort:movie', 'libSort:series', 'srcTab', 'tvTab', 'mkGenre', 'livePl', 'liveGroup', 'lastChannel']);
 const LIST_KEY = 'booth:profiles', ACTIVE_KEY = 'booth:profile';
 export const profileKey = (pid, k) => `booth:p/${pid}/${k}`;
 const read = k => { try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : undefined; }catch(e){ return undefined; } };
