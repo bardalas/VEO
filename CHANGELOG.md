@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.42 — 2026-09-29
+- **Removing a Continue Watching card actually works now**, on a real remote's held OK - the previous fix
+  relied on a signal not every remote sends. (#292)
+- **Live TV rows are larger again** - they had been shrunk too far to fit six a screen. (#293)
+- **One less redundant pass over every screen change**, towards the ongoing heaviness report (#291). (#296)
+
 ## 0.45.41 — 2026-09-29
 - **Removing a title from Continue Watching no longer opens it** by mistake. (#282)
 - **The Israeli Film Archive source is gone** - not relevant. (#284)
