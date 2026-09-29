@@ -828,7 +828,7 @@ test('an update is installed through a PackageInstaller session, so the app is n
 
 test('on a television the live channels are a list, one to a row with room between (#254)', async () => {
   const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
-  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:8px\}/);
+  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
   assert.match(css, /html\[data-device="tv"\] \.chmain\{display:grid;/);
   assert.match(css, /grid-template-areas:"top name foot" "top now bar"/);          // the times and the small progress bar of what is on now, at the far end
 });
@@ -949,4 +949,11 @@ test('Continue Watching remove: the remote long-press is timed (keydown/keyup), 
   assert.doesNotMatch(rows, /e\.repeat/);
   assert.match(rows, /if\(e\.key === 'Enter' && !keyHeld\)\{ keyHeld = true; start\(\); \}/);
   assert.match(rows, /if\(e\.key === 'Enter'\)\{ keyHeld = false; cancel\(\); \}/);
+});
+
+test('the live-TV row list is larger and more comfortable, not squeezed to fit exactly six (#293)', async () => {
+  const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
+  assert.match(css, /html\[data-device="tv"\] \.chlogo\{height:52px;border-radius:10px\}/);
+  assert.match(css, /html\[data-device="tv"\] \.chmain>\.chname\{grid-area:name;margin:0;font-size:20px/);
+  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
 });
