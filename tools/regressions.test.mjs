@@ -943,3 +943,10 @@ test("removing a Continue Watching card stops the click reaching reel.js's own c
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(rows, /if\(longPressed\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); longPressed = false; \}/);
 });
+
+test('the live-TV row list is larger and more comfortable, not squeezed to fit exactly six (#293)', async () => {
+  const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
+  assert.match(css, /html\[data-device="tv"\] \.chlogo\{height:52px;border-radius:10px\}/);
+  assert.match(css, /html\[data-device="tv"\] \.chmain>\.chname\{grid-area:name;margin:0;font-size:20px/);
+  assert.match(css, /html\[data-device="tv"\] \.chlist\{grid-template-columns:minmax\(0,1fr\);gap:12px\}/);
+});

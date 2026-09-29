@@ -79,18 +79,18 @@
 .chmain:hover{border-color:var(--line)}
 /* A television lists its channels, one to a row, six to a screen, with room between them: the logo and number at the start, the name and what is on
    now (with how far into it) beside them, and the times and marks at the end (#254). */
-html[data-device="tv"] .chlist{grid-template-columns:minmax(0,1fr);gap:8px}
-html[data-device="tv"] .chmain{display:grid;grid-template-columns:104px minmax(0,1fr) 150px;grid-template-areas:"top name foot" "top now bar";
-  align-items:center;column-gap:18px;row-gap:0;padding:3px 18px 3px 6px;border-radius:12px}
+html[data-device="tv"] .chlist{grid-template-columns:minmax(0,1fr);gap:12px}
+html[data-device="tv"] .chmain{display:grid;grid-template-columns:130px minmax(0,1fr) 160px;grid-template-areas:"top name foot" "top now bar";
+  align-items:center;column-gap:20px;row-gap:2px;padding:8px 20px 8px 10px;border-radius:14px}
 html[data-device="tv"] .chmain>.chtop{grid-area:top}
-html[data-device="tv"] .chmain>.chname{grid-area:name;margin:0;font-size:17px;line-height:1.2}
-html[data-device="tv"] .chmain>.chnow{grid-area:now;font-size:13px;line-height:1.2;min-height:0}
+html[data-device="tv"] .chmain>.chname{grid-area:name;margin:0;font-size:20px;line-height:1.2}
+html[data-device="tv"] .chmain>.chnow{grid-area:now;font-size:15px;line-height:1.2;min-height:0}
 /* what is on now (from the guide): its name beside the logo, and at the far end its times over a small bar of how far it has got */
-html[data-device="tv"] .chmain>.bar{grid-area:bar;margin:0;height:5px;width:100%;align-self:center}
-html[data-device="tv"] .chmain>.chfoot{grid-area:foot;flex-direction:row;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;min-height:0}
-html[data-device="tv"] .chlogo{height:36px;border-radius:8px}
-html[data-device="tv"] .chlogo img{max-height:28px}
-html[data-device="tv"] .chnum{font-size:12px;top:2px;inset-inline-start:6px}
+html[data-device="tv"] .chmain>.bar{grid-area:bar;margin:0;height:6px;width:100%;align-self:center}
+html[data-device="tv"] .chmain>.chfoot{grid-area:foot;flex-direction:row;justify-content:flex-end;align-items:center;gap:8px;font-size:15px;min-height:0}
+html[data-device="tv"] .chlogo{height:52px;border-radius:10px}
+html[data-device="tv"] .chlogo img{max-height:40px}
+html[data-device="tv"] .chnum{font-size:13px;top:4px;inset-inline-start:8px}
 html[data-device="tv"] .chtag{top:2px}
 
 .chmain.last{border-color:var(--tungsten)}
