@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.43 — 2026-09-29
+- **Another attempt at removing a Continue Watching card.** The WebView's own native long-press handling could
+  win the race before the page's own touch/key handling got a clean press. Not verified on real hardware -
+  please test it. (#292)
+
 ## 0.45.42 — 2026-09-29
 - **Removing a Continue Watching card actually works now**, on a real remote's held OK - the previous fix
   relied on a signal not every remote sends. (#292)
