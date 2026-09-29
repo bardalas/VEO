@@ -3,7 +3,6 @@ import {$, esc, lazyBg, showErr} from '../core/dom.js';
 import {isTvLayout, rowMax} from '../core/settings.js';
 import {store} from '../core/store.js';
 import {kidsOn, liveAllowed} from '../data/kids.js';
-import {JFC_LOBBIES, jfcCard, jfcLobby} from '../providers/jfc.js';
 import {KAN, kanBox} from '../providers/kan.js';
 import {IL_CHANNELS, watchChannel} from '../providers/live.js';
 import {MAKO_GENRES} from '../providers/mako.js';
@@ -113,28 +112,7 @@ export async function viewShows(which){
   }
 }
 
-/** The film archive's own page (#/tv/jfc): a source of Movies, with its lobbies. */
+/** #/tv/<broadcaster>: kept for old addresses - the broadcasters are in Shows now. */
 export function viewTv(which){
-  if(which !== 'jfc') return viewShows({kan: 'kan', keshet: 'keshet', reshet: 'reshet'}[which]);   // the broadcasters are in Shows now
-  viewJfcTab(`<div class="page" style="padding-bottom:0"><h1>${esc(tr('origin.jfc'))}</h1></div>`);
-}
-
-/** The archive's tab: pick a lobby, see its rows, open a film on the archive's site. */
-export async function viewJfcTab(tabs){
-  const path = store.get('jfcLobby', JFC_LOBBIES[0][0]);
-  const picker = `<div class="page" style="padding-top:0">
-    <div class="ltabs" role="group" aria-label="חלקי הארכיון">${JFC_LOBBIES.map(([u, n]) =>
-      `<button class="${u === path ? 'on' : ''}" data-lobby="${esc(u)}">${esc(n)}</button>`).join('')}</div>
-    <p class="note" style="margin:10px 0 0">הסרטים מתנגנים באתר הארכיון, בתוך האפליקציה. חלק מהסרטים דורשים חשבון חינם באתר, וחלק בתשלום.</p></div>`;
-  $('#app').innerHTML = tabs + picker + `<div id="jfcrows"><p class="note" style="padding:0 28px">טוען מהארכיון…</p></div>`;
-  $('#app').querySelectorAll('[data-lobby]').forEach(b => b.onclick = () => { store.set('jfcLobby', b.dataset.lobby); viewJfcTab(tabs); });
-  try{
-    const rows = await jfcLobby(path);
-    const host = $('#jfcrows');
-    if(!host) return;
-    host.innerHTML = rows.slice(0, isTvLayout() ? 8 : 20).map(r => `<div class="row"><h2><bdi>${esc(r.title)}</bdi></h2>
-      <div class="strip">${r.items.slice(0, rowMax()).map(jfcCard).join('')}</div></div>`).join('')
-      || '<p class="note" style="padding:0 28px">אין כרגע תכנים בחלק הזה.</p>';
-    lazyBg(host);
-  }catch(e){ showErr($('#jfcrows'), 'לא ניתן לטעון את ארכיון הסרטים הישראלי', e, () => viewJfcTab(tabs)); }
+  return viewShows({kan: 'kan', keshet: 'keshet', reshet: 'reshet'}[which]);
 }

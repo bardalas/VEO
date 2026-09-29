@@ -51,7 +51,10 @@ function wireRemovable(strip){
     b.onpointerdown = () => { longPressed = false; clearTimeout(timer); timer = setTimeout(ask, 600); };
     b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(timer);
     b.addEventListener('keydown', e => { if(e.key === 'Enter' && e.repeat && !longPressed){ e.preventDefault(); ask(); } });
-    b.addEventListener('click', e => { if(longPressed){ e.preventDefault(); longPressed = false; } });
+    // reel.js's own document-level click listener opens the centred ('spot') card regardless of this element's
+    // default being prevented - it never looks at defaultPrevented, only at what was clicked. Stopping the event
+    // here, not just its default, is what actually keeps a long press from opening the title (#282).
+    b.addEventListener('click', e => { if(longPressed){ e.preventDefault(); e.stopPropagation(); longPressed = false; } });
   });
 }
 
@@ -227,7 +230,7 @@ function showRow(el, x){
 /** How long a row of several sources waits for the slow ones before it is drawn from the rest. */
 const FIRST_PAINT_MS = 2500;
 /** What a row of one source says when that source cannot be reached. */
-const FAILED = {kan: 'row.failedKan', mako: 'row.failedMako', r13: 'row.failedR13', jfc: 'row.failedJfc'};
+const FAILED = {kan: 'row.failedKan', mako: 'row.failedMako', r13: 'row.failedR13'};
 /** The screen's rows, so that a row can be told to show something else (the source tabs). */
 let current = null;
 /** Show [origins] in row [i] - the source tabs over Movies and Series. */

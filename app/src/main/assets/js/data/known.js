@@ -6,14 +6,19 @@ import {heCache} from './hebrew.js';
 
 const KEEP = 1500;
 const seen = store.get('knownTitles', {});                 // id -> {n: name, t: type}
-let count = Object.keys(seen).length;
+// The order they were noted in, kept apart from `seen` (whose own key order Object.keys would have to walk in
+// full, every time, just to find the oldest one - a grid of a few hundred new titles once did that a few
+// hundred times over, each a pass of up to 1500 keys, and the app grew heavier as a long-time viewer's cache
+// filled (#286). A Map's own iteration order is insertion order, and its first key costs nothing to ask for.
+const order = new Map(Object.keys(seen).map(id => [id, 1]));
 
 /** Remember a title that was on a screen (cards call this): its name and type, once, the oldest let go past KEEP. */
 export function noteKnown(m){
   const id = m?.id;
   if(!id || seen[id] || !/^tt\d+$/.test(id) || !m.name || !(m.type === 'movie' || m.type === 'series')) return;
   seen[id] = {n: m.name, t: m.type};
-  if(++count > KEEP){ delete seen[Object.keys(seen)[0]]; count--; }
+  order.set(id, 1);
+  if(order.size > KEEP){ const oldest = order.keys().next().value; order.delete(oldest); delete seen[oldest]; }
   store.lazy('knownTitles', seen);
 }
 

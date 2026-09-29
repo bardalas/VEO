@@ -104,7 +104,7 @@ export async function route(){
   document.body.classList.toggle('who', r === 'who');   // the picker has the screen to itself (screens/profiles.js)
   // the menu lights the place you are in; a title or a search keeps the one it was opened from
   markNav(r === '' ? 'home' : r === 'cat' ? (['movies', 'series'].includes(a) ? a : '') : r === 'all' ? (a === 'movie' ? 'movies' : 'series')
-    : r === 'shows' || r === 'web' ? 'shows' : r === 'tv' ? (a === 'jfc' ? 'movies' : 'shows') : ['live', 'library', 'settings', 'who'].includes(r) ? r
+    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : ['live', 'library', 'settings', 'who'].includes(r) ? r
     : r === 'profile' || r === 'report' ? 'settings' : '');
   if(['', 'cat', 'all', 'genres', 'genre', 'search', 'library', 'shows', 'tv'].includes(r)) listHash = location.hash || '#/';
   if(r === 'genres') viewGenres();
