@@ -1158,6 +1158,7 @@ class PlayerActivity : AppCompatActivity() {
         bar.visibility = View.VISIBLE
         bar.progress = (((minOf(nowMs, to) - from) * 100) / span).toInt().coerceIn(0, 100)
         bar.secondaryProgress = 0
+        bar.buffered = -1
         if (mark) { bar.marker = (((at - from) * 100) / span).toInt().coerceIn(0, 100); bar.markLabel = hhmm(at / 1000) }
         else bar.marker = -1
     }
@@ -1307,7 +1308,7 @@ class PlayerActivity : AppCompatActivity() {
 
     /** The same banner, for a film: its name, where you are in it, and how much of it is left. */
     private fun paintFilm() {
-        fitBar(film = true)
+        fitBar(film = false)                                        // as tall as live TV's: the arrow and its time need the room
         val p = player ?: return
         val dur = p.duration.coerceAtLeast(0)
         val aim = scrubTo >= 0
@@ -1320,7 +1321,12 @@ class PlayerActivity : AppCompatActivity() {
             android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date())
         val bar = findViewById<SeekBarView>(R.id.nowBar)
         bar.visibility = if (dur > 0) View.VISIBLE else View.GONE
-        if (dur > 0) bar.progress = ((pos * 100) / dur).toInt().coerceIn(0, 100)
+        if (dur > 0) {
+            bar.progress = ((pos * 100) / dur).toInt().coerceIn(0, 100)
+            bar.buffered = ((p.bufferedPosition.coerceAtLeast(0) * 100) / dur).toInt().coerceIn(0, 100)      // what is already loaded: a soft fill
+            bar.marker = bar.progress                                                                       // where we are: the small arrow, with its time
+            bar.markLabel = fmtClock(pos)
+        } else { bar.marker = -1; bar.buffered = -1 }
         // times read left to right even on a right-to-left screen, where they would otherwise be reordered
         findViewById<TextView>(R.id.nowTitle).apply {
             textDirection = View.TEXT_DIRECTION_LTR

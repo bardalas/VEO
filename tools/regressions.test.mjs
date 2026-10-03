@@ -1031,6 +1031,14 @@ test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open
   assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
 });
 
+test("a film's banner bar has the arrow with the time where we are and a soft fill for the buffer (#322)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const b = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SeekBarView.kt'), 'utf8');
+  assert.match(k, /bar\.buffered = \(\(p\.bufferedPosition/);
+  assert.match(k, /bar\.marker = bar\.progress/);
+  assert.match(b, /var buffered = -1/);
+});
+
 test("the sync scan reads over HTTP ranges and, for a torrent, only what has been played (#326)", async () => {
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
   const h = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/HttpRangeSource.kt'), 'utf8');

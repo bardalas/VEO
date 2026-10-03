@@ -25,6 +25,10 @@ class SeekBarView @JvmOverloads constructor(context: Context, attrs: AttributeSe
     var secondaryProgress = 0
         set(v) { field = v.coerceIn(0, 100); invalidate() }
 
+    /** How much of a film is already in the player's buffer, 0..100: a soft fill behind the progress, or -1 for none. */
+    var buffered = -1
+        set(v) { field = v.coerceIn(-1, 100); invalidate() }
+
     /** Where the arrow stands, 0..100 along the bar (the way the layout runs), or -1 for none; and the time it says. */
     var marker = -1
         set(v) { field = v.coerceIn(-1, 100); invalidate() }
@@ -51,6 +55,10 @@ class SeekBarView @JvmOverloads constructor(context: Context, attrs: AttributeSe
         paint.style = Paint.Style.FILL
         paint.color = track
         canvas.drawRect(0f, top, w, top + bar, paint)
+        if (buffered > progress) {
+            paint.color = (accent and 0x00FFFFFF) or 0x44000000
+            canvas.drawRect(0f, top, w * buffered / 100f, top + bar, paint)
+        }
         val at = w * progress / 100f
         val edge = w * secondaryProgress / 100f
         if (edge > at + 1f) {
