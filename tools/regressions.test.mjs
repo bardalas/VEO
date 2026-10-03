@@ -995,18 +995,6 @@ test('subtitles: sync to a line, next subtitle, stretch and frame-rate rows are 
   assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
 });
 
-test('automatic sync: the audio renderer feeds a speech timeline; the aligner tries the frame-rate scales and needs a z-score to lock (#302)', async () => {
-  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
-  const r = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
-  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(a, /const val Z_LOCK = 5\.5/);
-  assert.match(a, /val HYPOTHESES = doubleArrayOf\(1\.0, 25 \/ 23\.976, 23\.976 \/ 25, 24 \/ 23\.976, 23\.976 \/ 24, 25 \/ 24\.0, 24 \/ 25\.0\)/);
-  assert.match(a, /const val PRIOR_NONE = 1\.0/);
-  assert.match(r, /override fun processOutputBuffer/);
-  assert.match(r, /timeline\.feed\(buffer, rate, channels, bufferPresentationTimeUs\)/);
-  assert.match(k, /TappingAudioRenderer\(context, androidx\.media3\.exoplayer\.mediacodec\.MediaCodecAdapter\.Factory\.getDefault\(context\)/);
-});
-
 test('the player info bar is sized by screen (a phone much lower than a television) and the next-episode button fills over the time to press (#303)', async () => {
   const layout = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
   const phone = await readFile(path.join(repo, 'app/src/main/res/values/dimens.xml'), 'utf8');
@@ -1030,19 +1018,26 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
-test("automatic sync is a button: off until OK, shows its progress, stops on OK (#309)", async () => {
-  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(k, /private var autoOn = false/);
-  assert.doesNotMatch(k, /getBoolean\("autoSync"/);
-  assert.match(k, /OK להפעלה/);
-  assert.match(k, /מאזין… /);
-  assert.match(k, /if \(autoOn\) \{\s+aligner = /);
-});
-
 test("a held OK on a Continue Watching card does not open it: Enter keydown is swallowed, a short press opens on keyup (#307)", async () => {
   const k = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
   assert.match(k, /if\(short\)\{ e\.preventDefault\(\); b\.click\(\); \}/);
+});
+
+
+test("automatic sync is a one-time scan of the film's own sound, started from a panel row, not a tap on playback (#318)", async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
+  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(a, /const val Z_LOCK = 5\.5/);
+  assert.match(a, /val HYPOTHESES = doubleArrayOf\(1\.0, 25 \/ 23\.976/);
+  assert.match(a, /const val PRIOR_NONE = 1\.0/);
+  assert.match(sc, /MediaExtractor\(\)/);
+  assert.match(sc, /ENCODING_PCM_FLOAT/);
+  assert.match(sc, /if \(est != null && est\.locked\) return est/);
+  assert.match(k, /private fun startScan\(\)/);
+  assert.match(k, /OK לסנכרון אוטומטי/);
+  assert.doesNotMatch(k, /TappingAudioRenderer/);
 });
 
 test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open (#314)", async () => {
