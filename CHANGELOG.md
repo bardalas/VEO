@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.51 — 2026-10-04
+- **Subtitle sync feedback is now always visible.** Starting automatic sync closes the subtitles panel, keeps the countdown/result above player overlays, and shows explicit success/failure reasons instead of appearing to do nothing. (#345)
+
 ## 0.45.50 — 2026-10-04
 - **The sync offer shows on every pause** (it was hidden when a sync had been saved), as a small pill at the top. Tapping it - or Down on a remote -
   starts the sync with a countdown from 10, and the answer is always shown: the offset, any speed change and how sure it is, or why nothing could be told. (#342)
