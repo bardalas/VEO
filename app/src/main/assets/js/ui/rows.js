@@ -55,8 +55,19 @@ function wireRemovable(strip){
     // Timed like the touch press above, not read off the key's own repeat flag: a remote's OK does not always
     // reach the page with repeat:true on every device (#292 - a held OK opened the title outright, the timer
     // having never started), while a keydown/keyup pair is always there to time against.
-    b.addEventListener('keydown', e => { if(e.key === 'Enter' && !keyHeld){ keyHeld = true; start(); } });
-    b.addEventListener('keyup', e => { if(e.key === 'Enter'){ keyHeld = false; cancel(); } });
+    // A link or button activates on the keydown of Enter, so the title had already opened by the time the hold
+    // was long enough to ask (#307). The keydown is swallowed; a short press opens the title on its keyup.
+    b.addEventListener('keydown', e => {
+      if(e.key !== 'Enter') return;
+      e.preventDefault();
+      if(!keyHeld){ keyHeld = true; start(); }
+    });
+    b.addEventListener('keyup', e => {
+      if(e.key !== 'Enter') return;
+      const short = keyHeld && !longPressed;
+      keyHeld = false; cancel();
+      if(short){ e.preventDefault(); b.click(); }
+    });
     // reel.js's own document-level click listener opens the centred ('spot') card regardless of this element's
     // default being prevented - it never looks at defaultPrevented, only at what was clicked. Stopping the event
     // here, not just its default, is what actually keeps a long press from opening the title (#282).
