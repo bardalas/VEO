@@ -146,7 +146,7 @@ class PlayerActivity : AppCompatActivity() {
      */
     private val speech = SpeechTimeline()
     private var aligner: AutoAligner? = null
-    private var autoOn = true
+    private var autoOn = false          // a button the viewer presses, not something that starts by itself
     private var autoLocked = false
     private var autoOffset = 0L
     private var autoScale = 1.0
@@ -154,7 +154,7 @@ class PlayerActivity : AppCompatActivity() {
     private var autoNote = ""
     @Volatile private var autoBusy = false
     private val autoExec = java.util.concurrent.Executors.newSingleThreadExecutor()
-    private val AUTO_TICK_MS = 8_000L
+    private val AUTO_TICK_MS = 3_000L
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
     private var lineAnchor: Pair<Long, Long>? = null
     /** While the viewer is choosing the line to sync to: the index of the line being offered, else -1. */
@@ -199,7 +199,6 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
-        autoOn = prefs.getBoolean("autoSync", true)
         speech.debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
@@ -355,7 +354,7 @@ class PlayerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
             autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
-            autoLocked = autoOn; autoLevel = 2; autoNote = "נשמר"
+            autoLocked = true; autoLevel = 2; autoNote = "נשמר"
             return
         }
         val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
@@ -384,7 +383,9 @@ class PlayerActivity : AppCompatActivity() {
         override fun run() {
             handler.postDelayed(this, AUTO_TICK_MS)
             val al = aligner ?: return
-            if (!autoOn || autoBusy || player == null) return
+            if (!autoOn || player == null) return
+            refreshPanel()                                          // the listening is shown as it goes
+            if (autoBusy) return
             val top = speech.top
             val cb = AutoSync.CHUNK_BINS
             if (top < cb) return
@@ -409,10 +410,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun onAutoEstimate(est: AutoAligner.Estimate?, chunks: Int) {
+        refreshPanel()
         if (est == null) { if (!autoLocked) autoNote = "מחכה לדיבור"; return }
         android.util.Log.d(AutoSync.TAG, "minutes=$chunks scale=${"%.4f".format(est.scale)} offset=${est.offsetMs} z=${"%.1f".format(est.z)}")
         if (!est.locked) {
-            if (!autoLocked) { autoLevel = est.level; autoNote = "מנתח…" }
+            if (!autoLocked) { autoLevel = est.level; autoNote = "מנתח · ${chunks} דק׳ דיבור" }
             return
         }
         val first = !autoLocked
@@ -425,24 +427,29 @@ class PlayerActivity : AppCompatActivity() {
         autoLocked = true; autoLevel = est.level; autoNote = ""
         applySync(); saveSync()
         if (first) showMessage("סנכרון אוטומטי ✓", 2_500)
+        refreshPanel()
+    }
+
+    private fun refreshPanel() {
+        if (panelOpen) (findViewById<ListView>(R.id.chList).adapter as? BaseAdapter)?.notifyDataSetChanged()
     }
 
     private fun autoStatus(): String = when {
-        !autoOn -> "כבוי"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format((autoOffset) / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" }
-        autoNote.isNotEmpty() -> autoNote
-        else -> "מנתח…"
+        !autoOn && autoLocked -> "נשמר ✓ ${"%+.1f".format(autoOffset / 1000.0)}s · OK לחישוב מחדש"
+        !autoOn -> "OK להפעלה"
+        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לעצירה"
+        autoNote.isNotEmpty() && (aligner?.chunks ?: 0) > 0 -> autoNote + " · OK לעצירה"
+        else -> "מאזין… ${(speech.top * AutoSync.BIN_MS / 1000).coerceAtMost(60)}/60 שנ׳ · OK לעצירה"
     }
 
+    /** OK on the row: start listening (it takes a few minutes of dialogue, said so), or stop. What was found stays. */
     private fun toggleAuto() {
         autoOn = !autoOn
-        getSharedPreferences("veo", MODE_PRIVATE).edit().putBoolean("autoSync", autoOn).apply()
-        if (!autoOn) {                                       // back to the file as it is - and the viewer's own work on it
-            autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoNote = ""
-        } else {
+        if (autoOn) {
             aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
-            autoLocked = false; autoLevel = 0; autoNote = ""
-        }
+            autoLevel = 0; autoNote = ""
+            showMessage("מאזין לדיבור ומשווה לכתוביות - לוקח כמה דקות", 4_000)
+        } else showMessage("הסנכרון האוטומטי נעצר", 2_000)
         applySync(); saveSync()
     }
 
