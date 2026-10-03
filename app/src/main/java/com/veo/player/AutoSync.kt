@@ -64,6 +64,8 @@ class SpeechTimeline {
     private var bins = ByteArray(1 shl 15) { -1 }
     @Volatile var top = -1
         private set
+    @Volatile var bottom = Int.MAX_VALUE
+        private set
     /** A debug build says now and then how much of what it hears is taken for speech (logcat, tag VEO-autosync). */
     @Volatile var debug = false
     /** What the audio renderer last said about the sound it was given (format), for the panel when nothing is heard. */
@@ -166,6 +168,7 @@ class SpeechTimeline {
             }
             bins[bin] = pct.coerceIn(0, 100).toByte()
             if (bin > top) top = bin
+            if (bin < bottom) bottom = bin
         }
     }
 
