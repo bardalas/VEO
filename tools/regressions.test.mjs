@@ -954,8 +954,8 @@ test('the two document-body MutationObservers in tvnav.js are one, not two walki
 test('Continue Watching remove: the remote long-press is timed (keydown/keyup), not read off repeat:true (#292)', async () => {
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.doesNotMatch(rows, /e\.repeat/);
-  assert.match(rows, /if\(e\.key === 'Enter' && !keyHeld\)\{ keyHeld = true; start\(\); \}/);
-  assert.match(rows, /if\(e\.key === 'Enter'\)\{ keyHeld = false; cancel\(\); \}/);
+  assert.match(rows, /if\(!keyHeld\)\{ keyHeld = true; start\(\); \}/);
+  assert.match(rows, /keyHeld = false; cancel\(\);/);
 });
 
 test('the live-TV row list is larger and more comfortable, not squeezed to fit exactly six (#293)', async () => {
@@ -1028,4 +1028,8 @@ test("automatic sync is a button: off until OK, shows its progress, stops on OK 
   assert.match(k, /OK להפעלה/);
   assert.match(k, /מאזין… /);
   assert.match(k, /if \(autoOn\) \{\s+aligner = /);
+test("a held OK on a Continue Watching card does not open it: Enter keydown is swallowed, a short press opens on keyup (#307)", async () => {
+  const k = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
+  assert.match(k, /if\(short\)\{ e\.preventDefault\(\); b\.click\(\); \}/);
 });
