@@ -1020,3 +1020,12 @@ test('the player info bar is sized by screen (a phone much lower than a televisi
   assert.match(k, /if \(ended && nextFill == null\) startNextFill\(\)/);
   assert.doesNotMatch(k, /nextCount/);
 });
+
+test("line sync allows half a second for the viewer's reaction; the info bar text is larger (#311)", async () => {
+  const sy = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SubSync.kt'), 'utf8');
+  const phone = await readFile(path.join(repo, 'app/src/main/res/values/dimens.xml'), 'utf8');
+  const tv = await readFile(path.join(repo, 'app/src/main/res/values-sw600dp/dimens.xml'), 'utf8');
+  assert.match(sy, /REACTION_MS = 500L/);
+  assert.match(phone, /name="info_name_text">20sp/);
+  assert.match(tv, /name="info_name_text">26sp/);
+});
