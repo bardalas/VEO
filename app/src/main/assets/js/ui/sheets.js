@@ -92,6 +92,9 @@ export function pickFrom(title, opts, current){
       <div class="body sortopts">${opts.map(([v, n]) => `<button class="sopt${v === current ? ' on' : ''}" data-v="${esc(v)}" aria-pressed="${v === current}">${esc(n)}</button>`).join('')}</div></div>`;
     document.body.appendChild(sheet);
     const done = v => { sheet.remove(); resolve(v); };
+    // A sheet raised by a held OK (a long press) opens under a key that is still down: its auto-repeat would press the
+    // focused option at once and close the sheet again (#314). Only a fresh press counts.
+    sheet.addEventListener('keydown', e => { if(e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); }, true);
     sheet.onclick = e => { if(e.target === sheet) done(null); };
     sheet.querySelector('header button').onclick = () => done(null);
     sheet.querySelectorAll('.sopt').forEach(b => b.onclick = () => done(b.dataset.v));

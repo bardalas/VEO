@@ -1039,3 +1039,8 @@ test("automatic sync is a one-time scan of the film's own sound, started from a 
   assert.match(k, /OK לסנכרון אוטומטי/);
   assert.doesNotMatch(k, /TappingAudioRenderer/);
 });
+
+test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open (#314)", async () => {
+  const k = await readFile(path.join(assets, 'js/ui/sheets.js'), 'utf8');
+  assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
+});
