@@ -608,7 +608,7 @@ test('the load control fetches further ahead on a fast line, and a pause goes on
   assert.match(lc, /CAP_BYTES \/ \(stream \/ 8\.0\)/);                                // and never more than fits in the memory allowed
   assert.doesNotMatch(lc, /LoadControl by base/);                                     // delegation leaves newer methods throwing
   assert.match(lc, /override fun onTracksSelected\(playerId: PlayerId/); assert.match(lc, /override fun onTracksSelected\(parameters: LoadControl\.Parameters/);
-  assert.match(pa, /val extend = !live && !intent\.getBooleanExtra\("torrent", false\)/);   // not a live stream, not a local torrent
+  assert.match(pa, /val extend = !live /);   // not a live stream; a torrent fills on too (#330)
   assert.match(pa, /@Volatile private var streamBps/);                                // the player is not asked from its own thread
 });
 
@@ -1059,4 +1059,11 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
   assert.match(main, /fun holdable\(on: Boolean\)/);
   assert.match(main, /web\.postDelayed\(holdRun, 600\)/);
   assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
+});
+
+test("the buffering wheel takes the skin's primary colour, and a paused torrent fills on like any film (#329, #330)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /exo_buffering\)\?\.indeterminateTintList = .*skin\.accent/);
+  assert.match(k, /val extend = !live /);
+  assert.doesNotMatch(k, /val extend = !live && /);
 });

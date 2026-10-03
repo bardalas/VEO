@@ -912,10 +912,10 @@ class PlayerActivity : AppCompatActivity() {
             .build()
         /* On a fast line a film is fetched further ahead than the ninety seconds everybody gets, and a pause goes
            on filling to that ceiling instead of stopping (AdaptiveLoadControl): the film is in hand when the viewer
-           comes back to it. Not for a torrent (it is local) or a live stream (it must stay near its edge). */
+           comes back to it. Not for a live stream (it must stay near its edge). */
         val bandwidth = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.getSingletonInstance(this)
         streamBps = 0L
-        val extend = !live && !intent.getBooleanExtra("torrent", false)      // decided here: the control runs on the player's own thread
+        val extend = !live      // decided here: the control runs on the player's own thread (a paused torrent too fills on, its pieces being fetched ahead of the reader)
         val loadControl = AdaptiveLoadControl(baseControl,
             lineBps = { bandwidth.bitrateEstimate },
             streamBps = { streamBps },
@@ -1018,6 +1018,8 @@ class PlayerActivity : AppCompatActivity() {
                 findViewById<PlayerView>(R.id.playerView).apply {
                     player = it
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)   // fetching looks like work, not like nothing
+                    // the wheel is the skin's primary colour, not the player's white
+                    findViewById<android.widget.ProgressBar>(androidx.media3.ui.R.id.exo_buffering)?.indeterminateTintList = android.content.res.ColorStateList.valueOf(skin.accent)
                     if (!live) hideController()
                 }
                 // an HLS address is read by a source of our own, told the same thing about keyframes (see nonIdr)
