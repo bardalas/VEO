@@ -18,6 +18,8 @@ class AutoScan(
     private val headers: Map<String, String>,
     private val durationMs: Long,
     private val fromMs: Long,
+    /** A torrent: only what has been downloaded can be read without waiting, and that is what has been played. */
+    private val torrent: Boolean,
     private val aligner: AutoAligner,
     /** (minutes looked at so far, places to look in, what is happening) - from the scan's own thread. */
     private val progress: (Int, Int, String) -> Unit
@@ -32,14 +34,19 @@ class AutoScan(
         var codec: MediaCodec? = null
         try {
             progress(0, 0, "פותח את הסרט")
-            ex.setDataSource(url, headers)
+            if (url.startsWith("http")) ex.setDataSource(HttpRangeSource(url, headers, if (torrent) 60_000 else 30_000)) else ex.setDataSource(url, headers)
             var track = -1
             var fmt: MediaFormat? = null
             for (i in 0 until ex.trackCount) {
                 val f = ex.getTrackFormat(i)
                 if ((f.getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/")) { track = i; fmt = f; break }
             }
-            if (track < 0 || fmt == null) { why = "אין ערוץ שמע בקובץ"; return null }
+            if (track < 0 || fmt == null) {
+                val seen = (0 until ex.trackCount).joinToString(",") { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME) ?: "?" }
+                val kind = when { url.contains(".m3u8") -> "HLS"; url.contains(".mpd") -> "DASH"; url.contains("127.0.0.1") || url.contains("localhost") -> "מקומי"; else -> url.substringBefore('?').substringAfterLast('.', "?").take(5) }
+                why = "אין ערוץ שמע בקובץ (${ex.trackCount} ערוצים: ${seen.ifEmpty { "-" }}; $kind)"
+                return null
+            }
             ex.selectTrack(track)
             val mime = fmt.getString(MediaFormat.KEY_MIME)!!
             codec = try { MediaCodec.createDecoderByType(mime) } catch (e: Exception) { why = "אין מפענח לשמע $mime במכשיר"; return null }
@@ -51,10 +58,18 @@ class AutoScan(
             val last = (durationMs / cellMs).toInt() - 2                     // not the credits
             val first = (fromMs / cellMs).toInt() + 1
             val order = ArrayList<Int>()
-            var c = first.coerceAtLeast(2)
-            while (c <= last && order.size < MAX_PLACES / 2 + 1) { order.add(c); c += 2 }          // from here on, a minute in two
-            c = 2
-            while (c < first && c <= last && order.size < MAX_PLACES) { order.add(c); c += 3 }     // then what came before
+            if (torrent) {
+                // what has been played is on the disk; what is ahead may not be, and asking for it would make the torrent fetch it
+                // out of turn. Back from the present, a minute in one.
+                var c = (fromMs / cellMs).toInt() - 1
+                while (c >= 2 && order.size < MAX_PLACES) { order.add(c.coerceAtMost(last)); c-- }
+                if (order.size < 4) { why = "צפה עוד כמה דקות בסרט ונסה שוב - הניתוח קורא רק את מה שכבר ירד"; return null }
+            } else {
+                var c = first.coerceAtLeast(2)
+                while (c <= last && order.size < MAX_PLACES / 2 + 1) { order.add(c); c += 2 }      // from here on, a minute in two
+                c = 2
+                while (c < first && c <= last && order.size < MAX_PLACES) { order.add(c); c += 3 } // then what came before
+            }
             if (order.isEmpty()) { why = "הסרט קצר מדי"; return null }
 
             var best: AutoAligner.Estimate? = null

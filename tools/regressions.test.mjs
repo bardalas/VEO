@@ -1031,6 +1031,15 @@ test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open
   assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
 });
 
+test("the sync scan reads over HTTP ranges and, for a torrent, only what has been played (#326)", async () => {
+  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  const h = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/HttpRangeSource.kt'), 'utf8');
+  assert.match(h, /class HttpRangeSource/);
+  assert.match(h, /setRequestProperty\("Range", range\)/);
+  assert.match(sc, /ex\.setDataSource\(HttpRangeSource\(/);
+  assert.match(sc, /if \(torrent\) \{/);
+});
+
 test("a held OK on a Continue Watching card is timed natively, because the WebView gives the page no keyup (#324)", async () => {
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');

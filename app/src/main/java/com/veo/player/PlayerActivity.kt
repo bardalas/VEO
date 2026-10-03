@@ -389,7 +389,7 @@ class PlayerActivity : AppCompatActivity() {
             src.referer.takeIf { it.isNotBlank() }?.let { put("Referer", it) }
             basicAuth(url)?.let { put("Authorization", it) }
         }
-        val job = AutoScan(url, headers, dur, p.currentPosition, al) { done, total, note ->
+        val job = AutoScan(url, headers, dur, p.currentPosition, intent.getBooleanExtra("torrent", false), al) { done, total, note ->
             runOnUiThread { scanNote = if (total > 0) "$note · $done דק׳ נספרו" else note; refreshPanel() }
         }
         scan = job
