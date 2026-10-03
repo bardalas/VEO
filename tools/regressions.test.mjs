@@ -1073,3 +1073,10 @@ test("the buffering wheel takes the skin's primary colour, and a paused torrent 
   assert.match(k, /val extend = !live /);
   assert.doesNotMatch(k, /val extend = !live && /);
 });
+
+test("the sync scan pauses the film while it works and lets it go on after (#335)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /scanResume = p\.playWhenReady; p\.playWhenReady = false/);
+  assert.match(k, /private fun resumeAfterScan\(\)/);
+  assert.match(k, /הסנכרון מוכן ✓/);
+});

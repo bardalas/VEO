@@ -258,7 +258,7 @@ class PlayerActivity : AppCompatActivity() {
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
-        scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""
+        scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; resumeAfterScan()
         val drawing = captions?.any == true
         val view = findViewById<TextView>(R.id.cues)
         view.visibility = if (drawing) View.VISIBLE else View.GONE
@@ -376,6 +376,7 @@ class PlayerActivity : AppCompatActivity() {
     // ---------- automatic sync: a one-time scan of the film's sound, asked for from the panel ----------
     @Volatile private var scan: AutoScan? = null
     @Volatile private var scanNote = ""
+    private var scanResume = false      // the film was playing when the scan began: it goes on when the scan is done
 
     private fun startScan() {
         val al = aligner ?: return
@@ -394,12 +395,14 @@ class PlayerActivity : AppCompatActivity() {
         }
         scan = job
         autoOn = true; autoLevel = 0; scanNote = "פותח את הסרט"
-        showMessage("מנתח את הסאונד מול הכתוביות - לוקח כדקה, אפשר להמשיך לצפות", 5_000)
+        scanResume = p.playWhenReady; p.playWhenReady = false                       // a one-off: the film waits while its sound is read
+        showMessage("הסרט מושהה בזמן שהסאונד מנותח מול הכתוביות - לוקח כדקה", 5_000)
         autoExec.execute {
             val est = job.run()
             runOnUiThread {
                 if (scan !== job) return@runOnUiThread
                 scan = null; autoOn = false
+                resumeAfterScan()
                 if (isFinishing || isDestroyed || aligner !== al) return@runOnUiThread
                 if (job.cancelled) { refreshPanel(); return@runOnUiThread }
                 if (est != null && est.locked) applyAuto(est)
@@ -413,12 +416,14 @@ class PlayerActivity : AppCompatActivity() {
         refreshPanel()
     }
 
+    private fun resumeAfterScan() { if (scanResume) player?.playWhenReady = true; scanResume = false }
+
     private fun applyAuto(est: AutoAligner.Estimate) {
         subShift = 0L; manualStretch = 1.0; lineAnchor = null                        // what was done by hand before is what this has now found
         autoOffset = est.offsetMs; autoScale = est.scale
         autoLocked = true; autoLevel = est.level; scanNote = ""
         applySync(); saveSync()
-        showMessage("סנכרון אוטומטי ✓ %+.1f שנ׳".format(est.offsetMs / 1000.0), 3_000)
+        showMessage("הסנכרון מוכן ✓ %+.1f שנ׳ - ממשיכים".format(est.offsetMs / 1000.0), 3_000)
     }
 
     private fun refreshPanel() {
@@ -434,7 +439,7 @@ class PlayerActivity : AppCompatActivity() {
 
     /** OK on the row: look at the film's sound once (a minute or so), or stop doing it. What was found stays. */
     private fun toggleAuto() {
-        if (autoOn) { scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; showMessage("הסנכרון האוטומטי נעצר", 2_000); return }
+        if (autoOn) { scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; resumeAfterScan(); showMessage("הסנכרון האוטומטי נעצר", 2_000); return }
         aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
         scanNote = ""
         startScan()
