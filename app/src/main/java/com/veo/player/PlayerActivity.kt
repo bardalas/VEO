@@ -378,11 +378,11 @@ class PlayerActivity : AppCompatActivity() {
     @Volatile private var scanNote = ""
 
     private fun startScan() {
-        val al = aligner ?: return
-        val p = player ?: return
-        val src = sources.getOrNull(index) ?: return
+        val al = aligner ?: run { showResult("לא ניתן להתחיל סנכרון · אין כתוביות פעילות"); return }
+        val p = player ?: run { showResult("לא ניתן להתחיל סנכרון · הנגן לא מוכן"); return }
+        val src = sources.getOrNull(index) ?: run { showResult("לא ניתן להתחיל סנכרון · אין מקור וידאו"); return }
         val dur = p.duration
-        if (dur <= 0) { showMessage("הסרט עדיין נטען", 2_000); return }
+        if (dur <= 0) { showResult("לא ניתן להתחיל סנכרון · הסרט עדיין נטען"); return }
         val url = src.url
         val headers = buildMap {
             src.ua.takeIf { it.isNotBlank() }?.let { put("User-Agent", it) }
@@ -406,9 +406,16 @@ class PlayerActivity : AppCompatActivity() {
                 if (job.cancelled) { refreshPanel(); return@runOnUiThread }
                 handler.removeCallbacks(scanTick)
                 // there is always an answer: what was found and how sure, or that nothing could be told and what to do then
-                if (est != null && est.z >= APPLY_Z) { applyAuto(est); showResult(resultText(est, applied = true)) }
-                else if (est != null) { scanNote = "ניחוש: " + resultText(est, applied = false); showResult(scanNote) }
-                else { scanNote = job.why.ifBlank { "לא נמצא דיבור מתאים לניתוח" }; showResult("$scanNote - אפשר לסנכרן לפי שורה") }
+                if (est != null && est.z >= APPLY_Z) {
+                    applyAuto(est)
+                    showResult("סנכרון הושלם · " + resultText(est, applied = true))
+                } else if (est != null) {
+                    scanNote = "ניחוש: " + resultText(est, applied = false)
+                    showResult("סנכרון לא הוחל · " + resultText(est, applied = false))
+                } else {
+                    scanNote = job.why.ifBlank { "לא נמצא דיבור מתאים לניתוח" }
+                    showResult("הסנכרון לא הצליח · $scanNote · אפשר לסנכרן לפי שורה")
+                }
                 refreshPanel()
             }
         }
@@ -452,13 +459,17 @@ class PlayerActivity : AppCompatActivity() {
         hint.text = text
         hint.setTextColor(skin.light)
         hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xE8)) }
+        // During a scan/result this is status, not the old "start sync" button. Keep it above any player panel.
+        hint.setOnClickListener(null)
+        hint.isClickable = false
         hint.visibility = View.VISIBLE
+        hint.bringToFront()
     }
 
     private fun showResult(text: String) {
         showPill(text)
         handler.removeCallbacks(syncHintHide)
-        handler.postDelayed(syncHintHide, 9_000)
+        handler.postDelayed(syncHintHide, 12_000)
     }
 
     private fun refreshPanel() {
@@ -474,7 +485,9 @@ class PlayerActivity : AppCompatActivity() {
 
     /** OK on the row: look at the film's sound once (a minute or so), or stop doing it. What was found stays. */
     private fun toggleAuto() {
-        if (autoOn) { scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; showMessage("הסנכרון האוטומטי נעצר", 2_000); return }
+        if (autoOn) { scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; showResult("הסנכרון האוטומטי נעצר"); return }
+        // The subtitles panel is a full-screen layer above syncHint. Close it before scanning so countdown and result are visible.
+        if (panelOpen) closePanel()
         aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
         scanNote = ""
         startScan()
@@ -1851,7 +1864,9 @@ class PlayerActivity : AppCompatActivity() {
         hint.setTextColor(skin.muted)
         hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xD8)) }
         hint.setOnClickListener { acceptSyncHint() }
+        hint.isClickable = true
         hint.visibility = View.VISIBLE
+        hint.bringToFront()
         handler.postDelayed(syncHintHide, 9_000)
     }
     private val syncHintHide = Runnable { hideSyncHint() }
@@ -1859,7 +1874,11 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(syncHintHide)
         findViewById<View>(R.id.syncHint).visibility = View.GONE
     }
-    private fun acceptSyncHint() { hideSyncHint(); toggleAuto() }
+    private fun acceptSyncHint() {
+        if (autoOn) return
+        hideSyncHint()
+        toggleAuto()
+    }
 
     /** The panel over the video: why it stopped, and the buttons that get the viewer moving again. */
     private fun showErrorPanel(title: String, why: String) {
