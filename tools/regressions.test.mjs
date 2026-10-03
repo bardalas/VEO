@@ -1044,3 +1044,11 @@ test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open
   const k = await readFile(path.join(assets, 'js/ui/sheets.js'), 'utf8');
   assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
 });
+
+test("a film's banner bar has the arrow with the time where we are and a soft fill for the buffer (#322)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const b = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SeekBarView.kt'), 'utf8');
+  assert.match(k, /bar\.buffered = \(\(p\.bufferedPosition/);
+  assert.match(k, /bar\.marker = bar\.progress/);
+  assert.match(b, /var buffered = -1/);
+});
