@@ -1074,11 +1074,14 @@ test("the buffering wheel takes the skin's primary colour, and a paused torrent 
   assert.doesNotMatch(k, /val extend = !live && /);
 });
 
-test("the sync scan has a ten second budget, reads three minutes at once and shows the offset and rate change (#339)", async () => {
+test("the sync scan tolerates slow network reads, exits early when locked and shows the offset and rate change (#339)", async () => {
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(sc, /const val BUDGET_MS = 10_000L/);
-  assert.match(sc, /const val WORKERS = 6/);
+  assert.match(sc, /const val BUDGET_MS = 30_000L/);
+  assert.match(sc, /const val HTTP_READ_TIMEOUT_MS = 20_000/);
+  assert.match(sc, /const val WORKERS = 3/);
+  assert.match(sc, /if \(est\.locked\) done = true/);
+  assert.match(k, /AutoScan\.BUDGET_MS \/ 1000/);
   assert.match(k, /קצב %\+\.2f%%/);
   assert.match(k, /ניחוש: /);
 });
