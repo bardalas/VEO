@@ -1020,7 +1020,7 @@ test("automatic sync is a one-time scan of the film's own sound, started from a 
   assert.match(a, /const val PRIOR_NONE = 1\.0/);
   assert.match(sc, /MediaExtractor\(\)/);
   assert.match(sc, /ENCODING_PCM_FLOAT/);
-  assert.match(sc, /if \(est != null && est\.locked\) return est/);
+  assert.match(sc, /if \(est\.locked\) done = true/);
   assert.match(k, /private fun startScan\(\)/);
   assert.match(k, /OK לסנכרון אוטומטי/);
   assert.doesNotMatch(k, /TappingAudioRenderer/);
@@ -1072,6 +1072,15 @@ test("the buffering wheel takes the skin's primary colour, and a paused torrent 
   assert.match(k, /exo_buffering\)\?\.indeterminateTintList = .*skin\.accent/);
   assert.match(k, /val extend = !live /);
   assert.doesNotMatch(k, /val extend = !live && /);
+});
+
+test("the sync scan has a ten second budget, reads three minutes at once and shows the offset and rate change (#339)", async () => {
+  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(sc, /const val BUDGET_MS = 10_000L/);
+  assert.match(sc, /const val WORKERS = 3/);
+  assert.match(k, /קצב %\+\.2f%%/);
+  assert.match(k, /נבדקו \$\{job\.analysed\} דקות/);
 });
 
 test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Down or a tap (#337)", async () => {

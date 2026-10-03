@@ -394,7 +394,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         scan = job
         autoOn = true; autoLevel = 0; scanNote = "פותח את הסרט"
-        showMessage("מנתח את הסאונד מול הכתוביות - לוקח כדקה, אפשר להמשיך לצפות", 5_000)
+        showMessage("מנתח את הסאונד מול הכתוביות - עד 10 שניות", 5_000)
         autoExec.execute {
             val est = job.run()
             runOnUiThread {
@@ -404,7 +404,7 @@ class PlayerActivity : AppCompatActivity() {
                 if (job.cancelled) { refreshPanel(); return@runOnUiThread }
                 if (est != null && est.locked) applyAuto(est)
                 else {
-                    scanNote = if (est == null) job.why.ifBlank { "לא הצלחתי לנתח" } else "לא נמצאה התאמה ברורה"
+                    scanNote = if (est == null) job.why.ifBlank { "לא הצלחתי לנתח" } else "לא נמצאה התאמה ברורה (נבדקו ${job.analysed} דקות)"
                     showMessage(scanNote + " - אפשר לסנכרן לפי שורה", 4_000)
                 }
                 refreshPanel()
@@ -416,9 +416,11 @@ class PlayerActivity : AppCompatActivity() {
     private fun applyAuto(est: AutoAligner.Estimate) {
         subShift = 0L; manualStretch = 1.0; lineAnchor = null                        // what was done by hand before is what this has now found
         autoOffset = est.offsetMs; autoScale = est.scale
-        autoLocked = true; autoLevel = est.level; scanNote = ""
+        autoLocked = true; autoLevel = est.level
         applySync(); saveSync()
-        showMessage("סנכרון אוטומטי ✓ %+.1f שנ׳".format(est.offsetMs / 1000.0), 3_000)
+        val rate = if (kotlin.math.abs(est.scale - 1.0) > 0.0005) " · קצב %+.2f%%".format((est.scale - 1.0) * 100) else ""
+        scanNote = "נמצא: %+.1f שנ׳%s".format(est.offsetMs / 1000.0, rate)
+        showMessage("סנכרון אוטומטי ✓ %+.1f שנ׳%s".format(est.offsetMs / 1000.0, rate), 6_000)
     }
 
     private fun refreshPanel() {
@@ -427,7 +429,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun autoStatus(): String = when {
         autoOn -> "$scanNote · OK לעצירה"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לחישוב מחדש"
+        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + (if (kotlin.math.abs(autoScale - 1.0) > 0.0005) " · קצב ${"%+.2f".format((autoScale - 1.0) * 100)}%" else "") + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לחישוב מחדש"
         scanNote.isNotEmpty() -> "$scanNote · OK לניסיון נוסף"
         else -> "OK לסנכרון אוטומטי"
     }
