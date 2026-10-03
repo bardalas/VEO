@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.48 — 2026-10-04
+- **A paused torrent film keeps filling its buffer** instead of stopping at about two minutes, like other films. (#330)
+- **The player's buffering wheel is the skin's primary colour**, not white. (#329)
+- **The subtitle sync scan no longer asks you to watch more.** On a torrent it reads the minutes just ahead of the picture,
+  waiting for them to download, then earlier ones. It can take a few minutes on a slow torrent. Not yet tried on a real one. (#332)
+
 ## 0.45.47 — 2026-10-04
 - **OK works again on Continue Watching cards.** Since 0.45.45 a short press did nothing: the WebView never reports the remote's OK
   being released, which the earlier fixes relied on. The hold is now timed by the app itself: a tap opens the title, a hold of about
