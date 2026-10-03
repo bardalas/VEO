@@ -202,29 +202,37 @@ class AutoAligner(private val subs: ByteArray, private val cueStarts: LongArray)
         val level get() = when { z >= AutoSync.Z_HIGH -> 3; z >= AutoSync.Z_LOCK -> 2; z >= 4.0 -> 1; else -> 0 }
     }
 
-    fun seen(cell: Int) = cell in done
+    fun seen(cell: Int) = cell * AutoSync.CHUNK_BINS in done
 
     /** A minute that can never be counted (a jump left a hole in what was heard): not asked about again. */
-    fun skip(cell: Int) { done += cell }
+    fun skip(cell: Int) { done += cell * AutoSync.CHUNK_BINS }
 
     /**
      * One minute of film, cell number [cell] of the grid, as the speech timeline has it. Returns the best estimate so far, or
      * null when the minute says nothing (too little speech, too few lines, or already counted).
      */
-    fun addChunk(cell: Int, speech: ByteArray): Estimate? {
-        if (cell in done) return null
-        done += cell
+    fun addChunk(cell: Int, speech: ByteArray): Estimate? = addSegment(cell * AutoSync.CHUNK_BINS, speech)
+
+    /**
+     * A stretch of any length, [speech] starting at step [startBin] of the film. Short stretches from many places say more than one
+     * long one from a single place - the music of a scene cannot spoil them all - so the scan takes twenty seconds at a time.
+     * What a stretch must hold to count is in proportion to its length.
+     */
+    fun addSegment(startBin: Int, speech: ByteArray): Estimate? {
+        if (startBin in done) return null
+        done += startBin
+        val share = speech.size.toDouble() / AutoSync.CHUNK_BINS
         var heard = 0.0
         for (v in speech) if (v >= 0) heard += v / 100.0
-        if (heard * AutoSync.BIN_MS / 1000.0 < AutoSync.MIN_SPEECH_S) return null
-        val fromMs = cell.toLong() * AutoSync.CHUNK_BINS * AutoSync.BIN_MS
-        val toMs = fromMs + AutoSync.CHUNK_BINS.toLong() * AutoSync.BIN_MS
+        if (heard * AutoSync.BIN_MS / 1000.0 < AutoSync.MIN_SPEECH_S * share) return null
+        val fromMs = startBin.toLong() * AutoSync.BIN_MS
+        val toMs = fromMs + speech.size.toLong() * AutoSync.BIN_MS
         // the lines that could be speaking in this minute, whatever the scale: a film sped up by 4% has them 4% further along
         val lo = (fromMs / 1.05 - AutoSync.RANGE_MS).toLong()
         val hi = (toMs / 0.95 + AutoSync.RANGE_MS).toLong()
         var events = 0
         for (c in cueStarts) if (c in lo..hi) events++
-        if (events < AutoSync.MIN_EVENTS) return null
+        if (events < kotlin.math.max(2, Math.ceil(AutoSync.MIN_EVENTS * share).toInt())) return null
 
         val n = speech.size
         val w = FloatArray(n) { j -> val v = speech[j]; if (v < 0) 0f else 4.4f * (v / 100f) - 2.1f }
