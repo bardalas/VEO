@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.52 — 2026-10-04
+- **Fast subtitle offset sync now listens to the film as it plays.** It starts only when requested from the subtitle menu, uses the already-decoded audio with exact film timing, and performs no extra network seeks. It tries a constant offset only, can finish after a confident short sample, and stops after 30 seconds if no reliable match is found. A small top message shows the attempt and then the applied offset or failure. (#349)
+
 ## 0.45.51 — 2026-10-04
 - **Subtitle sync feedback is now always visible.** Starting automatic sync closes the subtitles panel, keeps the countdown/result above player overlays, and shows explicit success/failure reasons instead of appearing to do nothing. (#345)
 
