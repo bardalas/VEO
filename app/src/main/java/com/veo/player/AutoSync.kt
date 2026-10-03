@@ -355,3 +355,105 @@ class AutoAligner(private val subs: ByteArray, private val cueStarts: LongArray)
         return (row[peak] - mean) / sd
     }
 }
+
+
+/**
+ * Fast one-shot alignment for the common case: subtitle timing is correct but shifted by a constant offset.
+ *
+ * One live piece of already-decoded film audio is compared with the subtitle activity over +/-60 s. No
+ * network seek and no frame-rate/stretch hypotheses are involved. A result is accepted only when the
+ * segment has enough speech and subtitle events and one correlation peak clearly stands above alternatives.
+ */
+class FastOffsetAligner(private val subs: ByteArray, private val cueStarts: LongArray) {
+    data class Estimate(val offsetMs: Long, val z: Double, val speechSeconds: Double, val events: Int) {
+        val confident get() = z >= Z_ACCEPT
+    }
+
+    fun estimate(startBin: Int, speech: ByteArray): Estimate? {
+        if (speech.size < MIN_BINS) return null
+        var speechWeight = 0.0
+        for (v in speech) if (v >= 0) speechWeight += v / 100.0
+        val speechSeconds = speechWeight * AutoSync.BIN_MS / 1000.0
+        if (speechSeconds < MIN_SPEECH_S) return null
+
+        val fromMs = startBin.toLong() * AutoSync.BIN_MS
+        val toMs = fromMs + speech.size.toLong() * AutoSync.BIN_MS
+        val w = FloatArray(speech.size) { i ->
+            val v = speech[i]
+            if (v < 0) 0f else 4.4f * (v / 100f) - 2.1f
+        }
+
+        // Coarse 100 ms search over +/-60 s.
+        val coarseStepBins = 2
+        val rangeBins = AutoSync.RANGE_MS / AutoSync.BIN_MS
+        val count = 2 * rangeBins / coarseStepBins + 1
+        val scores = DoubleArray(count)
+        for (k in 0 until count) {
+            val offBins = -rangeBins + k * coarseStepBins
+            var score = 0.0
+            for (j in speech.indices) {
+                val weight = w[j]
+                if (weight == 0f) continue
+                val raw = startBin + j - offBins
+                if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+            }
+            scores[k] = score
+        }
+
+        var peak = 0
+        for (i in 1 until scores.size) if (scores[i] > scores[peak]) peak = i
+
+        // Reject broad/ambiguous peaks: compare the best point with the rest, excluding +/-1 s around it.
+        val skip = 1000 / (AutoSync.BIN_MS * coarseStepBins)
+        var n = 0
+        var sum = 0.0
+        var sq = 0.0
+        for (i in scores.indices) {
+            if (abs(i - peak) <= skip) continue
+            n++
+            sum += scores[i]
+            sq += scores[i] * scores[i]
+        }
+        if (n < 2) return null
+        val mean = sum / n
+        val sd = sqrt(max(1e-9, sq / n - mean * mean))
+        val z = (scores[peak] - mean) / sd
+
+        // Refine around the coarse winner at the native 50 ms timeline resolution.
+        val coarseOffBins = -rangeBins + peak * coarseStepBins
+        var bestOffBins = coarseOffBins
+        var bestScore = Double.NEGATIVE_INFINITY
+        for (offBins in (coarseOffBins - 3)..(coarseOffBins + 3)) {
+            var score = 0.0
+            for (j in speech.indices) {
+                val weight = w[j]
+                if (weight == 0f) continue
+                val raw = startBin + j - offBins
+                if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+            }
+            if (score > bestScore) {
+                bestScore = score
+                bestOffBins = offBins
+            }
+        }
+
+        val offsetMs = bestOffBins.toLong() * AutoSync.BIN_MS
+        val rawFrom = fromMs - offsetMs
+        val rawTo = toMs - offsetMs
+        var events = 0
+        for (c in cueStarts) if (c in rawFrom..rawTo) events++
+        if (events < MIN_EVENTS) return null
+
+        return Estimate(offsetMs, z, speechSeconds, events)
+    }
+
+    companion object {
+        const val MIN_WINDOW_MS = 12_000L
+        const val TARGET_WINDOW_MS = 20_000L
+        const val MAX_ATTEMPT_MS = 30_000L
+        const val MIN_SPEECH_S = 4.0
+        const val MIN_EVENTS = 3
+        const val Z_ACCEPT = 5.5
+        private const val MIN_BINS = (MIN_WINDOW_MS / AutoSync.BIN_MS).toInt()
+    }
+}
