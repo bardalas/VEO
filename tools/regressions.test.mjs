@@ -1020,3 +1020,12 @@ test('the player info bar is sized by screen (a phone much lower than a televisi
   assert.match(k, /if \(ended && nextFill == null\) startNextFill\(\)/);
   assert.doesNotMatch(k, /nextCount/);
 });
+
+test("automatic sync is a button: off until OK, shows its progress, stops on OK (#309)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /private var autoOn = false/);
+  assert.doesNotMatch(k, /getBoolean\("autoSync"/);
+  assert.match(k, /OK להפעלה/);
+  assert.match(k, /מאזין… /);
+  assert.match(k, /if \(autoOn\) \{\s+aligner = /);
+});
