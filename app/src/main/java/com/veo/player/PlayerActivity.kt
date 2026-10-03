@@ -69,6 +69,7 @@ class PlayerActivity : AppCompatActivity() {
     private var index = 0
     private val live get() = intent.getBooleanExtra("live", false) || sources.size > 1
     private val handler = Handler(Looper.getMainLooper())
+    private var syncHintActionable = false
     /** Automatic retries for the current channel (IPTV servers may still hold the previous session). */
     private var retries = 0
     /** The video's own rate, in bits a second, as the tracks say it (0 until they do) - read by the load control on another thread. */
@@ -433,6 +434,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showPill(text: String) {
+        syncHintActionable = false
         val hint = findViewById<TextView>(R.id.syncHint)
         hint.text = text
         hint.setTextColor(skin.light)
@@ -594,6 +596,7 @@ class PlayerActivity : AppCompatActivity() {
      */
     private sealed class SubsRow {
         class Head(val text: String) : SubsRow()
+        class Info(val text: () -> String) : SubsRow()
         class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit) : SubsRow()
         /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held. */
         class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false) : SubsRow()
@@ -612,15 +615,23 @@ class PlayerActivity : AppCompatActivity() {
             out.add(SubsRow.Pick(s.label, { subPick == i }, { useCaptions(i) }))
         }
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
-        out.add(SubsRow.Head("סנכרון"))
-        // by itself: the dialogue is listened to and set against the lines (AutoSync.kt)
-        out.add(SubsRow.Step("סנכרון אוטומטי", { autoStatus() }, { toggleAuto() }, ok = true))
-        if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
+        out.add(SubsRow.Head("סנכרון כתוביות"))
+        out.add(SubsRow.Pick(if (autoOn) "עצור ניסיון סנכרון" else "הפעל סנכרון אוטומטי", { false }, { toggleAuto() }))
+        out.add(SubsRow.Info {
+            when {
+                autoOn -> "מצב: מנסה להתאים…"
+                autoLocked -> "מצב: מסונכרן ${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
+                scanNote.isNotEmpty() -> "מצב: $scanNote"
+                else -> "מצב: לא בוצע סנכרון"
+            }
+        })
         out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
-        out.add(SubsRow.Step("הזזת כתוביות", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
-        out.add(SubsRow.Step("קצב כתוביות", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
+        if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
+        out.add(SubsRow.Head("תיקון ידני"))
+        out.add(SubsRow.Step("הזזה", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
+        out.add(SubsRow.Step("קצב", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
         out.add(SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true))
-        out.add(SubsRow.Pick("אפס את התיקון הידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
+        out.add(SubsRow.Pick("איפוס תיקון ידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
         out.addAll(audioSyncRows())
         out.add(SubsRow.Head("גודל"))
         out.add(SubsRow.Step("גודל הכתוביות", { "%d%%".format((subScale * 100).toInt()) },
@@ -704,7 +715,7 @@ class PlayerActivity : AppCompatActivity() {
         override fun getItem(position: Int) = rows[position]
         override fun getItemId(position: Int) = position.toLong()
         override fun areAllItemsEnabled() = false
-        override fun isEnabled(position: Int) = rows[position] !is SubsRow.Head
+        override fun isEnabled(position: Int) = rows[position] !is SubsRow.Head && rows[position] !is SubsRow.Info
         override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
             val row = rows[position]
             val list = parent as? ListView
@@ -731,6 +742,13 @@ class PlayerActivity : AppCompatActivity() {
             value.typeface = android.graphics.Typeface.DEFAULT
             value.textSize = 20f
             when (row) {
+                is SubsRow.Info -> {
+                    box.setPadding(dp(30), dp(4), dp(30), dp(10))
+                    name.text = row.text()
+                    name.textSize = 15f
+                    name.setTextColor(skin.muted)
+                    value.text = ""
+                }
                 is SubsRow.Head -> {
                     // the first heading is the panel's title; the others open a group, with room above them
                     val title = position == 0
@@ -1869,6 +1887,7 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return@Runnable
         if (p.playWhenReady || live || autoOn || captions?.any != true || panelOpen || lineSync >= 0) return@Runnable
         val hint = findViewById<TextView>(R.id.syncHint)
+        syncHintActionable = true
         hint.text = if (autoLocked) "▼ סנכרון מחדש" else "הכתוביות לא מסונכרנות?  ▼ סנכרון"
         hint.setTextColor(skin.muted)
         hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xD8)) }
@@ -1881,6 +1900,7 @@ class PlayerActivity : AppCompatActivity() {
     private val syncHintHide = Runnable { hideSyncHint() }
     private fun hideSyncHint() {
         handler.removeCallbacks(syncHintHide)
+        syncHintActionable = false
         findViewById<View>(R.id.syncHint).visibility = View.GONE
     }
     private fun acceptSyncHint() {
@@ -1952,7 +1972,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         // choosing the line to sync to: Up/Down pick another line, OK says it is being spoken, Back gives it up
         // the offer made on a pause: Down takes it, anything else just goes on as it would (Back puts it away)
-        if (down && findViewById<View>(R.id.syncHint).visibility == View.VISIBLE) {
+        if (down && syncHintActionable && findViewById<View>(R.id.syncHint).visibility == View.VISIBLE) {
             if (code == KeyEvent.KEYCODE_DPAD_DOWN) { acceptSyncHint(); return true }
             if (code == KeyEvent.KEYCODE_BACK) { hideSyncHint(); return true }
         }
