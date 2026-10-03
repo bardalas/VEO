@@ -1,5 +1,13 @@
 # VEO Android changelog
 
+## 0.45.47 — 2026-10-04
+- **OK works again on Continue Watching cards.** Since 0.45.45 a short press did nothing: the WebView never reports the remote's OK
+  being released, which the earlier fixes relied on. The hold is now timed by the app itself: a tap opens the title, a hold of about
+  0.6 s asks whether to remove it. (#324)
+- **The film's progress bar** shows a small arrow with the time where you are, and a soft fill for how much is already loaded. (#322)
+- **The subtitle sync scan reads a torrent stream.** It now reads by byte ranges and, for a torrent, only the minutes already watched,
+  so watch a few minutes first. Not yet tried on a real torrent - please test it. (#326)
+
 ## 0.45.46 — 2026-10-04
 - **Automatic subtitle sync reads the film's sound by itself.** The live listening, which stayed at 0/60 on a real device, is replaced
   by a one-time scan started from the panel row: it decodes the film's audio on its own, a minute at a time from several places,
