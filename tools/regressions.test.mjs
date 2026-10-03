@@ -971,3 +971,38 @@ test('the WebView does not intercept a long press on a poster with its own nativ
   assert.match(main, /web\.setOnLongClickListener \{ true \}/);
   assert.match(css, /\.poster\{[^}]*-webkit-touch-callout:none/);
 });
+
+test('subtitles: more than three to choose from, fetched side by side, whole-file dedupe (#302)', async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
+  assert.match(k, /private const val MAX_SUBS = 8/);
+  assert.match(k, /executor\.submit<Pair<Candidate, String>\?>/);
+  assert.match(k, /seen\.add\("\$\{body\.length\}:\$\{body\.hashCode\(\)\}"\)/);
+  assert.match(k, /filename=\$\{java\.net\.URLEncoder\.encode\(release/);
+});
+
+test('subtitles: the sync is remembered per film and translation, and carried along a series by release group (#302)', async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /private fun restoreSync\(sub: Subtitles\.Sub\?\)/);
+  assert.match(k, /private fun saveSync\(\)/);
+  assert.match(k, /seriesKey\(\)\?\.let \{ putString\(it, groupOfSub\(sub\) \+ "\|" \+ text\) \}/);
+  assert.match(k, /it\.shiftMs = autoOffset \+ subShift; it\.scale = autoScale \* manualStretch/);
+});
+
+test('subtitles: sync to a line, next subtitle, stretch and frame-rate rows are in the panel (#302)', async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  for (const label of ['סנכרון אוטומטי', 'כתובית אחרת', 'סנכרון לפי שורה', 'קצב כתוביות', 'קצב לפי פריימים', 'אפס את התיקון הידני'])
+    assert.ok(k.includes('"' + label + '"'), label);
+  assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
+});
+
+test('automatic sync: the audio renderer feeds a speech timeline; the aligner tries the frame-rate scales and needs a z-score to lock (#302)', async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
+  const r = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(a, /const val Z_LOCK = 5\.5/);
+  assert.match(a, /val HYPOTHESES = doubleArrayOf\(1\.0, 25 \/ 23\.976, 23\.976 \/ 25, 24 \/ 23\.976, 23\.976 \/ 24, 25 \/ 24\.0, 24 \/ 25\.0\)/);
+  assert.match(a, /const val PRIOR_NONE = 1\.0/);
+  assert.match(r, /override fun processOutputBuffer/);
+  assert.match(r, /timeline\.feed\(buffer, rate, channels, bufferPresentationTimeUs\)/);
+  assert.match(k, /TappingAudioRenderer\(context, androidx\.media3\.exoplayer\.mediacodec\.MediaCodecAdapter\.Factory\.getDefault\(context\)/);
+});

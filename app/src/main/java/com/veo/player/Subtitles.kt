@@ -26,9 +26,19 @@ import java.util.zip.ZipInputStream
  * the player collects the result with [await].
  */
 object Subtitles {
-    data class Sub(val file: File, val label: String)
+    /** [name] is the release the subtitle was made for, whole (the label is cut short for the screen). */
+    data class Sub(val file: File, val label: String, val name: String = "")
 
-    private const val MAX_SUBS = 3
+    /**
+     * How many translations are offered. Wizdom alone lists thirty or more Hebrew ones for a popular film, and only the
+     * best three were ever fetched - so when the best match was out of step there was nothing else to try. Eight, fetched
+     * side by side, cost about what three did one after the other.
+     */
+    private const val MAX_SUBS = 8
+    /** A few more are fetched than are offered, to stand in for the ones that fail to download or turn out to be the same file. */
+    private const val SPARE = 4
+    /** Everything is fetched within this, whatever one slow server does. */
+    private const val FETCH_BUDGET_MS = 16_000L
     private const val WIZDOM = "https://wizdom.xyz/api"
     private const val OPENSUBS = "https://opensubtitles-v3.strem.io"
 
@@ -60,14 +70,35 @@ object Subtitles {
 
         val candidates = (wizdom(imdb, season, episode, release) + openSubtitles(videoId, season != null, release))
             .sortedByDescending { it.score }
+            .take(MAX_SUBS + SPARE)
+
+        // all at once, each with its own turn at the clock - the order they are offered in is still the order of the match
+        val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
+        val jobs = candidates.map { c ->
+            executor.submit<Pair<Candidate, String>?> {
+                runCatching { c to decode(unzipIfNeeded(c.download())) }.getOrNull()?.takeIf { it.second.contains("-->") }
+            }
+        }
+        val got = try {
+            jobs.map { job ->
+                runCatching { job.get((deadline - System.currentTimeMillis()).coerceAtLeast(0), TimeUnit.MILLISECONDS) }.getOrNull()
+            }
+        } catch (e: InterruptedException) {                      // the viewer chose another source: nothing here is wanted any more
+            jobs.forEach { it.cancel(true) }
+            throw e
+        }
+        jobs.forEach { it.cancel(true) }                         // whatever is still running past the budget is let go
 
         val subs = mutableListOf<Sub>()
-        for (c in candidates) {
+        val seen = HashSet<String>()
+        for ((c, text) in got.filterNotNull()) {
             if (subs.size >= MAX_SUBS) break
-            val text = runCatching { decode(unzipIfNeeded(c.download())) }.getOrNull() ?: continue
-            if (!text.contains("-->")) continue
+            // the same file from two sources is one translation, not two to cycle through
+            // (the whole of it: translations of one film begin alike - with the same credit line - and differ in their timing)
+            val body = text.filter { !it.isWhitespace() }
+            if (!seen.add("${body.length}:${body.hashCode()}")) continue
             val file = File(dir, "he-${subs.size}.srt").apply { writeText(text) }
-            subs += Sub(file, "עברית · ${c.source} · ${c.name.take(48)}")
+            subs += Sub(file, "עברית · ${c.source} · ${c.name.take(48)}", c.name)
         }
         return subs
     }
@@ -84,16 +115,29 @@ object Subtitles {
         }
     }.getOrDefault(emptyList())
 
-    private fun openSubtitles(videoId: String, series: Boolean, release: String): List<Candidate> = runCatching {
+    /**
+     * OpenSubtitles through Stremio's add-on gives a different - and, for the Hebrew ones, a different few - answer when it
+     * is told the release's file name, so it is asked both ways and what comes back is put together.
+     */
+    private fun openSubtitles(videoId: String, series: Boolean, release: String): List<Candidate> {
         val type = if (series) "series" else "movie"
-        val arr = JSONObject(String(get("$OPENSUBS/subtitles/$type/$videoId.json"))).getJSONArray("subtitles")
-        (0 until arr.length()).map { arr.getJSONObject(it) }
-            .filter { it.optString("lang") in setOf("heb", "he") }
-            .map { o ->
-                val name = o.optString("subtitleFileName").ifEmpty { o.optString("movieReleaseName") }
-                Candidate("OpenSubtitles", name, similarity(name, release)) { get(o.getString("url")) }
-            }
-    }.getOrDefault(emptyList())
+        val asked = buildList {
+            add("$OPENSUBS/subtitles/$type/$videoId.json")
+            if (release.isNotBlank()) add("$OPENSUBS/subtitles/$type/$videoId/filename=${java.net.URLEncoder.encode(release, "UTF-8").replace("+", "%20")}.json")
+        }
+        return asked.flatMap { url ->
+            runCatching {
+                val arr = JSONObject(String(get(url))).getJSONArray("subtitles")
+                (0 until arr.length()).map { arr.getJSONObject(it) }
+                    .filter { it.optString("lang") in setOf("heb", "he") }
+                    .map { o ->
+                        val name = o.optString("subtitleFileName").ifEmpty { o.optString("movieReleaseName") }
+                        val link = o.getString("url")
+                        link to Candidate("OpenSubtitles", name, similarity(name, release)) { get(link) }
+                    }
+            }.getOrDefault(emptyList())
+        }.distinctBy { it.first }.map { it.second }
+    }
 
     /** Token overlap between release names, with extra weight for resolution, source and release group. */
     private fun similarity(a: String, b: String): Double {
