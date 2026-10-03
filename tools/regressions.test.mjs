@@ -1011,19 +1011,19 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
-test("automatic sync is a one-time scan of the film's own sound, started from a panel row, not a tap on playback (#318)", async () => {
+test("automatic sync is a viewer-requested live offset match over already-playing audio (#318)", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(a, /const val Z_LOCK = 5\.5/);
-  assert.match(a, /val HYPOTHESES = doubleArrayOf\(1\.0, 25 \/ 23\.976/);
-  assert.match(a, /const val PRIOR_NONE = 1\.0/);
-  assert.match(sc, /MediaExtractor\(\)/);
-  assert.match(sc, /ENCODING_PCM_FLOAT/);
-  assert.match(sc, /if \(est\.locked\) done = true/);
-  assert.match(k, /private fun startScan\(\)/);
+  assert.match(a, /class FastOffsetAligner/);
+  assert.match(a, /const val MIN_WINDOW_MS = 12_000L/);
+  assert.match(a, /const val MAX_ATTEMPT_MS = 30_000L/);
+  assert.match(a, /const val Z_ACCEPT = 5\.5/);
+  assert.match(tap, /bufferPresentationTimeUs/);
+  assert.match(k, /TappingAudioRenderer/);
+  assert.match(k, /if \(autoOn\) liveSpeech else null/);
   assert.match(k, /OK לסנכרון אוטומטי/);
-  assert.doesNotMatch(k, /TappingAudioRenderer/);
+  assert.doesNotMatch(k, /private fun startScan\(\)/);
 });
 
 test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open (#314)", async () => {
@@ -1074,13 +1074,15 @@ test("the buffering wheel takes the skin's primary colour, and a paused torrent 
   assert.doesNotMatch(k, /val extend = !live && /);
 });
 
-test("the sync scan has a ten second budget, reads three minutes at once and shows the offset and rate change (#339)", async () => {
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+test("live sync solves offset only without network scan and reports success or failure in the top pill (#339)", async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(sc, /const val BUDGET_MS = 10_000L/);
-  assert.match(sc, /const val WORKERS = 6/);
-  assert.match(k, /קצב %\+\.2f%%/);
-  assert.match(k, /ניחוש: /);
+  assert.match(a, /class FastOffsetAligner/);
+  assert.match(k, /מנסה להתאים כתוביות/);
+  assert.match(k, /הכתוביות סונכרנו/);
+  assert.match(k, /לא נמצא סנכרון אמין/);
+  assert.match(k, /handler\.postDelayed\(syncHintHide, 5_000\)/);
+  assert.match(k, /autoScale = 1\.0/);
 });
 
 test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Down or a tap (#337)", async () => {
