@@ -11,8 +11,8 @@ android {
         applicationId = "com.veo.player"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4548
-        versionName = "0.45.48"
+        versionCode = 4549
+        versionName = "0.45.49"
         // Problem reports are filed as issues in the app's own repository (MainActivity.reportIssue). The key
         // that allows it is CI's secret VEO_ISSUES_TOKEN - a token that can only open issues there - put
         // into the build, never into the source. A build without it offers GitHub's own issue page instead.

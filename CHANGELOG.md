@@ -1,5 +1,12 @@
 # VEO Android changelog
 
+## 0.45.49 — 2026-10-04
+- **Subtitle sync takes at most 10 seconds and shows the result.** Three readers take different minutes of the film at once; at the end it
+  shows the offset found (+x s) and any speed change, or that it was not conclusive and how many minutes it checked. It never applies a result it
+  is not sure of. Not yet tried on a real stream - please test it. (#339)
+- **A pause only pauses, with a quiet offer to sync the subtitles.** A small pill appears a moment after pausing (Down on a remote, a tap on touch);
+  ignore it and it goes away by itself. (#337)
+
 ## 0.45.48 — 2026-10-04
 - **A paused torrent film keeps filling its buffer** instead of stopping at about two minutes, like other films. (#330)
 - **The player's buffering wheel is the skin's primary colour**, not white. (#329)
