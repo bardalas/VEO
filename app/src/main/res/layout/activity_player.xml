@@ -32,6 +32,14 @@
             android:background="#FFFFFF" />
     </LinearLayout>
 
+    <!-- Paused: a quiet offer, never the point of the pause (PlayerActivity.showSyncHint) -->
+    <TextView
+        android:id="@+id/syncHint"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:layout_marginTop="190dp"
+        android:paddingHorizontal="18dp" android:paddingVertical="9dp"
+        android:textSize="15sp" android:visibility="gone" />
+
     <TextView
         android:id="@+id/osd"
         android:layout_width="wrap_content" android:layout_height="wrap_content"

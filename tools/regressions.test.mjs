@@ -1082,3 +1082,13 @@ test("the sync scan has a ten second budget, reads three minutes at once and sho
   assert.match(k, /קצב %\+\.2f%%/);
   assert.match(k, /נבדקו \$\{job\.analysed\} דקות/);
 });
+
+test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Down or a tap (#337)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.match(l, /android:id="@\+id\/syncHint"/);
+  assert.match(k, /handler\.postDelayed\(syncHintShow, 1_200\)/);
+  assert.match(k, /autoLocked \|\| captions\?\.any != true/);
+  assert.match(k, /code == KeyEvent\.KEYCODE_DPAD_DOWN\) \{ acceptSyncHint\(\); return true \}/);
+  assert.match(k, /private fun acceptSyncHint\(\) \{ hideSyncHint\(\); toggleAuto\(\) \}/);
+});
