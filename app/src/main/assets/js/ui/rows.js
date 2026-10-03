@@ -32,10 +32,16 @@ export const reel = (inner, id = '') =>
 /** A long press on a Continue Watching card (touch hold, remote OK held, or right-click) asks whether to remove
     the title from the row - it stays where the viewer left it (dismissContinue keeps the resume point), the row
     simply does not name it any more. */
+const tellHoldable = () => window.BoothAndroid?.holdable?.(!!document.activeElement?.matches?.('#contRow .poster'));
+addEventListener('focusin', tellHoldable);
+addEventListener('focusout', () => setTimeout(tellHoldable, 0));
+window.boothHoldOK = () => document.activeElement?.matches?.('#contRow .poster') && document.activeElement.dispatchEvent(new CustomEvent('holdok'));
+
 function wireRemovable(strip){
   if(!strip) return;
+  tellHoldable();
   strip.querySelectorAll('.poster').forEach(b => {
-    let longPressed = false, timer = 0, keyHeld = false;
+    let longPressed = false, timer = 0;
     const ask = async () => {
       longPressed = true;
       const name = b.dataset.title || b.querySelector('[data-heid]')?.textContent || '';
@@ -52,22 +58,9 @@ function wireRemovable(strip){
     b.oncontextmenu = e => { e.preventDefault(); ask(); };
     b.onpointerdown = start;
     b.onpointerup = b.onpointerleave = b.onpointercancel = cancel;
-    // Timed like the touch press above, not read off the key's own repeat flag: a remote's OK does not always
-    // reach the page with repeat:true on every device (#292 - a held OK opened the title outright, the timer
-    // having never started), while a keydown/keyup pair is always there to time against.
-    // A link or button activates on the keydown of Enter, so the title had already opened by the time the hold
-    // was long enough to ask (#307). The keydown is swallowed; a short press opens the title on its keyup.
-    b.addEventListener('keydown', e => {
-      if(e.key !== 'Enter') return;
-      e.preventDefault();
-      if(!keyHeld){ keyHeld = true; start(); }
-    });
-    b.addEventListener('keyup', e => {
-      if(e.key !== 'Enter') return;
-      const short = keyHeld && !longPressed;
-      keyHeld = false; cancel();
-      if(short){ e.preventDefault(); b.click(); }
-    });
+    // A held OK of the remote comes from the app: the WebView never gives the page a keyup for it, so the hold cannot be
+    // timed here (#324). MainActivity times it and, when it is long enough, calls boothHoldOK (below).
+    b.addEventListener('holdok', ask);
     // reel.js's own document-level click listener opens the centred ('spot') card regardless of this element's
     // default being prevented - it never looks at defaultPrevented, only at what was clicked. Stopping the event
     // here, not just its default, is what actually keeps a long press from opening the title (#282).

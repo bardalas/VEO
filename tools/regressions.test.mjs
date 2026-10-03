@@ -951,13 +951,6 @@ test('the two document-body MutationObservers in tvnav.js are one, not two walki
   assert.match(nav, /for\(const m of muts\) for\(const n of m\.addedNodes\) if\(n\.nodeType === 1\) armInputs/);
 });
 
-test('Continue Watching remove: the remote long-press is timed (keydown/keyup), not read off repeat:true (#292)', async () => {
-  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
-  assert.doesNotMatch(rows, /e\.repeat/);
-  assert.match(rows, /if\(!keyHeld\)\{ keyHeld = true; start\(\); \}/);
-  assert.match(rows, /keyHeld = false; cancel\(\);/);
-});
-
 test('the live-TV row list is larger and more comfortable, not squeezed to fit exactly six (#293)', async () => {
   const css = await readFile(path.join(assets, 'css/live.css'), 'utf8');
   assert.match(css, /html\[data-device="tv"\] \.chlogo\{height:52px;border-radius:10px\}/);
@@ -1018,13 +1011,6 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
-test("a held OK on a Continue Watching card does not open it: Enter keydown is swallowed, a short press opens on keyup (#307)", async () => {
-  const k = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
-  assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
-  assert.match(k, /if\(short\)\{ e\.preventDefault\(\); b\.click\(\); \}/);
-});
-
-
 test("automatic sync is a one-time scan of the film's own sound, started from a panel row, not a tap on playback (#318)", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
@@ -1045,6 +1031,7 @@ test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open
   assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
 });
 
+<<<<<<< HEAD
 test("the sync scan reads over HTTP ranges and, for a torrent, only what has been played (#326)", async () => {
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
   const h = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/HttpRangeSource.kt'), 'utf8');
@@ -1052,4 +1039,17 @@ test("the sync scan reads over HTTP ranges and, for a torrent, only what has bee
   assert.match(h, /setRequestProperty\("Range", range\)/);
   assert.match(sc, /ex\.setDataSource\(HttpRangeSource\(/);
   assert.match(sc, /if \(torrent\) \{/);
+=======
+test("a held OK on a Continue Watching card is timed natively, because the WebView gives the page no keyup (#324)", async () => {
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  assert.doesNotMatch(rows, /addEventListener\('keyup'/);
+  assert.doesNotMatch(rows, /e\.repeat/);
+  assert.match(rows, /b\.addEventListener\('holdok', ask\)/);
+  assert.match(rows, /window\.boothHoldOK = /);
+  assert.match(rows, /BoothAndroid\?\.holdable\?\./);
+  assert.match(main, /fun holdable\(on: Boolean\)/);
+  assert.match(main, /web\.postDelayed\(holdRun, 600\)/);
+  assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
+>>>>>>> origin/main
 });
