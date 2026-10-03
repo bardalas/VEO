@@ -206,6 +206,8 @@ class MainActivity : AppCompatActivity() {
         /** Which web version is running: a bundle's number, or "built-in". */
         @JavascriptInterface fun webInfo(): String = WebBundle.info(applicationContext)
         /** The first screen is drawn: the splash can go. */
+        /** The page says whether the focus is on a card a long press of OK acts on (rows.js): only then is OK timed here. */
+        @JavascriptInterface fun holdable(on: Boolean) { holdable = on }
         @JavascriptInterface fun pageShown() { runOnUiThread { hideSplash(); pageUp = true; deliverLink() } }
 
         /** True on Android TV; the page then defaults to its TV (10-foot) layout. */
@@ -759,8 +761,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * A held OK on a Continue Watching card asks to remove it. The WebView gives the page no keyup for OK, so the page cannot
+     * time the hold (#324): it is timed here, where the press and the release are both seen. While such a card has the focus
+     * OK is kept back; released early, it goes to the page as an ordinary press; held, the page is told and the rest of the
+     * press is swallowed.
+     */
+    @Volatile private var holdable = false
+    private var holdDown: android.view.KeyEvent? = null
+    private var holdFired = false
+    private val holdRun = Runnable { holdFired = true; web.evaluateJavascript("window.boothHoldOK && boothHoldOK()", null) }
+
     // Remote Search key jumps to the search field.
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val ok = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+            event.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+        if (ok && (holdable || holdDown != null || holdFired)) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                if (event.repeatCount == 0 && holdDown == null) { holdFired = false; holdDown = android.view.KeyEvent(event); web.postDelayed(holdRun, 600) }
+                return true
+            }
+            if (event.action == android.view.KeyEvent.ACTION_UP) {
+                web.removeCallbacks(holdRun)
+                val down = holdDown
+                holdDown = null
+                if (!holdFired && down != null) { super.dispatchKeyEvent(down); return super.dispatchKeyEvent(event) }
+                holdFired = false
+                return true
+            }
+        }
         if (event.keyCode == android.view.KeyEvent.KEYCODE_SEARCH && event.action == android.view.KeyEvent.ACTION_DOWN) {
             web.evaluateJavascript("window.boothSearchKey && boothSearchKey()", null)
             return true
