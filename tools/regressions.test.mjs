@@ -1063,7 +1063,7 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
 
 test("the sync scan on a torrent reads the minutes just ahead first and never asks to watch more (#332)", async () => {
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
-  assert.match(sc, /The minutes just ahead of the picture/);
+  assert.match(sc, /just ahead of the picture, a stretch every forty seconds/);
   assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
 });
 
@@ -1078,9 +1078,9 @@ test("the sync scan has a ten second budget, reads three minutes at once and sho
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(sc, /const val BUDGET_MS = 10_000L/);
-  assert.match(sc, /const val WORKERS = 3/);
+  assert.match(sc, /const val WORKERS = 6/);
   assert.match(k, /קצב %\+\.2f%%/);
-  assert.match(k, /נבדקו \$\{job\.analysed\} דקות/);
+  assert.match(k, /ניחוש: /);
 });
 
 test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Down or a tap (#337)", async () => {
@@ -1088,7 +1088,7 @@ test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Dow
   const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
   assert.match(l, /android:id="@\+id\/syncHint"/);
   assert.match(k, /handler\.postDelayed\(syncHintShow, 1_200\)/);
-  assert.match(k, /autoLocked \|\| captions\?\.any != true/);
+  assert.match(k, /\|\| captions\?\.any != true/);
   assert.match(k, /code == KeyEvent\.KEYCODE_DPAD_DOWN\) \{ acceptSyncHint\(\); return true \}/);
   assert.match(k, /private fun acceptSyncHint\(\) \{ hideSyncHint\(\); toggleAuto\(\) \}/);
 });

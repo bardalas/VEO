@@ -29,34 +29,42 @@ class AutoScan(
     /** The best the scan could say, or null if it could not read the sound at all (the reason is in [why]). */
     @Volatile var why = ""
 
-    /** Minutes that were actually counted, for the message when nothing conclusive came out. */
+    /** Stretches that were actually counted, for the message when nothing conclusive came out. */
     val analysed get() = aligner.chunks
 
     @Volatile private var deadlineNs = 0L
+    /** When the ten seconds began (the film opened and the first reader ready); 0 until then. */
+    @Volatile var startedMs = 0L
     @Volatile private var done = false
+    private val shared = HttpRangeSource.Cache()
 
     /**
      * Looks for as long as [BUDGET_MS], with [WORKERS] readers each taking a different minute, and returns the best the aligner
      * has by then (locked or not), or null if the sound could not be read at all ([why] says why).
      */
     fun run(): AutoAligner.Estimate? {
-        deadlineNs = System.nanoTime() + BUDGET_MS * 1_000_000L
-        val cb = AutoSync.CHUNK_BINS
-        val cellMs = cb * AutoSync.BIN_MS.toLong()
-        val last = (durationMs / cellMs).toInt() - 2                     // not the credits
-        val first = (fromMs / cellMs).toInt() + 1
-        val order = ArrayList<Int>()
+        deadlineNs = System.nanoTime() + (OPEN_MS + BUDGET_MS) * 1_000_000L      // opening the film is not counted against the ten seconds
+        val segBins = SEG_BINS
+        val segMs = segBins * AutoSync.BIN_MS.toLong()
+        val order = ArrayList<Int>()           // where each stretch starts, in steps of the timeline
         if (torrent) {
-            // The minutes just ahead of the picture: the torrent is fetching them anyway. Then what was played.
-            var c = first.coerceAtLeast(2)
-            while (c <= last && order.size < MAX_PLACES / 2 + 2) { order.add(c); c++ }
-            c = first - 2
-            while (c >= 2 && order.size < MAX_PLACES) { order.add(c); c-- }
+            // just ahead of the picture, a stretch every forty seconds: the torrent is fetching that anyway
+            var t = fromMs + 30_000
+            while (t + segMs < durationMs && order.size < MAX_PLACES) { order.add((t / AutoSync.BIN_MS).toInt()); t += 40_000 }
         } else {
-            var c = first.coerceAtLeast(2)
-            while (c <= last && order.size < MAX_PLACES / 2 + 1) { order.add(c); c += 2 }      // from here on, a minute in two
-            c = 2
-            while (c < first && c <= last && order.size < MAX_PLACES) { order.add(c); c += 3 } // then what came before
+            // spread over the film in an order where any beginning of the list is already spread out (bit reversal)
+            val lo = (durationMs * 0.04).toLong().coerceAtLeast(90_000)
+            val hi = durationMs - maxOf(240_000L, (durationMs * 0.06).toLong()) - segMs
+            if (hi > lo) {
+                val slots = 32
+                val seen = HashSet<Int>()
+                for (i in 0 until slots) {
+                    val r = Integer.reverse(i) ushr (32 - 5)
+                    val t = lo + (hi - lo) * r / (slots - 1)
+                    val bin = ((t / segMs) * segBins).toInt()
+                    if (seen.add(bin) && order.size < MAX_PLACES) order.add(bin)
+                }
+            }
         }
         if (order.isEmpty()) { why = "הסרט קצר מדי"; return null }
 
@@ -64,22 +72,33 @@ class AutoScan(
         val lock = Any()
         var best: AutoAligner.Estimate? = null
         var started = 0
+        var read = 0
         progress(0, order.size, "פותח את הסרט")
         val pool = java.util.concurrent.Executors.newFixedThreadPool(WORKERS)
         repeat(WORKERS) {
             pool.execute {
                 val reader = open() ?: return@execute
+                synchronized(lock) {
+                    if (startedMs == 0L) {
+                        startedMs = android.os.SystemClock.elapsedRealtime()
+                        deadlineNs = System.nanoTime() + BUDGET_MS * 1_000_000L
+                    }
+                }
                 try {
                     while (!done && !cancelled && System.nanoTime() < deadlineNs) {
-                        val cell = queue.poll() ?: break
+                        val bin = queue.poll() ?: break
                         synchronized(lock) { started++ }
                         val timeline = SpeechTimeline()
-                        if (!decodeCell(reader.first, reader.second, timeline, cell, cellMs)) continue
-                        if (timeline.coverage(cell * cb, (cell + 1) * cb) < AutoSync.MIN_COVERAGE) continue
-                        val est = synchronized(aligner) { aligner.addChunk(cell, timeline.slice(cell * cb, (cell + 1) * cb)) }
+                        val t0 = System.nanoTime()
+                        val okSeg = decodeSeg(reader.first, reader.second, timeline, bin.toLong() * AutoSync.BIN_MS, segMs)
+                        android.util.Log.d(AutoSync.TAG, "segment at ${bin * AutoSync.BIN_MS / 1000}s: ok=$okSeg in ${(System.nanoTime() - t0) / 1_000_000} ms, coverage ${"%.2f".format(timeline.coverage(bin, bin + segBins))}")
+                        if (!okSeg) continue
+                        synchronized(lock) { read++ }
+                        if (timeline.coverage(bin, bin + segBins) < AutoSync.MIN_COVERAGE) continue
+                        val est = synchronized(aligner) { aligner.addSegment(bin, timeline.slice(bin, bin + segBins)) }
                         synchronized(lock) {
                             if (est != null) { best = est; if (est.locked) done = true }
-                            progress(aligner.chunks, order.size, "נספרו ${aligner.chunks} דקות")
+                            progress(aligner.chunks, order.size, "נבדקו ${aligner.chunks} קטעים")
                         }
                     }
                 } finally { runCatching { reader.second.stop() }; runCatching { reader.second.release() }; runCatching { reader.first.release() } }
@@ -92,8 +111,12 @@ class AutoScan(
         }
         done = true
         pool.shutdownNow()
-        val result = synchronized(lock) { best }
-        if (result == null && why.isEmpty()) why = if (started == 0) "לא הצלחתי לפתוח את הסרט" else "לא נמצא די דיבור לניתוח"
+        val result = synchronized(aligner) { aligner.best() } ?: synchronized(lock) { best }
+        if (result == null && why.isEmpty()) why = when {
+            started == 0 -> "לא הצלחתי לפתוח את הסרט"
+            aligner.chunks == 0 && read == 0 -> "הקריאה מהרשת איטית מדי ל-10 שניות ($started קטעים התחילו)"
+            else -> "לא נמצא די דיבור לניתוח ($read קטעים נקראו)"
+        }
         return result
     }
 
@@ -101,7 +124,7 @@ class AutoScan(
     private fun open(): Pair<MediaExtractor, MediaCodec>? {
         val ex = MediaExtractor()
         try {
-            if (url.startsWith("http")) ex.setDataSource(HttpRangeSource(url, headers, 8_000)) else ex.setDataSource(url, headers)
+            if (url.startsWith("http")) ex.setDataSource(HttpRangeSource(url, headers, 8_000, shared)) else ex.setDataSource(url, headers)
             var track = -1
             var fmt: MediaFormat? = null
             for (i in 0 until ex.trackCount) {
@@ -128,10 +151,10 @@ class AutoScan(
         }
     }
 
-    /** Decodes cell [cell] (with ten seconds before it, for the filters to settle) into [timeline]. False if it could not be read in time. */
-    private fun decodeCell(ex: MediaExtractor, codec: MediaCodec, timeline: SpeechTimeline, cell: Int, cellMs: Long): Boolean {
-        val startUs = (cell * cellMs - LEAD_MS).coerceAtLeast(0) * 1000
-        val endUs = (cell + 1) * cellMs * 1000
+    /** Decodes [lenMs] from [startMs] (with ten seconds before, for the filters to settle) into [timeline]. False if it could not be read in time. */
+    private fun decodeSeg(ex: MediaExtractor, codec: MediaCodec, timeline: SpeechTimeline, startMs: Long, lenMs: Long): Boolean {
+        val startUs = (startMs - LEAD_MS).coerceAtLeast(0) * 1000
+        val endUs = (startMs + lenMs) * 1000
         ex.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
         codec.flush()
         val info = MediaCodec.BufferInfo()
@@ -183,9 +206,12 @@ class AutoScan(
     }
 
     companion object {
-        const val MAX_PLACES = 16
+        const val MAX_PLACES = 24
+        /** Twenty seconds at a time. */
+        const val SEG_BINS = 400
         const val LEAD_MS = 10_000L
         const val BUDGET_MS = 10_000L
-        const val WORKERS = 3
+        const val OPEN_MS = 8_000L
+        const val WORKERS = 6
     }
 }

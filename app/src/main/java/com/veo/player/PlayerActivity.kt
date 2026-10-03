@@ -390,11 +390,13 @@ class PlayerActivity : AppCompatActivity() {
             basicAuth(url)?.let { put("Authorization", it) }
         }
         val job = AutoScan(url, headers, dur, p.currentPosition, intent.getBooleanExtra("torrent", false), al) { done, total, note ->
-            runOnUiThread { scanNote = if (total > 0) "$note · $done דק׳ נספרו" else note; refreshPanel() }
+            runOnUiThread { scanNote = note; refreshPanel() }
         }
         scan = job
         autoOn = true; autoLevel = 0; scanNote = "פותח את הסרט"
-        showMessage("מנתח את הסאונד מול הכתוביות - עד 10 שניות", 5_000)
+        scanStartedMs = android.os.SystemClock.elapsedRealtime()
+        handler.removeCallbacks(syncHintHide)
+        handler.post(scanTick)
         autoExec.execute {
             val est = job.run()
             runOnUiThread {
@@ -402,11 +404,11 @@ class PlayerActivity : AppCompatActivity() {
                 scan = null; autoOn = false
                 if (isFinishing || isDestroyed || aligner !== al) return@runOnUiThread
                 if (job.cancelled) { refreshPanel(); return@runOnUiThread }
-                if (est != null && est.locked) applyAuto(est)
-                else {
-                    scanNote = if (est == null) job.why.ifBlank { "לא הצלחתי לנתח" } else "לא נמצאה התאמה ברורה (נבדקו ${job.analysed} דקות)"
-                    showMessage(scanNote + " - אפשר לסנכרן לפי שורה", 4_000)
-                }
+                handler.removeCallbacks(scanTick)
+                // there is always an answer: what was found and how sure, or that nothing could be told and what to do then
+                if (est != null && est.z >= APPLY_Z) { applyAuto(est); showResult(resultText(est, applied = true)) }
+                else if (est != null) { scanNote = "ניחוש: " + resultText(est, applied = false); showResult(scanNote) }
+                else { scanNote = job.why.ifBlank { "לא נמצא דיבור מתאים לניתוח" }; showResult("$scanNote - אפשר לסנכרן לפי שורה") }
                 refreshPanel()
             }
         }
@@ -418,9 +420,45 @@ class PlayerActivity : AppCompatActivity() {
         autoOffset = est.offsetMs; autoScale = est.scale
         autoLocked = true; autoLevel = est.level
         applySync(); saveSync()
+        scanNote = resultText(est, applied = true)
+    }
+
+    private val APPLY_Z = 3.0
+    @Volatile private var scanStartedMs = 0L
+
+    /** "+2.4 שנ׳ · קצב +4.27% · ביטחון בינוני": what was found, at what speed change, and how sure. */
+    private fun resultText(est: AutoAligner.Estimate, applied: Boolean): String {
         val rate = if (kotlin.math.abs(est.scale - 1.0) > 0.0005) " · קצב %+.2f%%".format((est.scale - 1.0) * 100) else ""
-        scanNote = "נמצא: %+.1f שנ׳%s".format(est.offsetMs / 1000.0, rate)
-        showMessage("סנכרון אוטומטי ✓ %+.1f שנ׳%s".format(est.offsetMs / 1000.0, rate), 6_000)
+        val sure = when { est.z >= AutoSync.Z_HIGH -> "גבוה"; est.z >= AutoSync.Z_LOCK -> "בינוני"; est.z >= 4.0 -> "נמוך"; else -> "נמוך מאוד" }
+        return "%+.1f שנ׳%s · ביטחון %s%s".format(est.offsetMs / 1000.0, rate, sure, if (applied) "" else " - לא הוחל")
+    }
+
+    /** The countdown, in the same quiet pill the offer comes in: ten seconds down to the answer. */
+    private val scanTick: Runnable = object : Runnable {
+        override fun run() {
+            if (!autoOn) return
+            val began = scan?.startedMs ?: 0L
+            if (began == 0L) showPill("מסנכרן כתוביות…  פותח את הסרט")
+            else {
+                val left = ((AutoScan.BUDGET_MS - (android.os.SystemClock.elapsedRealtime() - began) + 999) / 1000).coerceIn(0, 10)
+                showPill("מסנכרן כתוביות…  $left  ·  $scanNote")
+            }
+            handler.postDelayed(this, 250)
+        }
+    }
+
+    private fun showPill(text: String) {
+        val hint = findViewById<TextView>(R.id.syncHint)
+        hint.text = text
+        hint.setTextColor(skin.light)
+        hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xE8)) }
+        hint.visibility = View.VISIBLE
+    }
+
+    private fun showResult(text: String) {
+        showPill(text)
+        handler.removeCallbacks(syncHintHide)
+        handler.postDelayed(syncHintHide, 9_000)
     }
 
     private fun refreshPanel() {
@@ -1807,9 +1845,9 @@ class PlayerActivity : AppCompatActivity() {
      */
     private val syncHintShow = Runnable {
         val p = player ?: return@Runnable
-        if (p.playWhenReady || live || autoOn || autoLocked || captions?.any != true || panelOpen || lineSync >= 0) return@Runnable
+        if (p.playWhenReady || live || autoOn || captions?.any != true || panelOpen || lineSync >= 0) return@Runnable
         val hint = findViewById<TextView>(R.id.syncHint)
-        hint.text = "הכתוביות לא מסונכרנות?  ▼ סנכרון"
+        hint.text = if (autoLocked) "▼ סנכרון מחדש" else "הכתוביות לא מסונכרנות?  ▼ סנכרון"
         hint.setTextColor(skin.muted)
         hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xD8)) }
         hint.setOnClickListener { acceptSyncHint() }

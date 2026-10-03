@@ -3,16 +3,24 @@ package com.veo.player
 import android.media.MediaDataSource
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A file read over HTTP by byte ranges, for [android.media.MediaExtractor]. The extractor's own HTTP reader gives up on
- * a stream that is not an ordinary static file (a torrent's local server, for one); asking for ranges ourselves, with a
- * long patience for a piece still to arrive, reads it the way the player does.
+ * a stream that is not an ordinary static file (a torrent's local server, for one); asking for ranges ourselves reads it
+ * the way the player does.
+ *
+ * Several readers share one [Cache]: they all begin by reading the same index of the file, and each seek re-reads it, so a block
+ * fetched once is not fetched again.
  */
-class HttpRangeSource(private val url: String, private val headers: Map<String, String>, private val readTimeoutMs: Int) : MediaDataSource() {
-    private var size = -1L
-    private var blockAt = -1L
-    private var block = ByteArray(0)
+class HttpRangeSource(
+    private val url: String, private val headers: Map<String, String>, private val readTimeoutMs: Int,
+    private val cache: Cache = Cache()
+) : MediaDataSource() {
+    class Cache {
+        internal val blocks = ConcurrentHashMap<Long, ByteArray>()
+        @Volatile internal var size = -1L
+    }
 
     private fun open(range: String): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
@@ -23,38 +31,53 @@ class HttpRangeSource(private val url: String, private val headers: Map<String, 
         return c
     }
 
-    @Synchronized override fun getSize(): Long {
-        if (size >= 0) return size
-        val c = open("bytes=0-0")
-        try {
-            val total = c.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
-            size = total ?: c.contentLengthLong.takeIf { it > 0 } ?: -1L
-        } finally { c.disconnect() }
-        return size
+    override fun getSize(): Long {
+        if (cache.size >= 0) return cache.size
+        synchronized(cache) {
+            if (cache.size >= 0) return cache.size
+            val c = open("bytes=0-0")
+            try {
+                val total = c.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
+                cache.size = total ?: c.contentLengthLong.takeIf { it > 0 } ?: -1L
+            } finally { c.disconnect() }
+            return cache.size
+        }
     }
 
-    @Synchronized override fun readAt(position: Long, buffer: ByteArray, offset: Int, count: Int): Int {
+    private fun block(index: Long, total: Long): ByteArray? = cache.blocks[index] ?: run {
+        val from = index * BLOCK
+        val to = if (total >= 0) minOf(from + BLOCK, total) - 1 else from + BLOCK - 1
+        val t0 = System.nanoTime()
+        val c = open("bytes=$from-$to")
+        try {
+            if (c.responseCode !in 200..299) return null
+            if (c.responseCode == 200 && from > 0) return null          // a server that ignored the range: not usable
+            val data = c.inputStream.use { it.readBytes() }
+            android.util.Log.d(AutoSync.TAG, "read ${data.size} bytes at $from in ${(System.nanoTime() - t0) / 1_000_000} ms")
+            cache.blocks.putIfAbsent(index, data)
+            data
+        } finally { c.disconnect() }
+    }
+
+    override fun readAt(position: Long, buffer: ByteArray, offset: Int, count: Int): Int {
         if (count == 0) return 0
         val total = getSize()
         if (total in 0..position) return -1
-        if (position < blockAt || position >= blockAt + block.size) {
-            val want = BLOCK.toLong().coerceAtMost(if (total >= 0) total - position else BLOCK.toLong())
-            val c = open("bytes=$position-${position + want - 1}")
-            try {
-                if (c.responseCode !in 200..299) return -1
-                val data = c.inputStream.use { it.readBytes() }
-                if (c.responseCode == 200 && position > 0) return -1       // a server that ignored the range: not usable
-                block = data; blockAt = position
-            } finally { c.disconnect() }
+        var done = 0
+        var at = position
+        while (done < count) {
+            val b = block(at / BLOCK, total) ?: return if (done > 0) done else -1
+            val from = (at % BLOCK).toInt()
+            val n = minOf(count - done, b.size - from)
+            if (n <= 0) break
+            System.arraycopy(b, from, buffer, offset + done, n)
+            done += n; at += n
+            if (total in 0..at) break
         }
-        val from = (position - blockAt).toInt()
-        val n = minOf(count, block.size - from)
-        if (n <= 0) return -1
-        System.arraycopy(block, from, buffer, offset, n)
-        return n
+        return if (done == 0) -1 else done
     }
 
     override fun close() {}
 
-    companion object { const val BLOCK = 1 shl 20 }
+    companion object { const val BLOCK = 256 * 1024 }
 }
