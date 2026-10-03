@@ -971,3 +971,17 @@ test('the WebView does not intercept a long press on a poster with its own nativ
   assert.match(main, /web\.setOnLongClickListener \{ true \}/);
   assert.match(css, /\.poster\{[^}]*-webkit-touch-callout:none/);
 });
+
+test('the player info bar is sized by screen (a phone much lower than a television) and the next-episode button fills over the time to press (#303)', async () => {
+  const layout = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  const phone = await readFile(path.join(repo, 'app/src/main/res/values/dimens.xml'), 'utf8');
+  const tv = await readFile(path.join(repo, 'app/src/main/res/values-sw600dp/dimens.xml'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(layout, /android:textSize="@dimen\/info_name_text"/);
+  assert.match(layout, /android:paddingVertical="@dimen\/info_pad_v"/);
+  assert.match(phone, /name="info_pad_v">6dp/);
+  assert.match(tv, /name="info_pad_v">9dp/);
+  assert.match(k, /private fun startNextFill\(\)/);
+  assert.match(k, /if \(ended && nextFill == null\) startNextFill\(\)/);
+  assert.doesNotMatch(k, /nextCount/);
+});

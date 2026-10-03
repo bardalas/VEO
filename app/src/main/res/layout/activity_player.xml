@@ -76,7 +76,7 @@
         android:id="@+id/infobar"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:orientation="vertical"
-        android:background="#E6070910" android:paddingHorizontal="26dp" android:paddingVertical="14dp"
+        android:background="#E6070910" android:paddingHorizontal="@dimen/info_pad_h" android:paddingVertical="@dimen/info_pad_v"
         android:visibility="gone">
 
         <LinearLayout
@@ -85,49 +85,49 @@
             <TextView
                 android:id="@+id/chNum"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:minWidth="46dp" android:gravity="center"
-                android:background="#F0B429" android:paddingHorizontal="10dp" android:paddingVertical="3dp"
-                android:textColor="#14161F" android:textSize="20sp" android:textStyle="bold" />
+                android:minWidth="@dimen/info_num_min" android:gravity="center"
+                android:background="#F0B429" android:paddingHorizontal="8dp" android:paddingVertical="@dimen/info_num_pad_v"
+                android:textColor="#14161F" android:textSize="@dimen/info_num_text" android:textStyle="bold" />
             <ImageView
                 android:id="@+id/chLogo"
-                android:layout_width="64dp" android:layout_height="40dp"
-                android:layout_marginStart="14dp" android:scaleType="fitCenter"
+                android:layout_width="@dimen/info_logo_w" android:layout_height="@dimen/info_logo_h"
+                android:layout_marginStart="@dimen/info_gap" android:scaleType="fitCenter"
                 android:contentDescription="@null" android:visibility="gone" />
             <TextView
                 android:id="@+id/chName"
                 android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:layout_marginStart="14dp" android:maxLines="1" android:ellipsize="end"
-                android:textColor="#FFFFFF" android:textSize="24sp" android:textStyle="bold" />
+                android:layout_marginStart="@dimen/info_gap" android:maxLines="1" android:ellipsize="end"
+                android:textColor="#FFFFFF" android:textSize="@dimen/info_name_text" android:textStyle="bold" />
             <!-- live TV: live, or how far behind it, or a recording -->
             <TextView
                 android:id="@+id/liveChip"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="14dp" android:paddingHorizontal="14dp" android:paddingVertical="5dp"
-                android:textSize="16sp" android:textStyle="bold" android:visibility="gone" />
+                android:layout_marginStart="@dimen/info_gap" android:paddingHorizontal="12dp" android:paddingVertical="3dp"
+                android:textSize="@dimen/info_chip_text" android:textStyle="bold" android:visibility="gone" />
             <TextView
                 android:id="@+id/nowClock"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:textColor="#AAB0BD" android:textSize="17sp" />
+                android:layout_marginStart="@dimen/info_gap"
+                android:textColor="#AAB0BD" android:textSize="@dimen/info_clock_text" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/nowTitle"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" android:maxLines="1" android:ellipsize="end"
-            android:textColor="#FFFFFF" android:textSize="19sp" />
+            android:layout_marginTop="@dimen/info_title_top" android:maxLines="1" android:ellipsize="end"
+            android:textColor="#FFFFFF" android:textSize="@dimen/info_title_text" />
 
         <!-- how far in (and, on live, how far behind): fills from the side the layout starts from -->
         <com.veo.player.SeekBarView
             android:id="@+id/nowBar"
-            android:layout_width="match_parent" android:layout_height="38dp"
-            android:layout_marginTop="4dp" />
+            android:layout_width="match_parent" android:layout_height="@dimen/info_bar_live"
+            android:layout_marginTop="@dimen/info_bar_top" />
 
         <TextView
             android:id="@+id/nextTitle"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" android:maxLines="1" android:ellipsize="end"
-            android:textColor="#AAB0BD" android:textSize="16sp" />
+            android:layout_marginTop="@dimen/info_next_top" android:maxLines="1" android:ellipsize="end"
+            android:textColor="#AAB0BD" android:textSize="@dimen/info_next_text" />
     </LinearLayout>
 
     <!-- The sign of a seek: which way, and how far in all, while the key is pressed or held. -->
