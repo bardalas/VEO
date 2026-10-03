@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.46 — 2026-10-04
+- **Automatic subtitle sync reads the film's sound by itself.** The live listening, which stayed at 0/60 on a real device, is replaced
+  by a one-time scan started from the panel row: it decodes the film's audio on its own, a minute at a time from several places,
+  and stops when it is sure. Not yet tried on a real device - please test it. (#316)
+- **The remove-from-Continue-Watching screen stays open** when OK is still held down as it appears. (#314)
+
 ## 0.45.45 — 2026-10-03
 - **Holding OK on a Continue Watching card no longer opens the title first.** A short press now opens it when you let go; a hold asks whether to remove it. (#307)
 - **Automatic subtitle sync is a button.** It is off until you press OK, says it takes a few minutes, shows its listening progress live, and OK stops it. (#309)
