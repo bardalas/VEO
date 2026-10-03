@@ -1793,7 +1793,33 @@ class PlayerActivity : AppCompatActivity() {
     private fun showPaused(paused: Boolean) {
         findViewById<View>(R.id.pausebox).visibility = if (paused && !live) View.VISIBLE else View.GONE
         if (paused && !live) showBanner()
+        handler.removeCallbacks(syncHintShow)
+        hideSyncHint()
+        if (paused && !live && !autoOn) handler.postDelayed(syncHintShow, 1_200)
     }
+
+    /*
+     * A pause is a pause. After a moment a small, quiet pill offers to sync the subtitles - Down on a remote, a tap on a
+     * touch screen - and ignoring it costs nothing: it goes with Back, with playing on, or by itself after a few seconds.
+     * Only when there are subtitles that have not been synced yet. Sync is only ever started by the viewer.
+     */
+    private val syncHintShow = Runnable {
+        val p = player ?: return@Runnable
+        if (p.playWhenReady || live || autoOn || autoLocked || captions?.any != true || panelOpen || lineSync >= 0) return@Runnable
+        val hint = findViewById<TextView>(R.id.syncHint)
+        hint.text = "הכתוביות לא מסונכרנות?  ▼ סנכרון"
+        hint.setTextColor(skin.muted)
+        hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xD8)) }
+        hint.setOnClickListener { acceptSyncHint() }
+        hint.visibility = View.VISIBLE
+        handler.postDelayed(syncHintHide, 9_000)
+    }
+    private val syncHintHide = Runnable { hideSyncHint() }
+    private fun hideSyncHint() {
+        handler.removeCallbacks(syncHintHide)
+        findViewById<View>(R.id.syncHint).visibility = View.GONE
+    }
+    private fun acceptSyncHint() { hideSyncHint(); toggleAuto() }
 
     /** The panel over the video: why it stopped, and the buttons that get the viewer moving again. */
     private fun showErrorPanel(title: String, why: String) {
@@ -1857,6 +1883,11 @@ class PlayerActivity : AppCompatActivity() {
             return super.dispatchKeyEvent(event)                 // arrows move between the panel's buttons
         }
         // choosing the line to sync to: Up/Down pick another line, OK says it is being spoken, Back gives it up
+        // the offer made on a pause: Down takes it, anything else just goes on as it would (Back puts it away)
+        if (down && findViewById<View>(R.id.syncHint).visibility == View.VISIBLE) {
+            if (code == KeyEvent.KEYCODE_DPAD_DOWN) { acceptSyncHint(); return true }
+            if (code == KeyEvent.KEYCODE_BACK) { hideSyncHint(); return true }
+        }
         if (lineSync >= 0 && (ok || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK)) {
             if (down) when {
                 code == KeyEvent.KEYCODE_BACK -> if (event.repeatCount == 0) lineSyncEnd()
