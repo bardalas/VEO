@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.45 — 2026-10-03
+- **Holding OK on a Continue Watching card no longer opens the title first.** A short press now opens it when you let go; a hold asks whether to remove it. (#307)
+- **Automatic subtitle sync is a button.** It is off until you press OK, says it takes a few minutes, shows its listening progress live, and OK stops it. (#309)
+- **Sync to a line allows half a second** for your reaction time. (#311)
+- **Larger text in the player info bar**, on phone and TV. (#311)
+
 ## 0.45.44 — 2026-10-03
 - **Subtitles can sync themselves.** The player listens to the dialogue and sets it against the subtitle lines, trying
   no stretch and the 25/24/23.976 frame-rate stretches. It locks after a few minutes of speech and keeps checking.

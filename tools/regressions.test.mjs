@@ -1028,6 +1028,8 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(sy, /REACTION_MS = 500L/);
   assert.match(phone, /name="info_name_text">20sp/);
   assert.match(tv, /name="info_name_text">26sp/);
+});
+
 test("automatic sync is a button: off until OK, shows its progress, stops on OK (#309)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /private var autoOn = false/);
@@ -1035,6 +1037,8 @@ test("automatic sync is a button: off until OK, shows its progress, stops on OK 
   assert.match(k, /OK להפעלה/);
   assert.match(k, /מאזין… /);
   assert.match(k, /if \(autoOn\) \{\s+aligner = /);
+});
+
 test("a held OK on a Continue Watching card does not open it: Enter keydown is swallowed, a short press opens on keyup (#307)", async () => {
   const k = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
