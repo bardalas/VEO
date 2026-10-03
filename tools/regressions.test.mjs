@@ -1044,3 +1044,10 @@ test("a held OK on a Continue Watching card does not open it: Enter keydown is s
   assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
   assert.match(k, /if\(short\)\{ e\.preventDefault\(\); b\.click\(\); \}/);
 });
+
+test("auto sync tap reads float PCM too, and the row says why nothing is heard (#316)", async () => {
+  const r = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(r, /floatPcm = encoding == AudioFormat\.ENCODING_PCM_FLOAT/);
+  assert.match(k, /אין שמע לניתוח/);
+});

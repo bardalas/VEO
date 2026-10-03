@@ -66,6 +66,8 @@ class SpeechTimeline {
         private set
     /** A debug build says now and then how much of what it hears is taken for speech (logcat, tag VEO-autosync). */
     @Volatile var debug = false
+    /** What the audio renderer last said about the sound it was given (format), for the panel when nothing is heard. */
+    @Volatile var note = ""
     private var logged = 0; private var logSpeech = 0; private var logN = 0; private var logE = 0f
 
     // ---- the audio's side: filters and the step being built ----

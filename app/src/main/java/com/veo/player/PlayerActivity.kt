@@ -152,6 +152,7 @@ class PlayerActivity : AppCompatActivity() {
     private var autoScale = 1.0
     private var autoLevel = 0
     private var autoNote = ""
+    private var autoStartMs = 0L
     @Volatile private var autoBusy = false
     private val autoExec = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val AUTO_TICK_MS = 3_000L
@@ -439,6 +440,8 @@ class PlayerActivity : AppCompatActivity() {
         !autoOn -> "OK להפעלה"
         autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לעצירה"
         autoNote.isNotEmpty() && (aligner?.chunks ?: 0) > 0 -> autoNote + " · OK לעצירה"
+        speech.top < 0 && android.os.SystemClock.elapsedRealtime() - autoStartMs > 10_000 ->
+            "אין שמע לניתוח · " + speech.note.ifBlank { "הסאונד לא מפוענח (העברה ישירה?)" }
         else -> "מאזין… ${(speech.top * AutoSync.BIN_MS / 1000).coerceAtMost(60)}/60 שנ׳ · OK לעצירה"
     }
 
@@ -447,7 +450,7 @@ class PlayerActivity : AppCompatActivity() {
         autoOn = !autoOn
         if (autoOn) {
             aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
-            autoLevel = 0; autoNote = ""
+            autoLevel = 0; autoNote = ""; autoStartMs = android.os.SystemClock.elapsedRealtime()
             showMessage("מאזין לדיבור ומשווה לכתוביות - לוקח כמה דקות", 4_000)
         } else showMessage("הסנכרון האוטומטי נעצר", 2_000)
         applySync(); saveSync()

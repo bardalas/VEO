@@ -37,6 +37,7 @@ class TappingAudioRenderer(
     private var rate = 0
     private var channels = 0
     private var pcm16 = false
+    private var floatPcm = false
     private var lastPts = Long.MIN_VALUE
 
     override fun onOutputFormatChanged(format: Format, mediaFormat: MediaFormat?) {
@@ -46,6 +47,8 @@ class TappingAudioRenderer(
         val encoding = if (Build.VERSION.SDK_INT >= 24 && mediaFormat != null && mediaFormat.containsKey(MediaFormat.KEY_PCM_ENCODING))
             mediaFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) else AudioFormat.ENCODING_PCM_16BIT
         pcm16 = encoding == AudioFormat.ENCODING_PCM_16BIT
+        floatPcm = encoding == AudioFormat.ENCODING_PCM_FLOAT
+        timeline.note = "${format.sampleMimeType ?: "?"} ${rate}Hz ${channels}ch pcm=$encoding"
     }
 
     override fun processOutputBuffer(
@@ -54,9 +57,18 @@ class TappingAudioRenderer(
         isLastBuffer: Boolean, format: Format
     ): Boolean {
         // a buffer the sink could not take whole comes round again: it is looked at once
-        if (buffer != null && !isDecodeOnlyBuffer && pcm16 && rate > 0 && channels > 0 && bufferPresentationTimeUs != lastPts) {
+        if (buffer != null && !isDecodeOnlyBuffer && (pcm16 || floatPcm) && rate > 0 && channels > 0 && bufferPresentationTimeUs != lastPts) {
             lastPts = bufferPresentationTimeUs
-            runCatching { timeline.feed(buffer, rate, channels, bufferPresentationTimeUs) }
+            runCatching {
+                if (pcm16) timeline.feed(buffer, rate, channels, bufferPresentationTimeUs)
+                else {                                   // float samples: handed on as the 16-bit ones the timeline reads
+                    val f = buffer.duplicate().order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
+                    val out = java.nio.ByteBuffer.allocate(f.remaining() * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    while (f.hasRemaining()) out.putShort((f.get() * 32767f).coerceIn(-32768f, 32767f).toInt().toShort())
+                    out.flip()
+                    timeline.feed(out, rate, channels, bufferPresentationTimeUs)
+                }
+            }
         }
         return super.processOutputBuffer(
             positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags, sampleCount,
