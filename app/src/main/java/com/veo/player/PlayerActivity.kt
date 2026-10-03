@@ -144,7 +144,6 @@ class PlayerActivity : AppCompatActivity() {
      * is. The viewer's own shift and stretch go on top of it, so the two never fight: what is shown is
      *   t * (autoScale * manualStretch) + autoOffset + subShift.
      */
-    private val speech = SpeechTimeline()
     private var aligner: AutoAligner? = null
     private var autoOn = false          // a button the viewer presses, not something that starts by itself
     private var autoLocked = false
@@ -152,10 +151,7 @@ class PlayerActivity : AppCompatActivity() {
     private var autoScale = 1.0
     private var autoLevel = 0
     private var autoNote = ""
-    private var autoStartMs = 0L
-    @Volatile private var autoBusy = false
     private val autoExec = java.util.concurrent.Executors.newSingleThreadExecutor()
-    private val AUTO_TICK_MS = 3_000L
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
     private var lineAnchor: Pair<Long, Long>? = null
     /** While the viewer is choosing the line to sync to: the index of the line being offered, else -1. */
@@ -200,7 +196,6 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
-        speech.debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
         subsAuto = prefs.getString("subs", "auto") != "off"
@@ -263,8 +258,7 @@ class PlayerActivity : AppCompatActivity() {
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
-        handler.removeCallbacks(autoTick)
-        if (captions?.any == true) handler.postDelayed(autoTick, AUTO_TICK_MS)
+        scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""
         val drawing = captions?.any == true
         val view = findViewById<TextView>(R.id.cues)
         view.visibility = if (drawing) View.VISIBLE else View.GONE
@@ -379,56 +373,52 @@ class PlayerActivity : AppCompatActivity() {
         }.apply()
     }
 
-    // ---------- automatic sync: listening, judging a minute at a time, applying what it finds ----------
-    private val autoTick: Runnable = object : Runnable {
-        override fun run() {
-            handler.postDelayed(this, AUTO_TICK_MS)
-            val al = aligner ?: return
-            if (!autoOn || player == null) return
-            refreshPanel()                                          // the listening is shown as it goes
-            if (autoBusy) return
-            val top = speech.top
-            val cb = AutoSync.CHUNK_BINS
-            if (top < cb) return
-            val lastCell = (top + 1) / cb - 1                       // the minutes wholly behind the newest sound
-            var pick = -1
-            for (cell in 0..lastCell) {
-                if (al.seen(cell)) continue
-                if (speech.coverage(cell * cb, (cell + 1) * cb) >= AutoSync.MIN_COVERAGE) { pick = cell; break }
-                if (cell < lastCell - 1) al.skip(cell)             // a hole a jump left: nothing more will come to it
-            }
-            if (pick < 0) return
-            autoBusy = true
-            val chunk = speech.slice(pick * cb, (pick + 1) * cb)
-            autoExec.execute {
-                val est = runCatching { al.addChunk(pick, chunk) }.getOrNull()
-                runOnUiThread {
-                    autoBusy = false
-                    if (!isFinishing && !isDestroyed && aligner === al) onAutoEstimate(est, al.chunks)
+    // ---------- automatic sync: a one-time scan of the film's sound, asked for from the panel ----------
+    @Volatile private var scan: AutoScan? = null
+    @Volatile private var scanNote = ""
+
+    private fun startScan() {
+        val al = aligner ?: return
+        val p = player ?: return
+        val src = sources.getOrNull(index) ?: return
+        val dur = p.duration
+        if (dur <= 0) { showMessage("הסרט עדיין נטען", 2_000); return }
+        val url = src.url
+        val headers = buildMap {
+            src.ua.takeIf { it.isNotBlank() }?.let { put("User-Agent", it) }
+            src.referer.takeIf { it.isNotBlank() }?.let { put("Referer", it) }
+            basicAuth(url)?.let { put("Authorization", it) }
+        }
+        val job = AutoScan(url, headers, dur, p.currentPosition, al) { done, total, note ->
+            runOnUiThread { scanNote = if (total > 0) "$note · $done דק׳ נספרו" else note; refreshPanel() }
+        }
+        scan = job
+        autoOn = true; autoLevel = 0; scanNote = "פותח את הסרט"
+        showMessage("מנתח את הסאונד מול הכתוביות - לוקח כדקה, אפשר להמשיך לצפות", 5_000)
+        autoExec.execute {
+            val est = job.run()
+            runOnUiThread {
+                if (scan !== job) return@runOnUiThread
+                scan = null; autoOn = false
+                if (isFinishing || isDestroyed || aligner !== al) return@runOnUiThread
+                if (job.cancelled) { refreshPanel(); return@runOnUiThread }
+                if (est != null && est.locked) applyAuto(est)
+                else {
+                    scanNote = if (est == null) job.why.ifBlank { "לא הצלחתי לנתח" } else "לא נמצאה התאמה ברורה"
+                    showMessage(scanNote + " - אפשר לסנכרן לפי שורה", 4_000)
                 }
+                refreshPanel()
             }
         }
+        refreshPanel()
     }
 
-    private fun onAutoEstimate(est: AutoAligner.Estimate?, chunks: Int) {
-        refreshPanel()
-        if (est == null) { if (!autoLocked) autoNote = "מחכה לדיבור"; return }
-        android.util.Log.d(AutoSync.TAG, "minutes=$chunks scale=${"%.4f".format(est.scale)} offset=${est.offsetMs} z=${"%.1f".format(est.z)}")
-        if (!est.locked) {
-            if (!autoLocked) { autoLevel = est.level; autoNote = "מנתח · ${chunks} דק׳ דיבור" }
-            return
-        }
-        val first = !autoLocked
-        if (first) { subShift = 0L; manualStretch = 1.0; lineAnchor = null }       // what was done by hand before is what this has now found
-        if (!first && est.scale == autoScale && abs(est.offsetMs - autoOffset) < 1_000) {
-            autoOffset = (autoOffset + est.offsetMs) / 2                            // a small correction: halfway, not a jump
-        } else {
-            autoOffset = est.offsetMs; autoScale = est.scale
-        }
-        autoLocked = true; autoLevel = est.level; autoNote = ""
+    private fun applyAuto(est: AutoAligner.Estimate) {
+        subShift = 0L; manualStretch = 1.0; lineAnchor = null                        // what was done by hand before is what this has now found
+        autoOffset = est.offsetMs; autoScale = est.scale
+        autoLocked = true; autoLevel = est.level; scanNote = ""
         applySync(); saveSync()
-        if (first) showMessage("סנכרון אוטומטי ✓", 2_500)
-        refreshPanel()
+        showMessage("סנכרון אוטומטי ✓ %+.1f שנ׳".format(est.offsetMs / 1000.0), 3_000)
     }
 
     private fun refreshPanel() {
@@ -436,24 +426,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun autoStatus(): String = when {
-        !autoOn && autoLocked -> "נשמר ✓ ${"%+.1f".format(autoOffset / 1000.0)}s · OK לחישוב מחדש"
-        !autoOn -> "OK להפעלה"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לעצירה"
-        autoNote.isNotEmpty() && (aligner?.chunks ?: 0) > 0 -> autoNote + " · OK לעצירה"
-        speech.top < 0 && android.os.SystemClock.elapsedRealtime() - autoStartMs > 10_000 ->
-            "אין שמע לניתוח · " + speech.note.ifBlank { "הסאונד לא מפוענח (העברה ישירה?)" }
-        else -> "מאזין… ${(speech.top * AutoSync.BIN_MS / 1000).coerceAtMost(60)}/60 שנ׳ · OK לעצירה"
+        autoOn -> "$scanNote · OK לעצירה"
+        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" } + " · OK לחישוב מחדש"
+        scanNote.isNotEmpty() -> "$scanNote · OK לניסיון נוסף"
+        else -> "OK לסנכרון אוטומטי"
     }
 
-    /** OK on the row: start listening (it takes a few minutes of dialogue, said so), or stop. What was found stays. */
+    /** OK on the row: look at the film's sound once (a minute or so), or stop doing it. What was found stays. */
     private fun toggleAuto() {
-        autoOn = !autoOn
-        if (autoOn) {
-            aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
-            autoLevel = 0; autoNote = ""; autoStartMs = android.os.SystemClock.elapsedRealtime()
-            showMessage("מאזין לדיבור ומשווה לכתוביות - לוקח כמה דקות", 4_000)
-        } else showMessage("הסנכרון האוטומטי נעצר", 2_000)
-        applySync(); saveSync()
+        if (autoOn) { scan?.cancelled = true; scan = null; autoOn = false; scanNote = ""; showMessage("הסנכרון האוטומטי נעצר", 2_000); return }
+        aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
+        scanNote = ""
+        startScan()
     }
 
     // ---------- sync to a line: say when it is spoken ----------
@@ -960,17 +944,6 @@ class PlayerActivity : AppCompatActivity() {
         // decoder that failed is left out of the next attempt and the film goes on with the one after it.
         audioDelay.delayMs = getSharedPreferences("veo", MODE_PRIVATE).getInt("audioDelayMs", 0)
         val renderers = object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
-            // the player's own audio renderer, which also tells the speech timeline what it decodes (automatic subtitle sync)
-            override fun buildAudioRenderers(
-                context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: MediaCodecSelector,
-                enableDecoderFallback: Boolean, audioSink: androidx.media3.exoplayer.audio.AudioSink, eventHandler: android.os.Handler,
-                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
-                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
-            ) {
-                out.add(TappingAudioRenderer(context, androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Factory.getDefault(context),
-                    mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink, speech))
-            }
-
             // the sound goes through a delay of the viewer's choosing (Menu -> sync), for a stream whose sound and picture drift apart
             override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean) =
                 androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
@@ -2021,7 +1994,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         started = false
-        handler.removeCallbacks(autoTick)
+        scan?.cancelled = true
         stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
         player?.let { resumePosition = it.currentPosition; saveProgress(it.currentPosition, it.duration); it.release() }
