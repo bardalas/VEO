@@ -3,20 +3,20 @@
 <resources>
     <dimen name="info_pad_v">9dp</dimen>
     <dimen name="info_pad_h">26dp</dimen>
-    <dimen name="info_num_text">18sp</dimen>
+    <dimen name="info_num_text">22sp</dimen>
     <dimen name="info_num_min">42dp</dimen>
     <dimen name="info_num_pad_v">2dp</dimen>
     <dimen name="info_logo_w">56dp</dimen>
     <dimen name="info_logo_h">34dp</dimen>
     <dimen name="info_gap">14dp</dimen>
-    <dimen name="info_name_text">21sp</dimen>
-    <dimen name="info_chip_text">15sp</dimen>
-    <dimen name="info_clock_text">16sp</dimen>
-    <dimen name="info_title_text">17sp</dimen>
+    <dimen name="info_name_text">26sp</dimen>
+    <dimen name="info_chip_text">18sp</dimen>
+    <dimen name="info_clock_text">20sp</dimen>
+    <dimen name="info_title_text">22sp</dimen>
     <dimen name="info_title_top">7dp</dimen>
     <dimen name="info_bar_live">36dp</dimen>
     <dimen name="info_bar_film">22dp</dimen>
     <dimen name="info_bar_top">2dp</dimen>
-    <dimen name="info_next_text">15sp</dimen>
+    <dimen name="info_next_text">18sp</dimen>
     <dimen name="info_next_top">5dp</dimen>
 </resources>

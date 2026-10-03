@@ -15,7 +15,7 @@ object SubSync {
     const val MIN_GAP_MS = 300_000L
 
     /** How long after a line starts a viewer presses to say they heard it: taken off the press. */
-    const val REACTION_MS = 300L
+    const val REACTION_MS = 500L
 
     /** The common frame-rate mismatches, as the stretch that mends them (the translation made for the first, the film at the second). */
     val PRESETS = listOf(
