@@ -1044,3 +1044,8 @@ test("a held OK on a Continue Watching card does not open it: Enter keydown is s
   assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
   assert.match(k, /if\(short\)\{ e\.preventDefault\(\); b\.click\(\); \}/);
 });
+
+test("a sheet raised by a held OK ignores the key's auto-repeat so it stays open (#314)", async () => {
+  const k = await readFile(path.join(assets, 'js/ui/sheets.js'), 'utf8');
+  assert.match(k, /sheet\.addEventListener\('keydown', e => \{ if\(e\.repeat && \(e\.key === 'Enter'/);
+});
