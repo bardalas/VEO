@@ -1061,6 +1061,12 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
   assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
 });
 
+test("the sync scan on a torrent reads the minutes just ahead first and never asks to watch more (#332)", async () => {
+  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  assert.match(sc, /The minutes just ahead of the picture/);
+  assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
+});
+
 test("the buffering wheel takes the skin's primary colour, and a paused torrent fills on like any film (#329, #330)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /exo_buffering\)\?\.indeterminateTintList = .*skin\.accent/);
