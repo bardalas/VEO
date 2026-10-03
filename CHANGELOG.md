@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.50 — 2026-10-04
+- **The sync offer shows on every pause** (it was hidden when a sync had been saved), as a small pill at the top. Tapping it - or Down on a remote -
+  starts the sync with a countdown from 10, and the answer is always shown: the offset, any speed change and how sure it is, or why nothing could be told. (#342)
+- **Sync reads many short stretches from all over the film** instead of a few long ones, with several readers sharing what they fetch. Over a slow internet
+  stream it may still not finish in time - it then says so. Not yet tried on real dialogue - please test it. (#342)
+
 ## 0.45.49 — 2026-10-04
 - **Subtitle sync takes at most 10 seconds and shows the result.** Three readers take different minutes of the film at once; at the end it
   shows the offset found (+x s) and any speed change, or that it was not conclusive and how many minutes it checked. It never applies a result it
