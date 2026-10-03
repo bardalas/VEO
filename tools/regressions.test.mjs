@@ -1021,6 +1021,13 @@ test('the player info bar is sized by screen (a phone much lower than a televisi
   assert.doesNotMatch(k, /nextCount/);
 });
 
+test("automatic sync is a button: off until OK, shows its progress, stops on OK (#309)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /private var autoOn = false/);
+  assert.doesNotMatch(k, /getBoolean\("autoSync"/);
+  assert.match(k, /OK להפעלה/);
+  assert.match(k, /מאזין… /);
+  assert.match(k, /if \(autoOn\) \{\s+aligner = /);
 test("a held OK on a Continue Watching card does not open it: Enter keydown is swallowed, a short press opens on keyup (#307)", async () => {
   const k = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(k, /if\(e\.key !== 'Enter'\) return;\s+e\.preventDefault\(\);\s+if\(!keyHeld\)/);
