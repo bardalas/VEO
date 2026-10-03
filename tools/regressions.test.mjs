@@ -608,7 +608,7 @@ test('the load control fetches further ahead on a fast line, and a pause goes on
   assert.match(lc, /CAP_BYTES \/ \(stream \/ 8\.0\)/);                                // and never more than fits in the memory allowed
   assert.doesNotMatch(lc, /LoadControl by base/);                                     // delegation leaves newer methods throwing
   assert.match(lc, /override fun onTracksSelected\(playerId: PlayerId/); assert.match(lc, /override fun onTracksSelected\(parameters: LoadControl\.Parameters/);
-  assert.match(pa, /val extend = !live && !intent\.getBooleanExtra\("torrent", false\)/);   // not a live stream, not a local torrent
+  assert.match(pa, /val extend = !live /);   // not a live stream; a torrent fills on too (#330)
   assert.match(pa, /@Volatile private var streamBps/);                                // the player is not asked from its own thread
 });
 
@@ -1065,4 +1065,11 @@ test("the sync scan on a torrent reads the minutes just ahead first and never as
   const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
   assert.match(sc, /The minutes just ahead of the picture/);
   assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
+});
+
+test("the buffering wheel takes the skin's primary colour, and a paused torrent fills on like any film (#329, #330)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /exo_buffering\)\?\.indeterminateTintList = .*skin\.accent/);
+  assert.match(k, /val extend = !live /);
+  assert.doesNotMatch(k, /val extend = !live && /);
 });
