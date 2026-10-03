@@ -39,7 +39,12 @@ class AutoScan(
                 val f = ex.getTrackFormat(i)
                 if ((f.getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/")) { track = i; fmt = f; break }
             }
-            if (track < 0 || fmt == null) { why = "אין ערוץ שמע בקובץ"; return null }
+            if (track < 0 || fmt == null) {
+                val seen = (0 until ex.trackCount).joinToString(",") { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME) ?: "?" }
+                val kind = when { url.contains(".m3u8") -> "HLS"; url.contains(".mpd") -> "DASH"; url.contains("127.0.0.1") || url.contains("localhost") -> "מקומי"; else -> url.substringBefore('?').substringAfterLast('.', "?").take(5) }
+                why = "אין ערוץ שמע בקובץ (${ex.trackCount} ערוצים: ${seen.ifEmpty { "-" }}; $kind)"
+                return null
+            }
             ex.selectTrack(track)
             val mime = fmt.getString(MediaFormat.KEY_MIME)!!
             codec = try { MediaCodec.createDecoderByType(mime) } catch (e: Exception) { why = "אין מפענח לשמע $mime במכשיר"; return null }
