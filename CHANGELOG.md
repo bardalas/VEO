@@ -1,5 +1,15 @@
 # VEO Android changelog
 
+## 0.45.44 — 2026-10-03
+- **Subtitles can sync themselves.** The player listens to the dialogue and sets it against the subtitle lines, trying
+  no stretch and the 25/24/23.976 frame-rate stretches. It locks after a few minutes of speech and keeps checking.
+  Not yet tried on a real film with a real Hebrew subtitle - please test it. (#302)
+- **Sync is remembered** per film or episode and subtitle file, and carries to the next episode from the same release group. (#302)
+- **New subtitle controls:** sync to a line (press OK when it is spoken), another subtitle, caption speed and frame-rate presets, a reset for manual changes. (#302)
+- **Up to 8 subtitles to choose from**, fetched in parallel (was 3). (#302)
+- **Player info bar sits lower** - a little on TV, much more on a phone. (#303)
+- **Next-episode button fills** over the 10 seconds you have to press it; when full, the next episode starts. (#303)
+
 ## 0.45.43 — 2026-09-29
 - **Another attempt at removing a Continue Watching card.** The WebView's own native long-press handling could
   win the race before the page's own touch/key handling got a clean press. Not verified on real hardware -
