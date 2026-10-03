@@ -1090,5 +1090,5 @@ test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Dow
   assert.match(k, /handler\.postDelayed\(syncHintShow, 1_200\)/);
   assert.match(k, /\|\| captions\?\.any != true/);
   assert.match(k, /code == KeyEvent\.KEYCODE_DPAD_DOWN\) \{ acceptSyncHint\(\); return true \}/);
-  assert.match(k, /private fun acceptSyncHint\(\) \{ hideSyncHint\(\); toggleAuto\(\) \}/);
+  assert.match(k, /private fun acceptSyncHint\(\)[\s\S]*if \(autoOn\) return[\s\S]*hideSyncHint\(\)[\s\S]*toggleAuto\(\)/);
 });
