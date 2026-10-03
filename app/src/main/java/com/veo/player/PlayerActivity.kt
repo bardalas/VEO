@@ -105,8 +105,13 @@ class PlayerActivity : AppCompatActivity() {
     private val nextVid get() = nextMeta?.optString("next").orEmpty()
     /** The viewer put the card away (Back): it stays away until the end, unless they go back before it. */
     private var nextDismissed = false
-    /** Seconds left before the next episode starts by itself, once this one has ended; -1 while it has not. */
-    private var nextCount = -1
+    /**
+     * The button's fill, once this episode has ended: it runs for the time the viewer has to press the button, and when it is
+     * full the next episode starts by itself. Null while the episode has not ended (or the viewer has put the card away).
+     */
+    private var nextFill: android.animation.ValueAnimator? = null
+    /** How long the viewer has to press it before the next episode starts by itself. */
+    private val NEXT_FILL_MS = 10_000L
     /** Leaving for the next episode: this one counts as watched to the end, and its torrent is already let go. */
     private var toNext = false
     /** Live TV: the arrows walk the channel's guide in the banner. [walking] is that state, and
@@ -768,7 +773,7 @@ class PlayerActivity : AppCompatActivity() {
     private val watchEnd: Runnable = Runnable {
         val p = player ?: return@Runnable                  // released: onStart starts it again
         val dur = p.duration
-        if (dur > 5 * 60_000L && nextCount < 0) {
+        if (dur > 5 * 60_000L && nextFill == null) {
             val pos = p.currentPosition
             if (pos >= creditsFrom(dur)) { if (!nextDismissed) showNext(ended = false) }
             else { nextDismissed = false; hideNext() }
@@ -784,7 +789,7 @@ class PlayerActivity : AppCompatActivity() {
         if (toNext) return
         val box = findViewById<View>(R.id.nextbox)
         findViewById<TextView>(R.id.nextName).text = nextMeta?.optString("nextName").orEmpty()
-        if (ended && nextCount < 0) { nextCount = 10; handler.removeCallbacks(countNext); handler.postDelayed(countNext, 1_000) }
+        if (ended && nextFill == null) startNextFill()
         paintNext()
         box.setOnClickListener { goNext() }
         if (box.visibility != View.VISIBLE) {
@@ -795,20 +800,56 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun paintNext() {
-        findViewById<TextView>(R.id.nextGo).text =
-            if (nextCount >= 0) "▶  לפרק הבא ($nextCount)" else "▶  לפרק הבא"
+        findViewById<TextView>(R.id.nextGo).text = "▶  לפרק הבא"
     }
 
-    private val countNext: Runnable = Runnable {
-        if (nextCount < 0 || !nextOpen) return@Runnable
-        if (--nextCount <= 0) { goNext(); return@Runnable }
-        paintNext()
-        handler.postDelayed(countNext, 1_000)
+    /** The button as it stands while the episode still plays: the accent, all of it. */
+    private fun idleNextButton() {
+        findViewById<TextView>(R.id.nextGo).apply { setBackgroundColor(skin.accent); setTextColor(skin.onAccent) }
+    }
+
+    /**
+     * The episode has ended: the button fills from the side the writing starts at, over the time the viewer has to press it -
+     * and when it is full the next episode starts. (It used to count a number down inside it; a bar that fills says the same
+     * thing without having to be read.) The fill is a darker accent over a pale track, so the one colour of writing reads on both.
+     */
+    private fun startNextFill() {
+        val go = findViewById<TextView>(R.id.nextGo)
+        val track = android.graphics.drawable.GradientDrawable().apply {
+            setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(skin.light, 0x2E))
+        }
+        val full = android.graphics.drawable.GradientDrawable().apply {
+            setColor(androidx.core.graphics.ColorUtils.blendARGB(skin.accent, skin.night, 0.35f))
+        }
+        val clip = android.graphics.drawable.ClipDrawable(full,
+            if (skin.rtl) android.view.Gravity.RIGHT else android.view.Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL)
+        go.background = android.graphics.drawable.LayerDrawable(arrayOf(track, clip))
+        go.setTextColor(skin.light)
+        nextFill = android.animation.ValueAnimator.ofInt(0, 10_000).apply {
+            duration = NEXT_FILL_MS
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { clip.level = it.animatedValue as Int }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    nextFill = null
+                    goNext()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun stopNextFill() {
+        nextFill?.cancel()
+        nextFill = null
+        idleNextButton()
     }
 
     private fun hideNext() {
-        handler.removeCallbacks(countNext)
-        nextCount = -1
+        stopNextFill()
         findViewById<View>(R.id.nextbox).visibility = View.GONE
     }
 
@@ -816,7 +857,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun goNext() {
         if (toNext) return
         toNext = true
-        handler.removeCallbacks(countNext)
+        nextFill?.cancel()
+        nextFill = null
         player?.let { saveProgress(it.duration, it.duration) }
         // The torrent is let go now, not when this screen is gone: the next episode may well be in the
         // same torrent (a season pack), and its stream must not be the one stopped a moment later.
@@ -1084,6 +1126,7 @@ class PlayerActivity : AppCompatActivity() {
 
     /** The "now / next" part, refreshed every second while the banner is up. */
     private fun paintNow() {
+        fitBar(film = false)
         findViewById<TextView>(R.id.nowTitle).textDirection = View.TEXT_DIRECTION_LOCALE
         val src = sources.getOrNull(index) ?: return
         val nowMs = System.currentTimeMillis()
@@ -1272,8 +1315,16 @@ class PlayerActivity : AppCompatActivity() {
         handler.postDelayed(tickBanner, if (walking) 30_000 else 1_000)
     }
 
+    /** The bar in the banner is as tall as the arrow and the time over it need on live TV, and a film - with neither - needs only a stripe. */
+    private fun fitBar(film: Boolean) {
+        val bar = findViewById<SeekBarView>(R.id.nowBar)
+        val h = resources.getDimensionPixelSize(if (film) R.dimen.info_bar_film else R.dimen.info_bar_live)
+        if (bar.layoutParams.height != h) bar.layoutParams = bar.layoutParams.apply { height = h }
+    }
+
     /** The same banner, for a film: its name, where you are in it, and how much of it is left. */
     private fun paintFilm() {
+        fitBar(film = true)
         val p = player ?: return
         val dur = p.duration.coerceAtLeast(0)
         val aim = scrubTo >= 0
@@ -1961,6 +2012,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onStop()
         started = false
         handler.removeCallbacks(autoTick)
+        stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
         player?.let { resumePosition = it.currentPosition; saveProgress(it.currentPosition, it.duration); it.release() }
         player = null
