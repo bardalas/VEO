@@ -39,7 +39,7 @@ class AutoScan(
     private val shared = HttpRangeSource.Cache()
 
     /**
-     * Looks for as long as [BUDGET_MS], with [WORKERS] readers each taking a different minute, and returns the best the aligner
+     * Looks for as long as [BUDGET_MS], with [WORKERS] readers each taking a different stretch, and returns the best the aligner
      * has by then (locked or not), or null if the sound could not be read at all ([why] says why).
      */
     fun run(): AutoAligner.Estimate? {
@@ -87,13 +87,15 @@ class AutoScan(
                 try {
                     while (!done && !cancelled && System.nanoTime() < deadlineNs) {
                         val bin = queue.poll() ?: break
-                        synchronized(lock) { started++ }
+                        val startedNow = synchronized(lock) { ++started }
+                        progress(read, order.size, "קורא מהרשת… $startedNow קטעים התחילו · $read הושלמו")
                         val timeline = SpeechTimeline()
                         val t0 = System.nanoTime()
                         val okSeg = decodeSeg(reader.first, reader.second, timeline, bin.toLong() * AutoSync.BIN_MS, segMs)
                         android.util.Log.d(AutoSync.TAG, "segment at ${bin * AutoSync.BIN_MS / 1000}s: ok=$okSeg in ${(System.nanoTime() - t0) / 1_000_000} ms, coverage ${"%.2f".format(timeline.coverage(bin, bin + segBins))}")
                         if (!okSeg) continue
-                        synchronized(lock) { read++ }
+                        val readNow = synchronized(lock) { ++read }
+                        progress(readNow, order.size, "נקראו $readNow קטעים · מחשב התאמה…")
                         if (timeline.coverage(bin, bin + segBins) < AutoSync.MIN_COVERAGE) continue
                         val est = synchronized(aligner) { aligner.addSegment(bin, timeline.slice(bin, bin + segBins)) }
                         synchronized(lock) {
@@ -114,7 +116,7 @@ class AutoScan(
         val result = synchronized(aligner) { aligner.best() } ?: synchronized(lock) { best }
         if (result == null && why.isEmpty()) why = when {
             started == 0 -> "לא הצלחתי לפתוח את הסרט"
-            aligner.chunks == 0 && read == 0 -> "הקריאה מהרשת איטית מדי ל-10 שניות ($started קטעים התחילו)"
+            aligner.chunks == 0 && read == 0 -> "הקריאה מהרשת איטית מדי ל-${BUDGET_MS / 1000} שניות ($started קטעים התחילו)"
             else -> "לא נמצא די דיבור לניתוח ($read קטעים נקראו)"
         }
         return result
@@ -124,7 +126,7 @@ class AutoScan(
     private fun open(): Pair<MediaExtractor, MediaCodec>? {
         val ex = MediaExtractor()
         try {
-            if (url.startsWith("http")) ex.setDataSource(HttpRangeSource(url, headers, 8_000, shared)) else ex.setDataSource(url, headers)
+            if (url.startsWith("http")) ex.setDataSource(HttpRangeSource(url, headers, HTTP_READ_TIMEOUT_MS, shared)) else ex.setDataSource(url, headers)
             var track = -1
             var fmt: MediaFormat? = null
             for (i in 0 until ex.trackCount) {
@@ -210,8 +212,9 @@ class AutoScan(
         /** Twenty seconds at a time. */
         const val SEG_BINS = 400
         const val LEAD_MS = 10_000L
-        const val BUDGET_MS = 10_000L
+        const val BUDGET_MS = 30_000L
         const val OPEN_MS = 8_000L
-        const val WORKERS = 6
+        const val HTTP_READ_TIMEOUT_MS = 20_000
+        const val WORKERS = 3
     }
 }
