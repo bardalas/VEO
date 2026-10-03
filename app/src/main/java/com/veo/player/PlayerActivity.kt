@@ -447,7 +447,7 @@ class PlayerActivity : AppCompatActivity() {
             val began = scan?.startedMs ?: 0L
             if (began == 0L) showPill("מסנכרן כתוביות…  פותח את הסרט")
             else {
-                val left = ((AutoScan.BUDGET_MS - (android.os.SystemClock.elapsedRealtime() - began) + 999) / 1000).coerceIn(0, 10)
+                val left = ((AutoScan.BUDGET_MS - (android.os.SystemClock.elapsedRealtime() - began) + 999) / 1000).coerceIn(0, AutoScan.BUDGET_MS / 1000)
                 showPill("מסנכרן כתוביות…  $left  ·  $scanNote")
             }
             handler.postDelayed(this, 250)
