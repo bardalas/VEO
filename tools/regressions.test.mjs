@@ -1060,3 +1060,9 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
   assert.match(main, /web\.postDelayed\(holdRun, 600\)/);
   assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
 });
+
+test("the sync scan on a torrent reads the minutes just ahead first and never asks to watch more (#332)", async () => {
+  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
+  assert.match(sc, /The minutes just ahead of the picture/);
+  assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
+});

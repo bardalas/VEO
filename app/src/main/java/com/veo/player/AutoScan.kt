@@ -18,7 +18,7 @@ class AutoScan(
     private val headers: Map<String, String>,
     private val durationMs: Long,
     private val fromMs: Long,
-    /** A torrent: only what has been downloaded can be read without waiting, and that is what has been played. */
+    /** A torrent: a read waits for pieces still being fetched, so the minutes just ahead are taken first. */
     private val torrent: Boolean,
     private val aligner: AutoAligner,
     /** (minutes looked at so far, places to look in, what is happening) - from the scan's own thread. */
@@ -59,11 +59,12 @@ class AutoScan(
             val first = (fromMs / cellMs).toInt() + 1
             val order = ArrayList<Int>()
             if (torrent) {
-                // what has been played is on the disk; what is ahead may not be, and asking for it would make the torrent fetch it
-                // out of turn. Back from the present, a minute in one.
-                var c = (fromMs / cellMs).toInt() - 1
-                while (c >= 2 && order.size < MAX_PLACES) { order.add(c.coerceAtMost(last)); c-- }
-                if (order.size < 4) { why = "צפה עוד כמה דקות בסרט ונסה שוב - הניתוח קורא רק את מה שכבר ירד"; return null }
+                // The minutes just ahead of the picture: the torrent is fetching them anyway, and a read waits for the pieces
+                // (a cell that does not arrive in time is passed over). Then what was played, in case it is still on the disk.
+                var c = first.coerceAtLeast(2)
+                while (c <= last && order.size < MAX_PLACES / 2 + 2) { order.add(c); c++ }
+                c = first - 2
+                while (c >= 2 && order.size < MAX_PLACES) { order.add(c); c-- }
             } else {
                 var c = first.coerceAtLeast(2)
                 while (c <= last && order.size < MAX_PLACES / 2 + 1) { order.add(c); c += 2 }      // from here on, a minute in two
