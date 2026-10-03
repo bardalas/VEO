@@ -44,6 +44,7 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import org.json.JSONArray
 import kotlin.math.abs
+import kotlin.math.max
 
 class PlayerActivity : AppCompatActivity() {
     /** One playable item. Live TV passes a whole channel list so the viewer can zap through it. */
@@ -132,9 +133,32 @@ class PlayerActivity : AppCompatActivity() {
     private var scrubTo = -1L
     private var scrubDir = 0
     private var scrubTicks = 0
-    /** Subtitles: which of the found files is on (-1 = none) and how far they are moved, in milliseconds. */
+    /** Subtitles: which of the found files is on (-1 = none) and how far the viewer has moved them, in milliseconds. */
     private var subPick = 0
     private var subShift = 0L
+    /** What the viewer has stretched them by, on top of the automatic alignment (1 = not at all). */
+    private var manualStretch = 1.0
+
+    /*
+     * Automatic sync (AutoSync.kt): what it found - the subtitle at time t is shown at autoScale * t + autoOffset - and how sure it
+     * is. The viewer's own shift and stretch go on top of it, so the two never fight: what is shown is
+     *   t * (autoScale * manualStretch) + autoOffset + subShift.
+     */
+    private val speech = SpeechTimeline()
+    private var aligner: AutoAligner? = null
+    private var autoOn = true
+    private var autoLocked = false
+    private var autoOffset = 0L
+    private var autoScale = 1.0
+    private var autoLevel = 0
+    private var autoNote = ""
+    @Volatile private var autoBusy = false
+    private val autoExec = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val AUTO_TICK_MS = 8_000L
+    /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
+    private var lineAnchor: Pair<Long, Long>? = null
+    /** While the viewer is choosing the line to sync to: the index of the line being offered, else -1. */
+    private var lineSync = -1
     /** The chosen translation, read into memory: moving it in time is a subtraction, not a rebuild. */
     private var captions: Captions? = null
     /** How large they are drawn, as a multiple of the player's own size; kept between films. */
@@ -175,6 +199,8 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
+        autoOn = prefs.getBoolean("autoSync", true)
+        speech.debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
         subsAuto = prefs.getString("subs", "auto") != "off"
@@ -230,7 +256,15 @@ class PlayerActivity : AppCompatActivity() {
     private fun useCaptions(pick: Int, parsed: Captions? = null) {
         subPick = pick
         val sub = subs.orEmpty().getOrNull(pick)
-        captions = (parsed ?: sub?.let { Captions.of(it.file) })?.also { it.shiftMs = subShift }
+        captions = parsed ?: sub?.let { Captions.of(it.file) }
+        // another translation is another file: what was learnt of the last one - or done to it - says nothing of this one
+        aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
+        autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoLevel = 0; autoNote = ""
+        subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
+        restoreSync(sub)
+        applySync()
+        handler.removeCallbacks(autoTick)
+        if (captions?.any == true) handler.postDelayed(autoTick, AUTO_TICK_MS)
         val drawing = captions?.any == true
         val view = findViewById<TextView>(R.id.cues)
         view.visibility = if (drawing) View.VISIBLE else View.GONE
@@ -263,11 +297,206 @@ class PlayerActivity : AppCompatActivity() {
             .build()
     }
 
+    /** What is shown now: the automatic alignment, and the viewer's own shift and stretch on top of it. */
+    private fun applySync() {
+        captions?.let { it.shiftMs = autoOffset + subShift; it.scale = autoScale * manualStretch }
+    }
+
     /** Move the translation, and see it move: nothing is rebuilt, so a press is a result. */
     private fun shiftCaptions(byMs: Long) {
-        subShift = (subShift + byMs).coerceIn(-60_000, 60_000)
-        captions?.shiftMs = subShift
+        subShift = (subShift + byMs).coerceIn(-600_000, 600_000)
+        applySync(); saveSync()
         if (!panelOpen) showMessage("סנכרון כתוביות %+.1f שנ׳".format(subShift / 1000.0), 1_500)   // the panel shows it
+    }
+
+    /** Stretch the translation in time - a thousandth a press - for one made for another frame rate. */
+    private fun stretchCaptions(steps: Int) {
+        manualStretch = (Math.round((manualStretch + steps * 0.001) * 10_000) / 10_000.0).coerceIn(SubSync.SCALE_MIN, SubSync.SCALE_MAX)
+        applySync(); saveSync()
+    }
+
+    /** The frame-rate mismatches, one press each way (and back to none at the end of the list). */
+    private fun cyclePreset(step: Int) {
+        val n = SubSync.PRESETS.size + 1
+        val now = SubSync.PRESETS.indexOfFirst { abs(it.second - manualStretch) < 0.0005 } + 1       // 0 = none
+        val next = ((now + step) % n + n) % n
+        manualStretch = if (next == 0) 1.0 else SubSync.PRESETS[next - 1].second
+        applySync(); saveSync()
+    }
+
+    private fun stretchLabel() = "%.4f×".format(manualStretch)
+    private fun presetLabel(): String {
+        val i = SubSync.PRESETS.indexOfFirst { abs(it.second - manualStretch) < 0.0005 }
+        return if (i >= 0) SubSync.PRESETS[i].first else "—"
+    }
+
+    /** Back to what the automatic alignment found (or the file as it is): the viewer's own shift and stretch undone. */
+    private fun resetManual() {
+        subShift = 0L; manualStretch = 1.0; lineAnchor = null
+        applySync(); saveSync()
+    }
+
+    /** One press: the next translation of those found (the right one is often just another release). */
+    private fun cycleSub(step: Int) {
+        val n = subs.orEmpty().size
+        if (n == 0) return
+        val now = if (subPick < 0) -1 else subPick
+        useCaptions(((now + step) % n + n) % n)
+    }
+
+    // ---------- keeping what was found, per film and translation ----------
+    private fun syncKey(sub: Subtitles.Sub) = "async:$watchId|${sub.label}"
+    private fun seriesKey() = if (watchId.contains(':')) "async:series:${watchId.substringBefore(':')}" else null
+    private fun groupOfSub(sub: Subtitles.Sub) = SubSync.groupOf(sub.name.ifBlank { sub.label })
+
+    /** The sync this translation had the last time it was played, or - for the next episode of a series from the same release group - the last one's, as a first guess. */
+    private fun restoreSync(sub: Subtitles.Sub?) {
+        if (sub == null || watchId.isBlank()) return
+        val prefs = getSharedPreferences("veo", MODE_PRIVATE)
+        SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
+            autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
+            autoLocked = autoOn; autoLevel = 2; autoNote = "נשמר"
+            return
+        }
+        val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
+        val group = groupOfSub(sub)
+        if (saved.size == 2 && group.isNotEmpty() && saved[0] == group) {
+            SubSync.decode(saved[1])?.let { s ->
+                // all of it, folded into the automatic part: until the film itself says otherwise
+                autoOffset = s.autoOffset + s.shift
+                autoScale = (s.autoScale * s.stretch).coerceIn(SubSync.SCALE_MIN, SubSync.SCALE_MAX)
+            }
+        }
+    }
+
+    private fun saveSync() {
+        val sub = subs.orEmpty().getOrNull(subPick) ?: return
+        if (watchId.isBlank()) return
+        val text = SubSync.encode(SubSync.Saved(autoOffset, autoScale, subShift, manualStretch))
+        getSharedPreferences("veo", MODE_PRIVATE).edit().apply {
+            putString(syncKey(sub), text)
+            seriesKey()?.let { putString(it, groupOfSub(sub) + "|" + text) }
+        }.apply()
+    }
+
+    // ---------- automatic sync: listening, judging a minute at a time, applying what it finds ----------
+    private val autoTick: Runnable = object : Runnable {
+        override fun run() {
+            handler.postDelayed(this, AUTO_TICK_MS)
+            val al = aligner ?: return
+            if (!autoOn || autoBusy || player == null) return
+            val top = speech.top
+            val cb = AutoSync.CHUNK_BINS
+            if (top < cb) return
+            val lastCell = (top + 1) / cb - 1                       // the minutes wholly behind the newest sound
+            var pick = -1
+            for (cell in 0..lastCell) {
+                if (al.seen(cell)) continue
+                if (speech.coverage(cell * cb, (cell + 1) * cb) >= AutoSync.MIN_COVERAGE) { pick = cell; break }
+                if (cell < lastCell - 1) al.skip(cell)             // a hole a jump left: nothing more will come to it
+            }
+            if (pick < 0) return
+            autoBusy = true
+            val chunk = speech.slice(pick * cb, (pick + 1) * cb)
+            autoExec.execute {
+                val est = runCatching { al.addChunk(pick, chunk) }.getOrNull()
+                runOnUiThread {
+                    autoBusy = false
+                    if (!isFinishing && !isDestroyed && aligner === al) onAutoEstimate(est, al.chunks)
+                }
+            }
+        }
+    }
+
+    private fun onAutoEstimate(est: AutoAligner.Estimate?, chunks: Int) {
+        if (est == null) { if (!autoLocked) autoNote = "מחכה לדיבור"; return }
+        android.util.Log.d(AutoSync.TAG, "minutes=$chunks scale=${"%.4f".format(est.scale)} offset=${est.offsetMs} z=${"%.1f".format(est.z)}")
+        if (!est.locked) {
+            if (!autoLocked) { autoLevel = est.level; autoNote = "מנתח…" }
+            return
+        }
+        val first = !autoLocked
+        if (first) { subShift = 0L; manualStretch = 1.0; lineAnchor = null }       // what was done by hand before is what this has now found
+        if (!first && est.scale == autoScale && abs(est.offsetMs - autoOffset) < 1_000) {
+            autoOffset = (autoOffset + est.offsetMs) / 2                            // a small correction: halfway, not a jump
+        } else {
+            autoOffset = est.offsetMs; autoScale = est.scale
+        }
+        autoLocked = true; autoLevel = est.level; autoNote = ""
+        applySync(); saveSync()
+        if (first) showMessage("סנכרון אוטומטי ✓", 2_500)
+    }
+
+    private fun autoStatus(): String = when {
+        !autoOn -> "כבוי"
+        autoLocked -> "מסונכרן ✓ ${"%+.1f".format((autoOffset) / 1000.0)}s" + when (autoLevel) { 3 -> " · גבוה"; 2 -> " · בינוני"; else -> "" }
+        autoNote.isNotEmpty() -> autoNote
+        else -> "מנתח…"
+    }
+
+    private fun toggleAuto() {
+        autoOn = !autoOn
+        getSharedPreferences("veo", MODE_PRIVATE).edit().putBoolean("autoSync", autoOn).apply()
+        if (!autoOn) {                                       // back to the file as it is - and the viewer's own work on it
+            autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoNote = ""
+        } else {
+            aligner = captions?.takeIf { it.any }?.let { AutoAligner(it.activity(), it.starts()) }
+            autoLocked = false; autoLevel = 0; autoNote = ""
+        }
+        applySync(); saveSync()
+    }
+
+    // ---------- sync to a line: say when it is spoken ----------
+    /**
+     * The viewer picks a line of the subtitle and presses OK the moment it is spoken: that is one equation, and the shift
+     * follows. A second such press far from the first (five minutes or more) says how fast the file runs against the film.
+     */
+    private fun startLineSync() {
+        val c = captions?.takeIf { it.any }
+        val p = player
+        if (c == null || p == null) { showMessage("אין כתובית לסנכרון", 2_000); return }
+        closePanel()
+        lineSync = c.indexAtOrAfter(p.currentPosition)
+        paintLineSync()
+        findViewById<TextView>(R.id.osd).setOnClickListener { if (lineSync >= 0) lineSyncApply() }
+    }
+
+    private fun paintLineSync() {
+        val c = captions ?: return
+        val line = c.text(lineSync).replace('\n', ' ').take(90)
+        showMessage("OK ברגע שנאמר · ↑↓ שורה אחרת\n«$line»", 0)
+    }
+
+    private fun lineSyncMove(by: Int) {
+        val c = captions ?: return
+        lineSync = (lineSync + by).coerceIn(0, max(0, c.size - 1))
+        paintLineSync()
+    }
+
+    private fun lineSyncEnd() {
+        lineSync = -1
+        findViewById<TextView>(R.id.osd).setOnClickListener(null)
+        findViewById<TextView>(R.id.osd).visibility = View.GONE
+    }
+
+    private fun lineSyncApply() {
+        val c = captions
+        val p = player
+        if (c == null || p == null || lineSync < 0) { lineSyncEnd(); return }
+        val raw = c.rawFrom(lineSync)
+        val pos = (p.currentPosition - SubSync.REACTION_MS).coerceAtLeast(0)
+        val total = autoScale * manualStretch
+        val prev = lineAnchor
+        val fit = prev?.let { SubSync.fit(it.first, it.second, raw, pos) }
+        val scale = fit?.first ?: total
+        val shift = fit?.second ?: SubSync.shiftFor(raw, pos, total)
+        // what the viewer showed is the whole of it: the part that is theirs is what the automatic part leaves over
+        manualStretch = (scale / autoScale).coerceIn(SubSync.SCALE_MIN, SubSync.SCALE_MAX)
+        subShift = (shift - autoOffset).coerceIn(-600_000, 600_000)
+        lineAnchor = raw to pos
+        applySync(); saveSync()
+        lineSyncEnd()
+        showMessage("סונכרן %+.1f שנ׳".format(subShift / 1000.0) + if (fit != null) " · קצב %.3f×".format(manualStretch) else "", 2_500)
     }
 
     // explicit type: it schedules itself
@@ -324,13 +553,14 @@ class PlayerActivity : AppCompatActivity() {
     private sealed class SubsRow {
         class Head(val text: String) : SubsRow()
         class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit) : SubsRow()
-        class Step(val text: String, val value: () -> String, val by: (Int) -> Unit) : SubsRow()
+        /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held. */
+        class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false) : SubsRow()
     }
 
     /** The sound moved later (+) or earlier (-) than the picture, in steps of 50 ms: the arrows change it where it is written. */
     private fun audioSyncRows(): List<SubsRow> = listOf(
         SubsRow.Head("סנכרון שמע"),
-        SubsRow.Step("הזזת השמע", { "%+d ms".format(audioDelay.delayMs) }, { step -> shiftAudio(step * 50) }),
+        SubsRow.Step("הזזת השמע", { "%+d ms".format(audioDelay.delayMs) }, { step -> shiftAudio(step * 50) }, fast = true),
         SubsRow.Pick("אפס את סנכרון השמע", { audioDelay.delayMs == 0 }, { shiftAudio(-audioDelay.delayMs) }))
 
     private fun subsRows(): List<SubsRow> {
@@ -341,9 +571,14 @@ class PlayerActivity : AppCompatActivity() {
         }
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
         out.add(SubsRow.Head("סנכרון"))
-        out.add(SubsRow.Step("הזזת כתוביות", { "%+.1fs".format(subShift / 1000.0) },
-            { step -> shiftCaptions(step * 100L) }))
-        out.add(SubsRow.Pick("אפס את הסנכרון", { subShift == 0L }, { shiftCaptions(-subShift) }))
+        // by itself: the dialogue is listened to and set against the lines (AutoSync.kt)
+        out.add(SubsRow.Step("סנכרון אוטומטי", { autoStatus() }, { toggleAuto() }, ok = true))
+        if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
+        out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
+        out.add(SubsRow.Step("הזזת כתוביות", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
+        out.add(SubsRow.Step("קצב כתוביות", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
+        out.add(SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true))
+        out.add(SubsRow.Pick("אפס את התיקון הידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
         out.addAll(audioSyncRows())
         out.add(SubsRow.Head("גודל"))
         out.add(SubsRow.Step("גודל הכתוביות", { "%d%%".format((subScale * 100).toInt()) },
@@ -372,6 +607,7 @@ class PlayerActivity : AppCompatActivity() {
         list.onItemSelectedListener = redrawOnFocus(adapter)
         list.setOnItemClickListener { _, _, i, _ ->
             (rows[i] as? SubsRow.Pick)?.act?.invoke()
+            (rows[i] as? SubsRow.Step)?.takeIf { it.ok }?.by?.invoke(1)
             adapter.notifyDataSetChanged()
         }
         list.setOnItemLongClickListener { _, _, _, _ -> true }
@@ -384,7 +620,9 @@ class PlayerActivity : AppCompatActivity() {
             }
             val row = rows.getOrNull(list.selectedItemPosition) as? SubsRow.Step
             if (step != 0 && row != null && ev.action == KeyEvent.ACTION_DOWN) {
-                row.by(step)
+                // held down, a quantity that is long to travel runs faster the longer it is held
+                val faster = if (!row.fast) 1 else when { ev.repeatCount < 10 -> 1; ev.repeatCount < 30 -> 3; else -> 8 }
+                row.by(step * faster)
                 adapter.notifyDataSetChanged()
                 true
             } else false
@@ -712,6 +950,17 @@ class PlayerActivity : AppCompatActivity() {
         // decoder that failed is left out of the next attempt and the film goes on with the one after it.
         audioDelay.delayMs = getSharedPreferences("veo", MODE_PRIVATE).getInt("audioDelayMs", 0)
         val renderers = object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
+            // the player's own audio renderer, which also tells the speech timeline what it decodes (automatic subtitle sync)
+            override fun buildAudioRenderers(
+                context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean, audioSink: androidx.media3.exoplayer.audio.AudioSink, eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                out.add(TappingAudioRenderer(context, androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Factory.getDefault(context),
+                    mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink, speech))
+            }
+
             // the sound goes through a delay of the viewer's choosing (Menu -> sync), for a stream whose sound and picture drift apart
             override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean) =
                 androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
@@ -1616,6 +1865,16 @@ class PlayerActivity : AppCompatActivity() {
             if (down && code == KeyEvent.KEYCODE_BACK) { hideErrorPanel(); finish(); return true }
             return super.dispatchKeyEvent(event)                 // arrows move between the panel's buttons
         }
+        // choosing the line to sync to: Up/Down pick another line, OK says it is being spoken, Back gives it up
+        if (lineSync >= 0 && (ok || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK)) {
+            if (down) when {
+                code == KeyEvent.KEYCODE_BACK -> if (event.repeatCount == 0) lineSyncEnd()
+                ok -> if (event.repeatCount == 0) lineSyncApply()
+                code == KeyEvent.KEYCODE_DPAD_UP -> lineSyncMove(-1)
+                else -> lineSyncMove(1)
+            }
+            return true
+        }
         if (panelOpen) {
             if (code == KeyEvent.KEYCODE_BACK) { if (down) closePanel(); return true }
             if (ok && !down && okLong) { okLong = false; return true }      // the release that ended the long press
@@ -1752,6 +2011,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         started = false
+        handler.removeCallbacks(autoTick)
         stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
         player?.let { resumePosition = it.currentPosition; saveProgress(it.currentPosition, it.duration); it.release() }

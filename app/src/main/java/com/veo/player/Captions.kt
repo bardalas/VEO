@@ -21,10 +21,42 @@ class Captions private constructor(private val cues: List<Cue>) {
     /** Where the translation sits against the film, in milliseconds. Positive = later. */
     var shiftMs: Long = 0
 
+    /**
+     * How much slower (above 1) or faster (below 1) the translation runs than the film, for one made for another
+     * frame rate (25 against 23.976 is 1.0427): a line the file puts at time t is shown at t * scale + shiftMs.
+     * A constant shift cannot mend a translation that is right at the start and later and later by the end.
+     */
+    var scale: Double = 1.0
+
+    /** The number of lines, and what line [i] says and where the file itself puts it (before any shift or stretch). */
+    val size get() = cues.size
+    fun text(i: Int): String = cues.getOrNull(i)?.text.orEmpty()
+    fun rawFrom(i: Int): Long = cues.getOrNull(i)?.from ?: 0L
+
+    private var activityCache: ByteArray? = null
+    /** When a line is up, in steps of [AutoSync.BIN_MS] of the file's own time: 1 where there is one, 0 where there is none. */
+    fun activity(): ByteArray = activityCache ?: run {
+        val step = AutoSync.BIN_MS
+        val out = ByteArray((cues.lastOrNull()?.to ?: 0L).let { (it / step).toInt() + 2 })
+        for (c in cues) for (i in (c.from / step).toInt()..(c.to / step).toInt()) if (i in out.indices) out[i] = 1
+        out
+    }.also { activityCache = it }
+
+    /** Where every line begins, in the file's own time. */
+    fun starts(): LongArray = LongArray(cues.size) { cues[it].from }
+
+    /** The line on screen at [positionMs], or - between lines - the next one to come (the last, once there is none). */
+    fun indexAtOrAfter(positionMs: Long): Int {
+        if (cues.isEmpty()) return 0
+        val t = ((positionMs - shiftMs) / scale).toLong()
+        val i = cues.indexOfFirst { it.to >= t }
+        return if (i < 0) cues.size - 1 else i
+    }
+
     /** What should be on screen at [positionMs], or "" - the search is a walk from where it last was. */
     fun at(positionMs: Long): String {
         if (cues.isEmpty()) return ""
-        val t = positionMs - shiftMs
+        val t = ((positionMs - shiftMs) / scale).toLong()
         var i = last.coerceIn(0, cues.size - 1)
         if (cues[i].from > t) {                                   // jumped back
             while (i > 0 && cues[i - 1].to > t) i--
