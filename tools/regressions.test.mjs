@@ -1028,11 +1028,16 @@ test("automatic sync is a viewer-requested live offset match over already-playin
   assert.match(a, /class FastOffsetAligner/);
   assert.match(a, /const val MIN_WINDOW_MS = 12_000L/);
   assert.match(a, /const val MAX_ATTEMPT_MS = 30_000L/);
-  assert.match(a, /const val Z_ACCEPT = 5\.5/);
+  assert.match(a, /const val DEFAULT_Z_ACCEPT = 3\.5/);
+  assert.match(a, /const val MIN_PEAK_MARGIN_Z = 1\.0/);
+  assert.match(a, /z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z/);
+  assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
+  assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
+  assert.match(k, /"סף ביטחון \(Z\)"/);
   assert.match(tap, /bufferPresentationTimeUs/);
   assert.match(k, /TappingAudioRenderer/);
   assert.match(k, /if \(autoOn\) liveSpeech else null/);
-  assert.match(k, /OK לסנכרון אוטומטי/);
+  assert.match(k, /הפעל סנכרון אוטומטי/);
   assert.doesNotMatch(k, /private fun startScan\(\)/);
 });
 
