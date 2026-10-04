@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.59 — 2026-10-05
+- Fix live subtitle-sync timebase on streams/remuxes whose codec/renderer timestamps use a large non-zero origin. Audio is now anchored to ExoPlayer.currentPosition before matching subtitles, eliminating huge false offsets such as +999582 s. (#369)
+
 ## 0.45.58 — 2026-10-04
 - Live subtitle sync now falls back from the normal +/-60 s search to a bounded whole-subtitle-file search when the local score surface is completely flat, and computes confidence for the global candidate. Failure diagnostics now persist in the subtitle menu and include player position, audio window, subtitle range, cue count, search mode, non-zero score count, peak score, best offset, Z, margin, speech time, matched lines, and subtitle source label. (#367)
 
