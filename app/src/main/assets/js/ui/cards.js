@@ -49,6 +49,7 @@ export function card(m, opts = {}){
   const key = /^tt\d+$/.test(m.id) && (m.type === 'movie' || m.type === 'series') ? `${m.type}:${m.id}` : '';
   const none = key && typeof avail !== 'undefined' && isNoSrc(avail[key]);
   const rating = m.imdbRating ? `<small class="rate" title="IMDb">★ ${esc(m.imdbRating)}</small>` : '';
-  return `<a class="poster${none ? ' nosrc' : ''}${done ? ' watched' : ''}" data-id="${esc(m.id)}" ${key ? `data-avail="${key}"` : ''} href="#/detail/${esc(m.type)}/${encodeURIComponent(m.id)}">${art}<div class="t"><span data-heid="${esc(m.id)}"${name !== m.name && name ? ` data-orig="${esc(m.name)}" title="${esc(m.name)}"` : ''} dir="${hasHebrew(name) ? 'rtl' : 'auto'}">${esc(name)}</span>${rating}</div><div class="y">${esc(yearOf(m))}</div></a>`;
+  const href = opts.href || `#/detail/${esc(m.type)}/${encodeURIComponent(m.id)}`;
+  return `<a class="poster${none ? ' nosrc' : ''}${done ? ' watched' : ''}" data-id="${esc(m.id)}" ${key ? `data-avail="${key}"` : ''} href="${href}">${art}<div class="t"><span data-heid="${esc(m.id)}"${name !== m.name && name ? ` data-orig="${esc(m.name)}" title="${esc(m.name)}"` : ''} dir="${hasHebrew(name) ? 'rtl' : 'auto'}">${esc(name)}</span>${rating}</div><div class="y">${esc(yearOf(m))}</div></a>`;
 }
 export const skeletons = n => Array.from({length:n}, () => `<div class="poster"><div class="art skel"></div></div>`).join('');
