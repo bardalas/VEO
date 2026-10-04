@@ -35,6 +35,8 @@ class TappingAudioRenderer(
     private var channels = 0
     private var pcm16 = false
     private var lastPts = Long.MIN_VALUE
+    private var ptsToMediaUs = Long.MIN_VALUE
+    private var tapped = false
 
     override fun onOutputFormatChanged(format: Format, mediaFormat: MediaFormat?) {
         super.onOutputFormatChanged(format, mediaFormat)
@@ -60,12 +62,24 @@ class TappingAudioRenderer(
         isLastBuffer: Boolean,
         format: Format
     ): Boolean {
-        if (buffer != null && !isDecodeOnlyBuffer && pcm16 && rate > 0 && channels > 0 &&
+        val target = timeline()
+        if (target == null) {
+            tapped = false
+            ptsToMediaUs = Long.MIN_VALUE
+        } else if (buffer != null && !isDecodeOnlyBuffer && pcm16 && rate > 0 && channels > 0 &&
             bufferPresentationTimeUs != lastPts) {
             lastPts = bufferPresentationTimeUs
-            timeline()?.let { target ->
-                runCatching { target.feed(buffer, rate, channels, bufferPresentationTimeUs) }
+
+            // Codec timestamps are not guaranteed to share the player's media-time origin (notably
+            // MPEG-TS/HLS and some remuxed files). Anchor the first tapped buffer to Media3's current
+            // renderer position, then preserve the codec PTS deltas. Subtitle cue times use this same
+            // zero-based media clock.
+            if (!tapped || ptsToMediaUs == Long.MIN_VALUE) {
+                ptsToMediaUs = positionUs - bufferPresentationTimeUs
+                tapped = true
             }
+            val mediaPtsUs = bufferPresentationTimeUs + ptsToMediaUs
+            runCatching { target.feed(buffer, rate, channels, mediaPtsUs) }
         }
         return super.processOutputBuffer(
             positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags, sampleCount,
