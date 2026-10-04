@@ -1029,6 +1029,18 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
+test("live sync falls back beyond +/-60 s and exposes enough diagnostics to solve one-shot failures", async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(a, /if \(chosenNonZero == 0\)/);
+  assert.match(a, /val minOff = startBin - \(subs\.size - 1\)/);
+  assert.match(a, /mode = "global"/);
+  assert.match(a, /globalScores/);
+  assert.match(a, /chosenZ = globalZ/);
+  for (const token of ['player=', 'audio=', 'subs=', 'cues=', 'nonzero=', 'peak=', 'best=', 'Z=', 'margin=', 'speech=', 'lines=', 'file='])
+    assert.ok(k.includes(token), token);
+});
+
 test("live sync normalizes codec PTS to Media3 media time so speech and subtitle clocks share an origin", async () => {
   const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
   assert.match(tap, /ptsToMediaUs = positionUs - bufferPresentationTimeUs/);

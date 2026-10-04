@@ -378,7 +378,15 @@ class FastOffsetAligner(
         val peakMarginZ: Double,
         val speechSeconds: Double,
         val events: Int,
-        val zAccept: Double
+        val zAccept: Double,
+        val mode: String,
+        val peakScore: Double,
+        val nonZeroScores: Int,
+        val audioFromMs: Long,
+        val audioToMs: Long,
+        val subtitleFirstMs: Long,
+        val subtitleLastMs: Long,
+        val subtitleEvents: Int
     ) {
         val confident get() = speechSeconds >= MIN_SPEECH_S && events >= MIN_EVENTS &&
             z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z
@@ -468,15 +476,92 @@ class FastOffsetAligner(
             }
         }
 
-        val offsetMs = bestOffBins.toLong() * AutoSync.BIN_MS
+        var chosenOffBins = bestOffBins
+        var chosenZ = z
+        var chosenMargin = peakMarginZ
+        var chosenScore = bestScore
+        var chosenNonZero = scores.count { kotlin.math.abs(it) > 1e-9 }
+        var mode = "local"
+
+        // If +/-60 s is completely flat, search the entire feasible subtitle offset range coarsely.
+        // This challenges the assumption that the subtitle file must be within one minute of the video.
+        if (chosenNonZero == 0) {
+            val minOff = startBin - (subs.size - 1)
+            val maxOff = startBin + speech.size - 1
+            val step = max(20, (maxOff - minOff).coerceAtLeast(1) / 12000)
+            val count = ((maxOff - minOff) / step).coerceAtLeast(0) + 1
+            val globalScores = DoubleArray(count)
+            var globalBest = Double.NEGATIVE_INFINITY
+            var globalPeak = 0
+            var globalNonZero = 0
+            for (k in 0 until count) {
+                val off = minOff + k * step
+                var score = 0.0
+                for (j in speech.indices) {
+                    val weight = w[j]
+                    if (weight == 0f) continue
+                    val raw = startBin + j - off
+                    if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+                }
+                globalScores[k] = score
+                if (kotlin.math.abs(score) > 1e-9) globalNonZero++
+                if (score > globalBest) { globalBest = score; globalPeak = k }
+            }
+            if (globalNonZero > 0) {
+                val skipGlobal = max(1, PEAK_EXCLUSION_MS / (AutoSync.BIN_MS * step))
+                var gn = 0
+                var gsum = 0.0
+                var gsq = 0.0
+                var second = Double.NEGATIVE_INFINITY
+                for (i in globalScores.indices) {
+                    if (abs(i - globalPeak) <= skipGlobal) continue
+                    val v = globalScores[i]
+                    gn++
+                    gsum += v
+                    gsq += v * v
+                    if (v > second) second = v
+                }
+                val gmean = if (gn > 0) gsum / gn else globalBest
+                val gsd = if (gn > 1) sqrt(max(1e-9, gsq / gn - gmean * gmean)) else 1e-9
+                val globalZ = (globalBest - gmean) / gsd
+                val globalMargin = if (second == Double.NEGATIVE_INFINITY) 0.0 else (globalBest - second) / gsd
+
+                val coarseGlobalOff = minOff + globalPeak * step
+                var refinedOff = coarseGlobalOff
+                var refinedScore = Double.NEGATIVE_INFINITY
+                for (candidate in (coarseGlobalOff - step)..(coarseGlobalOff + step)) {
+                    var score = 0.0
+                    for (j in speech.indices) {
+                        val weight = w[j]
+                        if (weight == 0f) continue
+                        val raw = startBin + j - candidate
+                        if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+                    }
+                    if (score > refinedScore) { refinedScore = score; refinedOff = candidate }
+                }
+
+                mode = "global"
+                chosenOffBins = refinedOff
+                chosenScore = refinedScore
+                chosenNonZero = globalNonZero
+                chosenZ = globalZ
+                chosenMargin = globalMargin
+            } else mode = "global-flat"
+        }
+
+        val offsetMs = chosenOffBins.toLong() * AutoSync.BIN_MS
         val rawFrom = fromMs - offsetMs
         val rawTo = toMs - offsetMs
         var events = 0
         for (c in cueStarts) if (c in rawFrom..rawTo) events++
+        val subtitleFirst = cueStarts.firstOrNull() ?: 0L
+        val subtitleLast = max((subs.size - 1L) * AutoSync.BIN_MS, cueStarts.lastOrNull() ?: 0L)
 
-        // Always return the best candidate once a usable window exists. The caller decides whether it is
-        // trustworthy, and can show the viewer exactly which gate failed instead of a generic "not found".
-        return Estimate(offsetMs, z, peakMarginZ, speechSeconds, events, zAccept)
+        return Estimate(
+            offsetMs, chosenZ, chosenMargin, speechSeconds, events, zAccept,
+            mode, chosenScore, chosenNonZero, fromMs, toMs,
+            subtitleFirst, subtitleLast, cueStarts.size
+        )
     }
 
     companion object {

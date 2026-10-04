@@ -387,8 +387,11 @@ class PlayerActivity : AppCompatActivity() {
         autoOn = false
         val best = est ?: lastLiveEstimate
         if (best == null || !best.confident) {
-            val detail = if (best == null) "אין מספיק אודיו לניתוח" else
-                "${best.reason} · best ${"%+.1f".format(best.offsetMs / 1000.0)}s · Z ${"%.1f".format(best.z)} · margin ${"%.1f".format(best.peakMarginZ)} · speech ${"%.1f".format(best.speechSeconds)}s · ${best.events} lines"
+            val detail = if (best == null) "אין מספיק אודיו לניתוח" else {
+                val pos = player?.currentPosition ?: -1L
+                val subLabel = subs.orEmpty().getOrNull(subPick)?.label.orEmpty()
+                "${best.reason} · mode=${best.mode} · player=${"%.1f".format(pos / 1000.0)}s · audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s · subs=${"%.1f".format(best.subtitleFirstMs / 1000.0)}..${"%.1f".format(best.subtitleLastMs / 1000.0)}s · cues=${best.subtitleEvents} · local/global nonzero=${best.nonZeroScores} · peak=${"%.2f".format(best.peakScore)} · best=${"%+.1f".format(best.offsetMs / 1000.0)}s · Z=${"%.1f".format(best.z)} · margin=${"%.1f".format(best.peakMarginZ)} · speech=${"%.1f".format(best.speechSeconds)}s · lines=${best.events} · file=$subLabel"
+            }
             scanNote = "לא נמצא סנכרון · $detail"
             showResult(scanNote)
             refreshPanel()
