@@ -398,14 +398,14 @@ class PlayerActivity : AppCompatActivity() {
         subShift = 0L
         manualStretch = 1.0
         lineAnchor = null
-        autoOffset = est.offsetMs
+        autoOffset = best.offsetMs
         autoScale = 1.0
         autoLocked = true
-        autoLevel = when { est.z >= 8.0 -> 3; est.z >= syncZ -> 2; else -> 1 }
+        autoLevel = when { best.z >= 8.0 -> 3; best.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
-        scanNote = "מסונכרן ${"%+.1f".format(est.offsetMs / 1000.0)}s"
-        showResult("הכתוביות סונכרנו · ${"%+.1f".format(est.offsetMs / 1000.0)} שנ׳")
+        scanNote = "מסונכרן ${"%+.1f".format(best.offsetMs / 1000.0)}s"
+        showResult("הכתוביות סונכרנו · ${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
         refreshPanel()
     }
 
