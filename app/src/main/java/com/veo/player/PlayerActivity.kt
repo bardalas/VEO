@@ -155,6 +155,7 @@ class PlayerActivity : AppCompatActivity() {
     private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
+    private var syncZ = FastOffsetAligner.DEFAULT_Z_ACCEPT
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
     private var lineAnchor: Pair<Long, Long>? = null
     /** While the viewer is choosing the line to sync to: the index of the line being offered, else -1. */
@@ -199,6 +200,7 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
+        syncZ = prefs.getFloat("syncZ", FastOffsetAligner.DEFAULT_Z_ACCEPT.toFloat()).toDouble().coerceIn(2.0, 6.0)
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
         subsAuto = prefs.getString("subs", "auto") != "off"
@@ -256,7 +258,7 @@ class PlayerActivity : AppCompatActivity() {
         val sub = subs.orEmpty().getOrNull(pick)
         captions = parsed ?: sub?.let { Captions.of(it.file) }
         // another translation is another file: what was learnt of the last one - or done to it - says nothing of this one
-        offsetAligner = captions?.takeIf { it.any }?.let { FastOffsetAligner(it.activity(), it.starts()) }
+        offsetAligner = captions?.takeIf { it.any }?.let { FastOffsetAligner(it.activity(), it.starts(), syncZ) }
         liveSpeech = null; autoOn = false
         autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoLevel = 0; autoNote = ""
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
@@ -395,7 +397,7 @@ class PlayerActivity : AppCompatActivity() {
         autoOffset = est.offsetMs
         autoScale = 1.0
         autoLocked = true
-        autoLevel = when { est.z >= 8.0 -> 3; est.z >= FastOffsetAligner.Z_ACCEPT -> 2; else -> 1 }
+        autoLevel = when { est.z >= 8.0 -> 3; est.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
         scanNote = "מסונכרן ${"%+.1f".format(est.offsetMs / 1000.0)}s"
@@ -462,6 +464,12 @@ class PlayerActivity : AppCompatActivity() {
         else -> "OK לסנכרון אוטומטי"
     }
 
+    private fun setSyncZ(value: Double) {
+        syncZ = (Math.round(value.coerceIn(2.0, 6.0) * 2.0) / 2.0)
+        getSharedPreferences("veo", MODE_PRIVATE).edit().putFloat("syncZ", syncZ.toFloat()).apply()
+        captions?.takeIf { it.any }?.let { offsetAligner = FastOffsetAligner(it.activity(), it.starts(), syncZ) }
+    }
+
     /** Start only when the viewer asks. The film keeps playing; no network seek or second decoder is opened. */
     private fun toggleAuto() {
         if (autoOn) {
@@ -479,7 +487,7 @@ class PlayerActivity : AppCompatActivity() {
         if (p == null || !p.playWhenReady) { showResult("הפעל את הסרט ואז נסה שוב"); return }
 
         if (panelOpen) closePanel()
-        offsetAligner = FastOffsetAligner(c.activity(), c.starts())
+        offsetAligner = FastOffsetAligner(c.activity(), c.starts(), syncZ)
         liveSpeech = SpeechTimeline()
         autoOn = true
         autoStartedMs = android.os.SystemClock.elapsedRealtime()
@@ -617,6 +625,7 @@ class PlayerActivity : AppCompatActivity() {
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
         out.add(SubsRow.Head("סנכרון כתוביות"))
         out.add(SubsRow.Pick(if (autoOn) "עצור ניסיון סנכרון" else "הפעל סנכרון אוטומטי", { false }, { toggleAuto() }))
+        out.add(SubsRow.Step("סף ביטחון (Z)", { "%.1f".format(syncZ) }, { step -> setSyncZ(syncZ + step * 0.5) }))
         out.add(SubsRow.Info {
             when {
                 autoOn -> "מצב: מנסה להתאים…"
