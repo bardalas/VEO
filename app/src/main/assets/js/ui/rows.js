@@ -88,7 +88,10 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
         <div class="art" data-bg="${esc(x.poster)}">${pct ? `<span class="track"><i style="width:${pct.toFixed(0)}%"></i></span>` : ''}</div>
         <div class="t" dir="auto">${esc(x.name)}</div></button>`;
     }
-    return card({id:x.metaId,type:x.type,name:x.name,poster:x.poster}, {tag: ep});
+    const href = x.type === 'series' && x.videoId
+      ? `#/detail/${esc(x.type)}/${encodeURIComponent(x.metaId)}/${encodeURIComponent(x.videoId)}`
+      : undefined;
+    return card({id:x.metaId,type:x.type,name:x.name,poster:x.poster}, {tag: ep, href});
   }).join(''), 'contRow')}</div>`);
   app.innerHTML = `
     ${heading ? `<div class="page"><h1>${esc(heading)}</h1></div>` : ''}
