@@ -367,9 +367,20 @@ class AutoAligner(private val subs: ByteArray, private val cueStarts: LongArray)
  * network seek and no frame-rate/stretch hypotheses are involved. A result is accepted only when the
  * segment has enough speech and subtitle events and one correlation peak clearly stands above alternatives.
  */
-class FastOffsetAligner(private val subs: ByteArray, private val cueStarts: LongArray) {
-    data class Estimate(val offsetMs: Long, val z: Double, val speechSeconds: Double, val events: Int) {
-        val confident get() = z >= Z_ACCEPT
+class FastOffsetAligner(
+    private val subs: ByteArray,
+    private val cueStarts: LongArray,
+    private val zAccept: Double = DEFAULT_Z_ACCEPT
+) {
+    data class Estimate(
+        val offsetMs: Long,
+        val z: Double,
+        val peakMarginZ: Double,
+        val speechSeconds: Double,
+        val events: Int,
+        val zAccept: Double
+    ) {
+        val confident get() = z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z
     }
 
     fun estimate(startBin: Int, speech: ByteArray): Estimate? {
@@ -422,6 +433,15 @@ class FastOffsetAligner(private val subs: ByteArray, private val cueStarts: Long
         val sd = sqrt(max(1e-9, sq / n - mean * mean))
         val z = (scores[peak] - mean) / sd
 
+        // A single high Z is not enough for a short live segment. The winner must also stand clear
+        // of the strongest distant alternative, so lowering Z does not turn ambiguous scenes into false locks.
+        var second = Double.NEGATIVE_INFINITY
+        for (i in scores.indices) {
+            if (abs(i - peak) <= skip) continue
+            if (scores[i] > second) second = scores[i]
+        }
+        val peakMarginZ = (scores[peak] - second) / sd
+
         // Refine around the coarse winner at the native 50 ms timeline resolution.
         val coarseOffBins = -rangeBins + peak * coarseStepBins
         var bestOffBins = coarseOffBins
@@ -447,7 +467,7 @@ class FastOffsetAligner(private val subs: ByteArray, private val cueStarts: Long
         for (c in cueStarts) if (c in rawFrom..rawTo) events++
         if (events < MIN_EVENTS) return null
 
-        return Estimate(offsetMs, z, speechSeconds, events)
+        return Estimate(offsetMs, z, peakMarginZ, speechSeconds, events, zAccept)
     }
 
     companion object {
@@ -456,7 +476,8 @@ class FastOffsetAligner(private val subs: ByteArray, private val cueStarts: Long
         const val MAX_ATTEMPT_MS = 30_000L
         const val MIN_SPEECH_S = 4.0
         const val MIN_EVENTS = 3
-        const val Z_ACCEPT = 5.5
+        const val DEFAULT_Z_ACCEPT = 3.5
+        const val MIN_PEAK_MARGIN_Z = 1.0
         private const val MIN_BINS = (MIN_WINDOW_MS / AutoSync.BIN_MS).toInt()
     }
 }
