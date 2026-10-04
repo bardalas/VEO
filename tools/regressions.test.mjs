@@ -1109,7 +1109,11 @@ test("live sync solves offset only without network scan and reports success or f
   assert.match(a, /class FastOffsetAligner/);
   assert.match(k, /מנסה להתאים כתוביות/);
   assert.match(k, /הכתוביות סונכרנו/);
-  assert.match(k, /לא נמצא סנכרון אמין/);
+  assert.match(k, /לא נמצא סנכרון ·/);
+  assert.match(k, /best\.reason/);
+  assert.match(k, /margin/);
+  assert.match(k, /speech/);
+  assert.match(k, /lines/);
   assert.match(k, /handler\.postDelayed\(syncHintHide, 5_000\)/);
   assert.match(k, /autoScale = 1\.0/);
 });
