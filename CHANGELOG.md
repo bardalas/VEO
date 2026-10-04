@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.56 — 2026-10-04
+- Live subtitle sync now keeps the best candidate through timeout, reports the actual rejection reason with offset/Z/margin/speech/line counts, and treats a ±3 s correlation shoulder as the same peak instead of a competing match. The peak-margin gate is 0.7. Continue Watching series cards open the title page on the exact saved episode, and the redundant full-width title-page progress bar is removed; per-episode progress remains. (#360–#363)
+
 ## 0.45.55 — 2026-10-04
 - Live subtitle sync now defaults to Z=3.5 and exposes a persisted 2.0–6.0 confidence threshold beside the sync command. A second-peak ambiguity check remains mandatory so lowering Z alone cannot accept an unclear match. (#357, #358)
 
