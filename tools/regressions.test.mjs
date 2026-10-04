@@ -472,6 +472,9 @@ test('continue watching: one card per series, the newest episode, with its seaso
   const byId = Object.fromEntries(rows.map(x => [x.metaId, x]));
   assert.equal(rows.length, 3);                                        // the series once, the film once, the other series once
   assert.equal(byId.tt1.videoId, 'tt1:2:3'); assert.equal(byId.tt1.season, 2); assert.equal(byId.tt1.episode, 3);
+  const rowJs = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(rowJs, /x\.type === 'series' && x\.videoId/);
+  assert.match(rowJs, /#\/detail\/\$\{esc\(x\.type\)\}\/\$\{encodeURIComponent\(x\.metaId\)\}\/\$\{encodeURIComponent\(x\.videoId\)\}/);
   assert.equal(byId.tt3.done, true);                                   // so the caller leaves it out: nothing is in the middle
   assert.equal(w.latestPerTitle({'tt1:1:2': prog['tt1:1:2']})[0].season, 1);   // read from the episode's address
   assert.equal(w.latestPerTitle({'tt1:1:2': prog['tt1:1:2']})[0].episode, 2);
@@ -564,6 +567,11 @@ test('series page: the resume / start-over question is asked on the episode, its
   assert.match(d, /pickFrom\(.*detail\.playEp/s); assert.match(d, /play\(how === 'start'\)/);
   assert.match(d, /w\.t > 30 && w\.t < w\.d - 60/);                    // only an episode left in the middle is asked about
   assert.match(css, /@media\(min-width:900px\)\{\.epwrap\{max-width:min\(40vw,560px\)\}\}/);
+  assert.match(d, /viewDetail\(type, id, requestedVideoId = ''\)/);
+  assert.match(d, /const requested = eps\.find\(v => v\.id === requestedVideoId\)/);
+  assert.match(d, /const requestedVid = requestedVideoId && videos\.find\(v => v\.id === requestedVideoId\)/);
+  assert.doesNotMatch(d, /id="bprog"/);
+  assert.doesNotMatch(css, /\.bprog\{/);
 });
 
 
@@ -1029,8 +1037,14 @@ test("automatic sync is a viewer-requested live offset match over already-playin
   assert.match(a, /const val MIN_WINDOW_MS = 12_000L/);
   assert.match(a, /const val MAX_ATTEMPT_MS = 30_000L/);
   assert.match(a, /const val DEFAULT_Z_ACCEPT = 3\.5/);
-  assert.match(a, /const val MIN_PEAK_MARGIN_Z = 1\.0/);
+  assert.match(a, /const val MIN_PEAK_MARGIN_Z = 0\.7/);
+  assert.match(a, /const val PEAK_EXCLUSION_MS = 3_000/);
   assert.match(a, /z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z/);
+  assert.match(a, /val reason get\(\) = when/);
+  assert.match(k, /lastLiveEstimate/);
+  assert.match(k, /best\.reason/);
+  assert.match(k, /peakMarginZ/);
+  assert.match(k, /speechSeconds/);
   assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
   assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
   assert.match(k, /"סף ביטחון \(Z\)"/);
