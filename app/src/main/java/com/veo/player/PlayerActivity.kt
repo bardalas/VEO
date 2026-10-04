@@ -165,7 +165,7 @@ class PlayerActivity : AppCompatActivity() {
     private var captions: Captions? = null
     /** How large they are drawn, as a multiple of the player's own size; kept between films. */
     private var subScale = 1.0f
-    private val audioDelay = AudioDelayProcessor()
+    private val audioDelay = AudioDelayProcessor { if (autoOn) liveSpeech else null }
     /** Whether the translation found is put on by itself (Settings → Playback), or waits to be picked. */
     private var subsAuto = true
     /** The app's skin and direction, so the banner and the channel list look like the rest of VEO. */
@@ -390,7 +390,7 @@ class PlayerActivity : AppCompatActivity() {
             val detail = if (best == null) "אין מספיק אודיו לניתוח" else {
                 val pos = player?.currentPosition ?: -1L
                 val subLabel = subs.orEmpty().getOrNull(subPick)?.label.orEmpty()
-                "${best.reason} · mode=${best.mode} · player=${"%.1f".format(pos / 1000.0)}s · audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s · subs=${"%.1f".format(best.subtitleFirstMs / 1000.0)}..${"%.1f".format(best.subtitleLastMs / 1000.0)}s · cues=${best.subtitleEvents} · local/global nonzero=${best.nonZeroScores} · peak=${"%.2f".format(best.peakScore)} · best=${"%+.1f".format(best.offsetMs / 1000.0)}s · Z=${"%.1f".format(best.z)} · margin=${"%.1f".format(best.peakMarginZ)} · speech=${"%.1f".format(best.speechSeconds)}s · lines=${best.events} · file=$subLabel"
+                "${best.reason} · mode=${best.mode} · player=${"%.1f".format(pos / 1000.0)}s · audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s · subs=${"%.1f".format(best.subtitleFirstMs / 1000.0)}..${"%.1f".format(best.subtitleLastMs / 1000.0)}s · cues=${best.subtitleEvents} · local nonzero=${best.nonZeroScores} · peak=${"%.2f".format(best.peakScore)} · best=${"%+.1f".format(best.offsetMs / 1000.0)}s · Z=${"%.1f".format(best.z)} · margin=${"%.1f".format(best.peakMarginZ)} · speech=${"%.1f".format(best.speechSeconds)}s · lines=${best.events} · file=$subLabel"
             }
             scanNote = "לא נמצא סנכרון · $detail"
             showResult(scanNote)
@@ -1028,21 +1028,6 @@ class PlayerActivity : AppCompatActivity() {
         // decoder that failed is left out of the next attempt and the film goes on with the one after it.
         audioDelay.delayMs = getSharedPreferences("veo", MODE_PRIVATE).getInt("audioDelayMs", 0)
         val renderers = object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
-            // Normal Media3 decoding, plus an observer that sees PCM with exact film PTS only during a requested sync attempt.
-            override fun buildAudioRenderers(
-                context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: MediaCodecSelector,
-                enableDecoderFallback: Boolean, audioSink: androidx.media3.exoplayer.audio.AudioSink, eventHandler: android.os.Handler,
-                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
-                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
-            ) {
-                out.add(TappingAudioRenderer(
-                    context,
-                    androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Factory.getDefault(context),
-                    mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink,
-                    { player?.currentPosition?.times(1000L) }
-                ) { if (autoOn) liveSpeech else null })
-            }
-
             // the sound goes through a delay of the viewer's choosing (Menu -> sync), for a stream whose sound and picture drift apart
             override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean) =
                 androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
