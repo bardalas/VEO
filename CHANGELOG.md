@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.58 — 2026-10-04
+- Live subtitle sync now falls back from the normal +/-60 s search to a bounded whole-subtitle-file search when the local score surface is completely flat, and computes confidence for the global candidate. Failure diagnostics now persist in the subtitle menu and include player position, audio window, subtitle range, cue count, search mode, non-zero score count, peak score, best offset, Z, margin, speech time, matched lines, and subtitle source label. (#367)
+
 ## 0.45.57 — 2026-10-04
 - Fix live subtitle sync when decoded audio codec timestamps use a different origin from the subtitle/media timeline. The first tapped audio buffer is anchored to Media3 media time and subsequent codec PTS deltas are preserved, so speech and subtitle activity are compared on the same clock. (#365)
 
