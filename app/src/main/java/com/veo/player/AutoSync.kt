@@ -489,11 +489,13 @@ class FastOffsetAligner(
             val minOff = startBin - (subs.size - 1)
             val maxOff = startBin + speech.size - 1
             val step = max(20, (maxOff - minOff).coerceAtLeast(1) / 12000)
+            val count = ((maxOff - minOff) / step).coerceAtLeast(0) + 1
+            val globalScores = DoubleArray(count)
             var globalBest = Double.NEGATIVE_INFINITY
-            var globalOff = minOff
+            var globalPeak = 0
             var globalNonZero = 0
-            var off = minOff
-            while (off <= maxOff) {
+            for (k in 0 until count) {
+                val off = minOff + k * step
                 var score = 0.0
                 for (j in speech.indices) {
                     val weight = w[j]
@@ -501,18 +503,49 @@ class FastOffsetAligner(
                     val raw = startBin + j - off
                     if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
                 }
+                globalScores[k] = score
                 if (kotlin.math.abs(score) > 1e-9) globalNonZero++
-                if (score > globalBest) { globalBest = score; globalOff = off }
-                off += step
+                if (score > globalBest) { globalBest = score; globalPeak = k }
             }
             if (globalNonZero > 0) {
+                val skipGlobal = max(1, PEAK_EXCLUSION_MS / (AutoSync.BIN_MS * step))
+                var gn = 0
+                var gsum = 0.0
+                var gsq = 0.0
+                var second = Double.NEGATIVE_INFINITY
+                for (i in globalScores.indices) {
+                    if (abs(i - globalPeak) <= skipGlobal) continue
+                    val v = globalScores[i]
+                    gn++
+                    gsum += v
+                    gsq += v * v
+                    if (v > second) second = v
+                }
+                val gmean = if (gn > 0) gsum / gn else globalBest
+                val gsd = if (gn > 1) sqrt(max(1e-9, gsq / gn - gmean * gmean)) else 1e-9
+                val globalZ = (globalBest - gmean) / gsd
+                val globalMargin = if (second == Double.NEGATIVE_INFINITY) 0.0 else (globalBest - second) / gsd
+
+                val coarseGlobalOff = minOff + globalPeak * step
+                var refinedOff = coarseGlobalOff
+                var refinedScore = Double.NEGATIVE_INFINITY
+                for (candidate in (coarseGlobalOff - step)..(coarseGlobalOff + step)) {
+                    var score = 0.0
+                    for (j in speech.indices) {
+                        val weight = w[j]
+                        if (weight == 0f) continue
+                        val raw = startBin + j - candidate
+                        if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+                    }
+                    if (score > refinedScore) { refinedScore = score; refinedOff = candidate }
+                }
+
                 mode = "global"
-                chosenOffBins = globalOff
-                chosenScore = globalBest
+                chosenOffBins = refinedOff
+                chosenScore = refinedScore
                 chosenNonZero = globalNonZero
-                // Z/margin are intentionally left at zero here; the diagnostic proves overlap first.
-                chosenZ = 0.0
-                chosenMargin = 0.0
+                chosenZ = globalZ
+                chosenMargin = globalMargin
             } else mode = "global-flat"
         }
 
