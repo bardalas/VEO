@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.60 — 2026-10-05
+- Reworked live subtitle-sync timing to use Media3 AudioProcessor StreamMetadata.positionOffsetUs plus exact PCM frame counting in the existing AudioDelayProcessor path. Removes renderer/codec clock inference and the unsafe global offset fallback. (#371)
+
 ## 0.45.59 — 2026-10-05
 - Fix live subtitle-sync timebase on streams/remuxes whose codec/renderer timestamps use a large non-zero origin. Audio is now anchored to ExoPlayer.currentPosition before matching subtitles, eliminating huge false offsets such as +999582 s. (#369)
 
