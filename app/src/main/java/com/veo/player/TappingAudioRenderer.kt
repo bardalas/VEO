@@ -28,6 +28,7 @@ class TappingAudioRenderer(
     eventHandler: Handler?,
     eventListener: AudioRendererEventListener?,
     sink: AudioSink,
+    private val mediaPositionUs: () -> Long?,
     private val timeline: () -> SpeechTimeline?
 ) : MediaCodecAudioRenderer(context, adapterFactory, selector, enableDecoderFallback, eventHandler, eventListener, sink) {
 
@@ -70,16 +71,21 @@ class TappingAudioRenderer(
             bufferPresentationTimeUs != lastPts) {
             lastPts = bufferPresentationTimeUs
 
-            // Codec timestamps are not guaranteed to share the player's media-time origin (notably
-            // MPEG-TS/HLS and some remuxed files). Anchor the first tapped buffer to Media3's current
-            // renderer position, then preserve the codec PTS deltas. Subtitle cue times use this same
-            // zero-based media clock.
+            // Codec/renderer timestamps may carry a large stream origin (for example MPEG-TS PTS),
+            // while subtitles and ExoPlayer.currentPosition are zero-based media time. The renderer's
+            // positionUs is in the same raw clock as the codec PTS, so map that raw clock to the public
+            // player clock once, then preserve exact codec PTS deltas.
             if (!tapped || ptsToMediaUs == Long.MIN_VALUE) {
-                ptsToMediaUs = positionUs - bufferPresentationTimeUs
-                tapped = true
+                val playerUs = mediaPositionUs()
+                if (playerUs != null && playerUs >= 0L) {
+                    ptsToMediaUs = playerUs - positionUs
+                    tapped = true
+                }
             }
-            val mediaPtsUs = bufferPresentationTimeUs + ptsToMediaUs
-            runCatching { target.feed(buffer, rate, channels, mediaPtsUs) }
+            if (tapped && ptsToMediaUs != Long.MIN_VALUE) {
+                val mediaPtsUs = bufferPresentationTimeUs + ptsToMediaUs
+                runCatching { target.feed(buffer, rate, channels, mediaPtsUs) }
+            }
         }
         return super.processOutputBuffer(
             positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags, sampleCount,

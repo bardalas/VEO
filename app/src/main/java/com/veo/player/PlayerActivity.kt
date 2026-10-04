@@ -1038,7 +1038,8 @@ class PlayerActivity : AppCompatActivity() {
                 out.add(TappingAudioRenderer(
                     context,
                     androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Factory.getDefault(context),
-                    mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink
+                    mediaCodecSelector, enableDecoderFallback, eventHandler, eventListener, audioSink,
+                    { player?.currentPosition?.times(1000L) }
                 ) { if (autoOn) liveSpeech else null })
             }
 

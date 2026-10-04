@@ -1041,11 +1041,15 @@ test("live sync falls back beyond +/-60 s and exposes enough diagnostics to solv
     assert.ok(k.includes(token), token);
 });
 
-test("live sync normalizes codec PTS to Media3 media time so speech and subtitle clocks share an origin", async () => {
+test("live sync normalizes raw renderer/codec PTS to the public player media clock", async () => {
   const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
-  assert.match(tap, /ptsToMediaUs = positionUs - bufferPresentationTimeUs/);
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(tap, /private val mediaPositionUs: \(\) -> Long\?/);
+  assert.match(tap, /val playerUs = mediaPositionUs\(\)/);
+  assert.match(tap, /ptsToMediaUs = playerUs - positionUs/);
   assert.match(tap, /val mediaPtsUs = bufferPresentationTimeUs \+ ptsToMediaUs/);
   assert.match(tap, /target\.feed\(buffer, rate, channels, mediaPtsUs\)/);
+  assert.match(k, /player\?\.currentPosition\?\.times\(1000L\)/);
 });
 
 test("automatic sync is a viewer-requested live offset match over already-playing audio (#318)", async () => {
