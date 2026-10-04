@@ -1029,6 +1029,13 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
+test("live sync normalizes codec PTS to Media3 media time so speech and subtitle clocks share an origin", async () => {
+  const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
+  assert.match(tap, /ptsToMediaUs = positionUs - bufferPresentationTimeUs/);
+  assert.match(tap, /val mediaPtsUs = bufferPresentationTimeUs \+ ptsToMediaUs/);
+  assert.match(tap, /target\.feed\(buffer, rate, channels, mediaPtsUs\)/);
+});
+
 test("automatic sync is a viewer-requested live offset match over already-playing audio (#318)", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
