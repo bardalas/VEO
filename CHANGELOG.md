@@ -1,5 +1,8 @@
 # VEO Android changelog
 
+## 0.45.57 — 2026-10-04
+- Fix live subtitle sync when decoded audio codec timestamps use a different origin from the subtitle/media timeline. The first tapped audio buffer is anchored to Media3 media time and subsequent codec PTS deltas are preserved, so speech and subtitle activity are compared on the same clock. (#365)
+
 ## 0.45.56 — 2026-10-04
 - Live subtitle sync now keeps the best candidate through timeout, reports the actual rejection reason with offset/Z/margin/speech/line counts, and treats a ±3 s correlation shoulder as the same peak instead of a competing match. The peak-margin gate is 0.7. Continue Watching series cards open the title page on the exact saved episode, and the redundant full-width title-page progress bar is removed; per-episode progress remains. (#360–#363)
 
