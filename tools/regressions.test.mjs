@@ -844,7 +844,7 @@ test('on a television the live channels are a list, one to a row with room betwe
 test('the sound can be moved against the picture: a delay processor in the audio sink and a sync row on the player panel (#257)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
-  assert.match(proc, /class AudioDelayProcessor : BaseAudioProcessor\(\)/);
+  assert.match(proc, /class AudioDelayProcessor\(private val speechTimeline: \(\) -> SpeechTimeline\?\) : BaseAudioProcessor\(\)/);
   assert.match(k, /setAudioProcessors\(arrayOf<androidx\.media3\.common\.audio\.AudioProcessor>\(audioDelay\)\)/);
   assert.match(k, /SubsRow\.Step\("הזזת השמע"/);
   assert.match(k, /KeyEvent\.KEYCODE_MENU, KeyEvent\.KEYCODE_PROG_YELLOW/);
@@ -1029,32 +1029,29 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
-test("live sync falls back beyond +/-60 s and exposes enough diagnostics to solve one-shot failures", async () => {
+test("live sync stays within the intended +/-60 s offset search and exposes diagnostics", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(a, /if \(chosenNonZero == 0\)/);
-  assert.match(a, /val minOff = startBin - \(subs\.size - 1\)/);
-  assert.match(a, /mode = "global"/);
-  assert.match(a, /globalScores/);
-  assert.match(a, /chosenZ = globalZ/);
+  assert.match(a, /if \(chosenNonZero == 0\) mode = "local-flat"/);
+  assert.doesNotMatch(a, /globalScores|mode = "global"|val minOff = startBin - \(subs\.size - 1\)/);
   for (const token of ['player=', 'audio=', 'subs=', 'cues=', 'nonzero=', 'peak=', 'best=', 'Z=', 'margin=', 'speech=', 'lines=', 'file='])
     assert.ok(k.includes(token), token);
 });
 
-test("live sync normalizes raw renderer/codec PTS to the public player media clock", async () => {
-  const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
+test("live sync timestamps PCM from AudioProcessor stream metadata rather than codec or renderer clocks", async () => {
+  const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(tap, /private val mediaPositionUs: \(\) -> Long\?/);
-  assert.match(tap, /val playerUs = mediaPositionUs\(\)/);
-  assert.match(tap, /ptsToMediaUs = playerUs - positionUs/);
-  assert.match(tap, /val mediaPtsUs = bufferPresentationTimeUs \+ ptsToMediaUs/);
-  assert.match(tap, /target\.feed\(buffer, rate, channels, mediaPtsUs\)/);
-  assert.match(k, /player\?\.currentPosition\?\.times\(1000L\)/);
+  assert.match(proc, /override fun onFlush\(streamMetadata: AudioProcessor\.StreamMetadata\)/);
+  assert.match(proc, /streamStartUs = streamMetadata\.positionOffsetUs/);
+  assert.match(proc, /inputFrames = 0L/);
+  assert.match(proc, /val ptsUs = streamStartUs \+ inputFrames \* 1_000_000L \/ inputAudioFormat\.sampleRate/);
+  assert.match(proc, /timeline\.feed\(inputBuffer, inputAudioFormat\.sampleRate, inputAudioFormat\.channelCount, ptsUs\)/);
+  assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
+  assert.doesNotMatch(k, /TappingAudioRenderer\(/);
 });
 
 test("automatic sync is a viewer-requested live offset match over already-playing audio (#318)", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
-  const tap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/TappingAudioRenderer.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(a, /class FastOffsetAligner/);
   assert.match(a, /const val MIN_WINDOW_MS = 12_000L/);
@@ -1071,8 +1068,7 @@ test("automatic sync is a viewer-requested live offset match over already-playin
   assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
   assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
   assert.match(k, /"סף ביטחון \(Z\)"/);
-  assert.match(tap, /bufferPresentationTimeUs/);
-  assert.match(k, /TappingAudioRenderer/);
+  assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
   assert.match(k, /if \(autoOn\) liveSpeech else null/);
   assert.match(k, /הפעל סנכרון אוטומטי/);
   assert.doesNotMatch(k, /private fun startScan\(\)/);
