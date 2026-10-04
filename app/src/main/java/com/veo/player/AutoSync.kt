@@ -378,7 +378,8 @@ class FastOffsetAligner(
         val peakMarginZ: Double,
         val speechSeconds: Double,
         val events: Int,
-        val zAccept: Double
+        val zAccept: Double,
+        val mode: String
     ) {
         val confident get() = speechSeconds >= MIN_SPEECH_S && events >= MIN_EVENTS &&
             z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z
