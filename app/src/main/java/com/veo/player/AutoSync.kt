@@ -476,15 +476,59 @@ class FastOffsetAligner(
             }
         }
 
-        val offsetMs = bestOffBins.toLong() * AutoSync.BIN_MS
+        var chosenOffBins = bestOffBins
+        var chosenZ = z
+        var chosenMargin = peakMarginZ
+        var chosenScore = bestScore
+        var chosenNonZero = scores.count { kotlin.math.abs(it) > 1e-9 }
+        var mode = "local"
+
+        // If +/-60 s is completely flat, search the entire feasible subtitle offset range coarsely.
+        // This challenges the assumption that the subtitle file must be within one minute of the video.
+        if (chosenNonZero == 0) {
+            val minOff = startBin - (subs.size - 1)
+            val maxOff = startBin + speech.size - 1
+            val step = max(20, (maxOff - minOff).coerceAtLeast(1) / 12000)
+            var globalBest = Double.NEGATIVE_INFINITY
+            var globalOff = minOff
+            var globalNonZero = 0
+            var off = minOff
+            while (off <= maxOff) {
+                var score = 0.0
+                for (j in speech.indices) {
+                    val weight = w[j]
+                    if (weight == 0f) continue
+                    val raw = startBin + j - off
+                    if (raw in subs.indices && subs[raw].toInt() != 0) score += weight
+                }
+                if (kotlin.math.abs(score) > 1e-9) globalNonZero++
+                if (score > globalBest) { globalBest = score; globalOff = off }
+                off += step
+            }
+            if (globalNonZero > 0) {
+                mode = "global"
+                chosenOffBins = globalOff
+                chosenScore = globalBest
+                chosenNonZero = globalNonZero
+                // Z/margin are intentionally left at zero here; the diagnostic proves overlap first.
+                chosenZ = 0.0
+                chosenMargin = 0.0
+            } else mode = "global-flat"
+        }
+
+        val offsetMs = chosenOffBins.toLong() * AutoSync.BIN_MS
         val rawFrom = fromMs - offsetMs
         val rawTo = toMs - offsetMs
         var events = 0
         for (c in cueStarts) if (c in rawFrom..rawTo) events++
+        val subtitleFirst = cueStarts.firstOrNull() ?: 0L
+        val subtitleLast = max((subs.size - 1L) * AutoSync.BIN_MS, cueStarts.lastOrNull() ?: 0L)
 
-        // Always return the best candidate once a usable window exists. The caller decides whether it is
-        // trustworthy, and can show the viewer exactly which gate failed instead of a generic "not found".
-        return Estimate(offsetMs, z, peakMarginZ, speechSeconds, events, zAccept)
+        return Estimate(
+            offsetMs, chosenZ, chosenMargin, speechSeconds, events, zAccept,
+            mode, chosenScore, chosenNonZero, fromMs, toMs,
+            subtitleFirst, subtitleLast, cueStarts.size
+        )
     }
 
     companion object {
