@@ -380,7 +380,15 @@ class FastOffsetAligner(
         val events: Int,
         val zAccept: Double
     ) {
-        val confident get() = z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z
+        val confident get() = speechSeconds >= MIN_SPEECH_S && events >= MIN_EVENTS &&
+            z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z
+        val reason get() = when {
+            speechSeconds < MIN_SPEECH_S -> "מעט דיבור"
+            events < MIN_EVENTS -> "מעט שורות"
+            z < zAccept -> "Z נמוך"
+            peakMarginZ < MIN_PEAK_MARGIN_Z -> "התאמה דו-משמעית"
+            else -> "התאמה טובה"
+        }
     }
 
     fun estimate(startBin: Int, speech: ByteArray): Estimate? {
@@ -388,7 +396,6 @@ class FastOffsetAligner(
         var speechWeight = 0.0
         for (v in speech) if (v >= 0) speechWeight += v / 100.0
         val speechSeconds = speechWeight * AutoSync.BIN_MS / 1000.0
-        if (speechSeconds < MIN_SPEECH_S) return null
 
         val fromMs = startBin.toLong() * AutoSync.BIN_MS
         val toMs = fromMs + speech.size.toLong() * AutoSync.BIN_MS
@@ -417,8 +424,9 @@ class FastOffsetAligner(
         var peak = 0
         for (i in 1 until scores.size) if (scores[i] > scores[peak]) peak = i
 
-        // Reject broad/ambiguous peaks: compare the best point with the rest, excluding +/-1 s around it.
-        val skip = 1000 / (AutoSync.BIN_MS * coarseStepBins)
+        // Subtitle lines last seconds, so one real match forms a broad hill. Treat points within +/-3 s
+        // as the same candidate; otherwise the shoulder of the winner gets mistaken for a second match.
+        val skip = PEAK_EXCLUSION_MS / (AutoSync.BIN_MS * coarseStepBins)
         var n = 0
         var sum = 0.0
         var sq = 0.0
@@ -465,8 +473,9 @@ class FastOffsetAligner(
         val rawTo = toMs - offsetMs
         var events = 0
         for (c in cueStarts) if (c in rawFrom..rawTo) events++
-        if (events < MIN_EVENTS) return null
 
+        // Always return the best candidate once a usable window exists. The caller decides whether it is
+        // trustworthy, and can show the viewer exactly which gate failed instead of a generic "not found".
         return Estimate(offsetMs, z, peakMarginZ, speechSeconds, events, zAccept)
     }
 
@@ -477,7 +486,8 @@ class FastOffsetAligner(
         const val MIN_SPEECH_S = 4.0
         const val MIN_EVENTS = 3
         const val DEFAULT_Z_ACCEPT = 3.5
-        const val MIN_PEAK_MARGIN_Z = 1.0
+        const val MIN_PEAK_MARGIN_Z = 0.7
+        const val PEAK_EXCLUSION_MS = 3_000
         private const val MIN_BINS = (MIN_WINDOW_MS / AutoSync.BIN_MS).toInt()
     }
 }

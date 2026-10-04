@@ -119,7 +119,7 @@ export async function route(){
   else if(r === 'all') viewAll(a);
   else if(r === 'live') viewLive();
   else if(r === 'search') viewSearch(a);
-  else if(r === 'detail') viewDetail(a, b);
+  else if(r === 'detail') viewDetail(a, b, c);
   else if(r === 'library') viewLibrary();
   else if(r === 'addons') viewAddons();
   else if(r === 'settings') viewSettings(a);

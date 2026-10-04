@@ -26,11 +26,6 @@
 .people{color:var(--muted);font-size:14px;margin:12px 0 22px;max-width:68ch}
 .people b{color:var(--light);font-weight:500}
 .backdrop{height:42vh;margin:0 -28px;background-size:cover;background-position:center 22%;position:relative;overflow:hidden;cursor:pointer}
-/* how far into it the viewer got, along the foot of the picture */
-.bprog{position:absolute;inset-inline:0;bottom:0;z-index:3;height:5px;background:var(--shade-55)}
-.bprog i{display:block;height:100%;background:var(--tungsten)}
-.bprog[hidden]{display:none}
-[data-layout="tv"] .bprog{height:7px}
 .backdrop::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--night),transparent 45%)}
 .dinfo{min-width:0}
 .dinfo .playrow{margin:10px 0}

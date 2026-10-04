@@ -72,7 +72,7 @@ const IC = {
   trailer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 8h4M3 12h4M3 16h4M17 8h4M17 12h4M17 16h4"/></svg>',
 };
 
-export async function viewDetail(type, id){
+export async function viewDetail(type, id, requestedVideoId = ''){
   const app = $('#app');
   // the add-ons answer in their own time; by then this may not be the screen any more
   const inView = guardView(app);
@@ -119,8 +119,7 @@ export async function viewDetail(type, id){
   const seasons = [...new Set(videos.map(v => v.season ?? 0))].sort((a,b) => (a===0) - (b===0) || a - b);
   const libLabel = on => tr(on ? 'lib.in' : 'lib.add');
   // Play and the quality shortcuts sit right under the title; a series' episodes get the whole width below.
-  app.innerHTML = `<div class="backdrop" style="background-image:url('${esc(meta.background || meta.poster)}')" title="${esc(tr('qv.play'))}">
-      <div class="bprog" id="bprog" hidden><i></i></div></div>
+  app.innerHTML = `<div class="backdrop" style="background-image:url('${esc(meta.background || meta.poster)}')" title="${esc(tr('qv.play'))}"></div>
     <div class="detail-overlay">
       <div class="detail ${seasons.length ? 'series' : 'movie'}">
         <div class="dinfo">
@@ -170,14 +169,6 @@ export async function viewDetail(type, id){
   if($('#trailer')) $('#trailer').onclick = () => openPlayer({ytId: meta.trailers[0].source}, tr('detail.trailerTitle', {title: heTitle(meta.id, meta.name)}));
 
   const ctx = {type, meta};
-  /** How far into what is lined up the viewer got, drawn along the foot of the picture. */
-  const showProgress = id => {
-    const w = progress[id], bar = $('#bprog');
-    if(!bar) return;
-    const pct = w && w.d ? Math.min(100, w.t / w.d * 100) : 0;
-    bar.hidden = !pct;
-    bar.firstElementChild.style.width = pct.toFixed(1) + '%';
-  };
   // The first button plays whatever the list has chosen; the list is one press below it.
   let chosen = null;                                   // {id, label}
   const play = (fromStart = false) => { if(chosen) loadStreams(ctx, chosen.id, chosen.label, true, fromStart); };
@@ -197,7 +188,6 @@ export async function viewDetail(type, id){
         const v = videos.find(x => x.id === b.dataset.id);
         const label = `${meta.name} S${v.season}E${v.episode ?? v.number}`;
         chosen = {id: v.id, label};
-        showProgress(v.id);
         // what the quality and the sources beside it are for: an episode has a name, and a list of them is far below
         const now = $('#epnow');
         now.hidden = false;
@@ -217,8 +207,9 @@ export async function viewDetail(type, id){
         play(how === 'start');                           // ... and plays it, from where it was or from the beginning
       });
       // open on the episode you are in the middle of, otherwise the first one you have not seen
+      const requested = eps.find(v => v.id === requestedVideoId);
       const started = eps.find(v => { const w = progress[v.id]; return w && w.d && w.t / w.d <= .92; });
-      const next = eps.find(v => v.id === up?.id) || started || eps.find(v => !progress[v.id]) || eps[0];
+      const next = requested || eps.find(v => v.id === up?.id) || started || eps.find(v => !progress[v.id]) || eps[0];
       const btn = next && $('#eps').querySelector(`.epcard[data-id="${CSS.escape(next.id)}"]`);
       if(btn){
         pick(btn);
@@ -230,8 +221,10 @@ export async function viewDetail(type, id){
        play button uses, so the page and the button agree by construction, and it crosses a season
        boundary (finish season two and it offers the first of season three). */
     const up = nextEpisode(meta);
+    const requestedVid = requestedVideoId && videos.find(v => v.id === requestedVideoId);
     const upVid = up && videos.find(v => v.id === up.id);
-    const first = upVid ? (upVid.season ?? 0) : (seasons.find(s => s !== 0) ?? seasons[0]);
+    const firstVid = requestedVid || upVid;
+    const first = firstVid ? (firstVid.season ?? 0) : (seasons.find(s => s !== 0) ?? seasons[0]);
     const pickSeason = s => {
       $('#app').querySelectorAll('.seasonbar [data-season]').forEach(b => b.classList.toggle('on', b.dataset.season == s));
       renderEps(s);
@@ -260,7 +253,6 @@ export async function viewDetail(type, id){
     $('#eps').innerHTML = `<button class="fgo" id="fStart">${esc(tr('detail.startFilm'))}</button>`
       + (part ? `<button class="fgo" id="fResume">${esc(tr('detail.resumeAt', {t: clock(part)}))}</button>` : '');
     chosen = {id: vid, label: meta.name};
-    showProgress(vid);
     $('#fStart').onclick = () => play(true);
     if($('#fResume')) $('#fResume').onclick = () => play(false);
     if(isTvLayout()) ($('#fResume') || $('#fStart')).focus({preventScroll: true});

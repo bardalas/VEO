@@ -155,6 +155,7 @@ class PlayerActivity : AppCompatActivity() {
     private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
+    private var lastLiveEstimate: FastOffsetAligner.Estimate? = null
     private var syncZ = FastOffsetAligner.DEFAULT_Z_ACCEPT
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
     private var lineAnchor: Pair<Long, Long>? = null
@@ -384,9 +385,12 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(liveSyncTick)
         liveSpeech = null
         autoOn = false
-        if (est == null) {
-            scanNote = "לא נמצא סנכרון אמין"
-            showResult("לא נמצא סנכרון אמין")
+        val best = est ?: lastLiveEstimate
+        if (best == null || !best.confident) {
+            val detail = if (best == null) "אין מספיק אודיו לניתוח" else
+                "${best.reason} · best ${"%+.1f".format(best.offsetMs / 1000.0)}s · Z ${"%.1f".format(best.z)} · margin ${"%.1f".format(best.peakMarginZ)} · speech ${"%.1f".format(best.speechSeconds)}s · ${best.events} lines"
+            scanNote = "לא נמצא סנכרון · $detail"
+            showResult(scanNote)
             refreshPanel()
             return
         }
@@ -421,6 +425,7 @@ class PlayerActivity : AppCompatActivity() {
             if (first != Int.MAX_VALUE && contentMs >= FastOffsetAligner.MIN_WINDOW_MS) {
                 val speech = timeline.slice(first, top + 1)
                 val est = offsetAligner?.estimate(first, speech)
+                if (est != null) lastLiveEstimate = est
                 if (est?.confident == true) {
                     finishLiveSync(est)
                     return
@@ -428,7 +433,7 @@ class PlayerActivity : AppCompatActivity() {
             }
 
             if (elapsed >= FastOffsetAligner.MAX_ATTEMPT_MS) {
-                finishLiveSync(null)
+                finishLiveSync(lastLiveEstimate)
                 return
             }
             handler.postDelayed(this, 1_000)
@@ -488,6 +493,7 @@ class PlayerActivity : AppCompatActivity() {
 
         if (panelOpen) closePanel()
         offsetAligner = FastOffsetAligner(c.activity(), c.starts(), syncZ)
+        lastLiveEstimate = null
         liveSpeech = SpeechTimeline()
         autoOn = true
         autoStartedMs = android.os.SystemClock.elapsedRealtime()
