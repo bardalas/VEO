@@ -526,7 +526,7 @@ test('cards are cut from the landscape picture and open on focus; the continue c
   assert.doesNotMatch(css, /spotOpen/);                                          // no window that opens: the card is pushed in (#159)
   assert.doesNotMatch(rows, /cont-card/);                                        // no wrapper: it has the size of every card
   assert.doesNotMatch(css, /\.cont-card/);
-  assert.match(rows, /\{tag: ep\}/);
+  assert.match(rows, /\{tag: ep, href\}/);
 });
 
 
