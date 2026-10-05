@@ -6,6 +6,7 @@ import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Moves the sound a little later or earlier than the picture, for a stream whose two are not quite together.
@@ -14,13 +15,15 @@ import java.nio.ByteBuffer
  * is applied to the very next samples (a hair of silence or a hair cut), so the viewer can tune it by ear.
  */
 @UnstableApi
-class AudioDelayProcessor(private val speechTimeline: () -> SpeechTimeline?) : BaseAudioProcessor() {
+class AudioDelayProcessor(private val onSpeechPcm: (ByteArray, Int, Int, Long) -> Unit) : BaseAudioProcessor() {
     @Volatile var delayMs = 0
+    @Volatile var captureSpeech = false
     private var appliedBytes = 0
     private var silence = 0
     private var drop = 0
     private var streamStartUs = 0L
     private var inputFrames = 0L
+    private var passThrough: ByteBuffer = AudioProcessor.EMPTY_BUFFER
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
         // any other sound (24-bit, float, ...) goes by untouched: refusing it would fail the whole audio sink, and with it the playback
@@ -32,22 +35,51 @@ class AudioDelayProcessor(private val speechTimeline: () -> SpeechTimeline?) : B
         appliedBytes = 0; silence = 0; drop = 0
         streamStartUs = streamMetadata.positionOffsetUs
         inputFrames = 0L
+        passThrough = AudioProcessor.EMPTY_BUFFER
     }
+
+    override fun onReset() {
+        passThrough = AudioProcessor.EMPTY_BUFFER
+        inputFrames = 0L
+    }
+
+    override fun getOutput(): ByteBuffer {
+        if (passThrough.hasRemaining()) {
+            val out = passThrough
+            passThrough = AudioProcessor.EMPTY_BUFFER
+            return out
+        }
+        return super.getOutput()
+    }
+
+    override fun isEnded(): Boolean = !passThrough.hasRemaining() && super.isEnded()
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val frame = inputAudioFormat.bytesPerFrame
         val inputBytes = inputBuffer.remaining()
         val frames = if (frame > 0) inputBytes / frame else 0
-        val timeline = speechTimeline()
-        if (timeline != null && frames > 0 && inputAudioFormat.sampleRate > 0) {
+
+        if (captureSpeech && frames > 0 && inputAudioFormat.sampleRate > 0) {
             val ptsUs = streamStartUs + inputFrames * 1_000_000L / inputAudioFormat.sampleRate
-            timeline.feed(inputBuffer, inputAudioFormat.sampleRate, inputAudioFormat.channelCount, ptsUs)
+            val pcm = ByteArray(inputBytes)
+            inputBuffer.duplicate().get(pcm)
+            onSpeechPcm(pcm, inputAudioFormat.sampleRate, inputAudioFormat.channelCount, ptsUs)
         }
         inputFrames += frames.toLong()
+
         val target = (delayMs.toLong() * inputAudioFormat.sampleRate / 1000).toInt() * frame
         val diff = target - appliedBytes
         if (diff > 0) silence += diff else drop += -diff
         appliedBytes = target
+
+        // Common case: no new delay adjustment is pending. Return a zero-copy slice instead of
+        // allocating/copying every PCM buffer on the real-time audio thread.
+        if (diff == 0 && silence == 0 && drop == 0) {
+            passThrough = inputBuffer.slice().order(ByteOrder.nativeOrder())
+            inputBuffer.position(inputBuffer.limit())
+            return
+        }
+
         var n = inputBuffer.remaining()
         if (drop > 0) {
             val d = minOf(drop, n)
