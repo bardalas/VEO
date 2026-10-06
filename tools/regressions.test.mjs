@@ -1175,3 +1175,15 @@ test("obsolete subtitle scan and renderer architectures are not referenced by pr
   const m = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
   assert.doesNotMatch(a + p + m, /AutoScan|HttpRangeSource|TappingAudioRenderer|AutoAligner/);
 });
+
+
+test("automatic subtitle-sync reset persists as unlocked while manual correction stays saved", async () => {
+  const sy = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SubSync.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(sy, /val autoLocked: Boolean/);
+  assert.match(sy, /if \(s\.autoLocked\) 1 else 0/);
+  assert.match(sy, /p\.size !in 4\.\.5/);
+  assert.match(k, /autoLocked = s\.autoLocked/);
+  assert.match(k, /SubSync\.Saved\(autoOffset, autoScale, subShift, manualStretch, autoLocked\)/);
+  assert.match(k, /private fun resetAutoSync\(\)[\s\S]*autoLocked = false[\s\S]*saveSync\(\)/);
+});
