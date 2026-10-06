@@ -46,17 +46,31 @@ object SubSync {
      * What is kept of a sync, and how it is read back: what the automatic alignment found (a shift and a scale), and what the
      * viewer has done on top of it (a shift and a stretch of their own).
      */
-    class Saved(val autoOffset: Long, val autoScale: Double, val shift: Long, val stretch: Double)
+    class Saved(
+        val autoOffset: Long,
+        val autoScale: Double,
+        val shift: Long,
+        val stretch: Double,
+        val autoLocked: Boolean,
+    )
 
-    fun encode(s: Saved) = "${s.autoOffset};${s.autoScale};${s.shift};${s.stretch}"
+    fun encode(s: Saved) = "${s.autoOffset};${s.autoScale};${s.shift};${s.stretch};${if (s.autoLocked) 1 else 0}"
 
     fun decode(text: String?): Saved? {
         val p = text?.split(';') ?: return null
-        if (p.size != 4) return null
+        if (p.size !in 4..5) return null
+        val autoOffset = p[0].toLongOrNull() ?: return null
+        val autoScale = (p[1].toDoubleOrNull() ?: return null).coerceIn(SCALE_MIN, SCALE_MAX)
+        // Four-field records are from older builds that did not store whether auto-sync was actually locked.
+        // Preserve real non-zero automatic corrections; a zero correction is treated as unlocked.
+        val autoLocked = if (p.size == 5) p[4] == "1"
+            else autoOffset != 0L || kotlin.math.abs(autoScale - 1.0) > 0.000001
         return Saved(
-            p[0].toLongOrNull() ?: return null,
-            (p[1].toDoubleOrNull() ?: return null).coerceIn(SCALE_MIN, SCALE_MAX),
+            autoOffset,
+            autoScale,
             p[2].toLongOrNull() ?: return null,
-            (p[3].toDoubleOrNull() ?: return null).coerceIn(SCALE_MIN, SCALE_MAX))
+            (p[3].toDoubleOrNull() ?: return null).coerceIn(SCALE_MIN, SCALE_MAX),
+            autoLocked,
+        )
     }
 }
