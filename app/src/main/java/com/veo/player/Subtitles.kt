@@ -56,8 +56,14 @@ object Subtitles {
         }
     }
 
-    fun await(timeoutMs: Long): List<Sub> =
-        runCatching { pending?.get(timeoutMs, TimeUnit.MILLISECONDS) }.getOrNull() ?: emptyList()
+    fun await(timeoutMs: Long): List<Sub> = try {
+        pending?.get(timeoutMs, TimeUnit.MILLISECONDS) ?: emptyList()
+    } catch (e: InterruptedException) {
+        Thread.currentThread().interrupt()
+        emptyList()
+    } catch (_: Exception) {
+        emptyList()
+    }
 
     private data class Candidate(val source: String, val name: String, val score: Double, val download: () -> ByteArray)
 
