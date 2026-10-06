@@ -168,11 +168,15 @@ object YouTube {
         conn.readTimeout = 15_000
         conn.setRequestProperty("User-Agent", ua)
         headers.forEach { (k, v) -> if (v.isNotEmpty()) conn.setRequestProperty(k, v) }
-        if (post != null) {
-            conn.requestMethod = "POST"
-            conn.doOutput = true
-            conn.outputStream.use { it.write(post.toByteArray()) }
+        return try {
+            if (post != null) {
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.outputStream.use { it.write(post.toByteArray()) }
+            }
+            conn.inputStream.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
         }
-        return conn.inputStream.use { it.readBytes() }
     }
 }
