@@ -45,9 +45,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         web = findViewById(R.id.web)
-        // a debug build, asked by adb (--ez autosync-selftest true): the automatic subtitle alignment's arithmetic, checked on this device
-        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("autosync-selftest", false))
-            Thread { android.util.Log.i(AutoSync.TAG, AutoAligner.selfTest()) }.start()
         // Android 15+ lays app content edge-to-edge. The page is kept inside the visible area, under the
         // status bar (clock, battery) and clear of the navigation bar, so neither floats over VEO. A
         // WebView draws its page over its own padding - padding it did nothing - so the room is made by
