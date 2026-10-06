@@ -57,6 +57,11 @@ class SubtitleSyncCapture {
      */
     fun offer(input: ByteBuffer, sampleRate: Int, channels: Int, ptsUs: Long) {
         if (!active || sampleRate <= 0 || channels <= 0 || !input.hasRemaining()) return
+        // Protect the real-time audio thread first: if analysis is behind, do not even copy this buffer.
+        if (queue.remainingCapacity() == 0) {
+            droppedChunks++
+            return
+        }
         val gen = generation.get()
         val length = input.remaining()
         val bytes = acquire(length)
