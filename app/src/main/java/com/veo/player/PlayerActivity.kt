@@ -62,6 +62,7 @@ class PlayerActivity : AppCompatActivity() {
     // still going on.
     @Volatile private var subsPending = false
     private var started = false
+    private var subtitleLoadThread: Thread? = null
     /** Hebrew subtitles for this video; null until the lookup started at play time has finished. */
     private var subs: List<Subtitles.Sub>? = null
 
@@ -230,8 +231,10 @@ class PlayerActivity : AppCompatActivity() {
            picture, so a long translation arriving mid-scene cannot make the film stutter. */
         subs = emptyList()
         subsPending = true                          // empty and "not looked yet" are different things
-        Thread {
+        subtitleLoadThread?.interrupt()
+        subtitleLoadThread = Thread({
             val found = Subtitles.await(25_000)
+            if (Thread.currentThread().isInterrupted) return@Thread
             val first = found.firstOrNull()?.let { runCatching { Captions.of(it.file) }.getOrNull() }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -239,7 +242,7 @@ class PlayerActivity : AppCompatActivity() {
                 subsPending = false
                 if (found.isNotEmpty() && subsAuto) useCaptions(0, first)
             }
-        }.start()
+        }, "subtitle-load").also { it.start() }
     }
 
     /**
@@ -2144,6 +2147,8 @@ class PlayerActivity : AppCompatActivity() {
         started = false
         autoOn = false
         syncCapture.stop()
+        subtitleLoadThread?.interrupt()
+        subtitleLoadThread = null
         handler.removeCallbacks(liveSyncTick)
         stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
