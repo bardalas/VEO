@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
         // refused to play a trailer inside it ("error 153") and why some add-ons turned its requests
         // away. Served this way it is an ordinary https page, and both simply work.
         // ...from a newer web bundle when one has been fetched and has proved itself (WebBundle), else from the APK
-        val appVersion = packageManager.getPackageInfo(packageName, 0).longVersionCode
+        val appVersion = appVersionCode()
         WebBundle.start(this, appVersion)
         val assetsAt = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebBundle.handler(this))
@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW   // IPTV and LAN devices are http
         // The page is served from inside the app, so the WebView is allowed to keep it - and would go on
         // showing the old one after an update. A new version throws that copy away, once.
-        val built = packageManager.getPackageInfo(packageName, 0).longVersionCode
+        val built = appVersionCode()
         val seen = getSharedPreferences("veo", MODE_PRIVATE)
         val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         if (debug || seen.getLong("built", 0L) != built) {    // a build under test is always the new one
@@ -119,6 +119,11 @@ class MainActivity : AppCompatActivity() {
             if (WebBundle.rollback(this)) web.loadUrl(PAGE)
         }, WebBundle.WATCHDOG_MS)
         web.requestFocus()   // remote D-pad works immediately (Android TV)
+    }
+
+    private fun appVersionCode(): Long {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        return if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
     }
 
     /** Shows torrent progress in the page's status bar (empty = hide; error = red, with dismiss). */
@@ -196,7 +201,7 @@ class MainActivity : AppCompatActivity() {
         /** The page came up: the web bundle in use (if any) is good. Also the moment to look for a newer one. */
         @JavascriptInterface fun webReady() {
             WebBundle.ready(applicationContext)
-            val v = packageManager.getPackageInfo(packageName, 0).longVersionCode
+            val v = appVersionCode()
             Thread { android.util.Log.i("WebBundle", WebBundle.check(applicationContext, v, otaFeed, force = otaFeed != null)) }.start()
         }
 
@@ -760,6 +765,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Deprecated("Deprecated in Java")
+    @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         // The page walks its own ladder (one level up per press). At the top, confirm before leaving:
         // an accidental Back press from Home should never throw the viewer out of VEO.
