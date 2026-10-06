@@ -357,7 +357,7 @@ class PlayerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
             autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
-            autoLocked = true
+            autoLocked = s.autoLocked
             return
         }
         val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
@@ -374,7 +374,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun saveSync() {
         val sub = subs.orEmpty().getOrNull(subPick) ?: return
         if (watchId.isBlank()) return
-        val text = SubSync.encode(SubSync.Saved(autoOffset, autoScale, subShift, manualStretch))
+        val text = SubSync.encode(SubSync.Saved(autoOffset, autoScale, subShift, manualStretch, autoLocked))
         getSharedPreferences("veo", MODE_PRIVATE).edit().apply {
             putString(syncKey(sub), text)
             seriesKey()?.let { putString(it, groupOfSub(sub) + "|" + text) }
