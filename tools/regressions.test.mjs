@@ -989,13 +989,15 @@ test('subtitles: the sync is remembered per film and translation, and carried al
   assert.match(k, /it\.shiftMs = autoOffset \+ subShift; it\.scale = autoScale \* manualStretch/);
 });
 
-test('subtitles: sync commands, status and manual corrections are clearly separated in the panel (#302)', async () => {
+test('subtitles: the main panel is compact and advanced corrections are separated (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  for (const label of ['סנכרון כתוביות', 'הפעל סנכרון אוטומטי', 'עצור ניסיון סנכרון', 'מצב:', 'סנכרון לפי שורה', 'תיקון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
+  for (const label of ['סנכרן אוטומטית', 'עצור סנכרון', 'אפס סנכרון אוטומטי', 'אפשרויות מתקדמות', 'סנכרון לפי שורה', 'סנכרון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
     assert.ok(k.includes(label), label);
+  assert.match(k, /private fun advancedSubsRows\(\)/);
   assert.match(k, /class Info\(val text: \(\) -> String\) : SubsRow\(\)/);
   assert.match(k, /rows\[position\] !is SubsRow\.Info/);
   assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
+  assert.doesNotMatch(k, /סף ביטחון \(Z\)/);
 });
 
 test('subtitle sync Down shortcut is actionable only for the temporary offer, never for status/result toast', async () => {
