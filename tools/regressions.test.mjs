@@ -976,7 +976,7 @@ test('the WebView does not intercept a long press on a poster with its own nativ
 test('subtitles: more than three to choose from, fetched side by side, whole-file dedupe (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
   assert.match(k, /private const val MAX_SUBS = 8/);
-  assert.match(k, /executor\.submit<Pair<Candidate, String>\?>/);
+  assert.match(k, /downloads\.submit<Pair<Candidate, String>\?>/);
   assert.match(k, /seen\.add\("\$\{body\.length\}:\$\{body\.hashCode\(\)\}"\)/);
   assert.match(k, /filename=\$\{java\.net\.URLEncoder\.encode\(release/);
 });
