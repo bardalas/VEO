@@ -81,7 +81,7 @@ class Captions private constructor(private val cues: List<Cue>) {
                 from = -1; to = -1; text.setLength(0)
             }
             file.forEachLine { raw ->
-                val line = raw.trim().removePrefix("﻿")
+                val line = raw.trim().removePrefix("\uFEFF")
                 val times = TIMES.find(line)
                 when {
                     times != null -> {
