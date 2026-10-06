@@ -146,17 +146,14 @@ class PlayerActivity : AppCompatActivity() {
      *   t * (autoScale * manualStretch) + autoOffset + subShift.
      */
     private var offsetAligner: FastOffsetAligner? = null
-    @Volatile private var liveSpeech: SpeechTimeline? = null
-    @Volatile private var autoOn = false          // only while the viewer-requested live sync attempt is active
+    private val syncCapture = SubtitleSyncCapture()
+    private var autoOn = false
     private var autoLocked = false
     private var autoOffset = 0L
     private var autoScale = 1.0
-    private var autoLevel = 0
-    private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
     private var lastLiveEstimate: FastOffsetAligner.Estimate? = null
-    private var syncZ = FastOffsetAligner.DEFAULT_Z_ACCEPT
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
     private var lineAnchor: Pair<Long, Long>? = null
     /** While the viewer is choosing the line to sync to: the index of the line being offered, else -1. */
@@ -165,7 +162,7 @@ class PlayerActivity : AppCompatActivity() {
     private var captions: Captions? = null
     /** How large they are drawn, as a multiple of the player's own size; kept between films. */
     private var subScale = 1.0f
-    private val audioDelay = AudioDelayProcessor { if (autoOn) liveSpeech else null }
+    private val audioDelay = AudioDelayProcessor(syncCapture)
     /** Whether the translation found is put on by itself (Settings → Playback), or waits to be picked. */
     private var subsAuto = true
     /** The app's skin and direction, so the banner and the channel list look like the rest of VEO. */
@@ -201,7 +198,6 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
-        syncZ = prefs.getFloat("syncZ", FastOffsetAligner.DEFAULT_Z_ACCEPT.toFloat()).toDouble().coerceIn(2.0, 6.0)
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
         subsAuto = prefs.getString("subs", "auto") != "off"
@@ -258,10 +254,11 @@ class PlayerActivity : AppCompatActivity() {
         subPick = pick
         val sub = subs.orEmpty().getOrNull(pick)
         captions = parsed ?: sub?.let { Captions.of(it.file) }
-        // another translation is another file: what was learnt of the last one - or done to it - says nothing of this one
-        offsetAligner = captions?.takeIf { it.any }?.let { FastOffsetAligner(it.activity(), it.starts(), syncZ) }
-        liveSpeech = null; autoOn = false
-        autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoLevel = 0; autoNote = ""
+        // Another translation is another file. Auto-sync work is built lazily only when the viewer asks.
+        offsetAligner = null
+        syncCapture.stop()
+        autoOn = false
+        autoOffset = 0L; autoScale = 1.0; autoLocked = false
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
@@ -383,16 +380,23 @@ class PlayerActivity : AppCompatActivity() {
     // ---------- automatic sync: offset only, from the audio already playing ----------
     private fun finishLiveSync(est: FastOffsetAligner.Estimate?) {
         handler.removeCallbacks(liveSyncTick)
-        liveSpeech = null
+        syncCapture.stop()
         autoOn = false
         val best = est ?: lastLiveEstimate
         if (best == null || !best.confident) {
-            val detail = if (best == null) "אין מספיק אודיו לניתוח" else {
+            if (best != null) {
                 val pos = player?.currentPosition ?: -1L
                 val subLabel = subs.orEmpty().getOrNull(subPick)?.label.orEmpty()
-                "${best.reason} · mode=${best.mode} · player=${"%.1f".format(pos / 1000.0)}s · audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s · subs=${"%.1f".format(best.subtitleFirstMs / 1000.0)}..${"%.1f".format(best.subtitleLastMs / 1000.0)}s · cues=${best.subtitleEvents} · local nonzero=${best.nonZeroScores} · peak=${"%.2f".format(best.peakScore)} · best=${"%+.1f".format(best.offsetMs / 1000.0)}s · Z=${"%.1f".format(best.z)} · margin=${"%.1f".format(best.peakMarginZ)} · speech=${"%.1f".format(best.speechSeconds)}s · lines=${best.events} · file=$subLabel"
+                android.util.Log.d(
+                    AutoSync.TAG,
+                    "sync rejected: \${best.reason}; player=\${"%.1f".format(pos / 1000.0)}s " +
+                        "audio=\${"%.1f".format(best.audioFromMs / 1000.0)}..\${"%.1f".format(best.audioToMs / 1000.0)}s " +
+                        "best=\${"%+.1f".format(best.offsetMs / 1000.0)}s Z=\${"%.1f".format(best.z)} " +
+                        "margin=\${"%.1f".format(best.peakMarginZ)} speech=\${"%.1f".format(best.speechSeconds)}s " +
+                        "lines=\${best.events} dropped=\${syncCapture.droppedChunks} file=$subLabel"
+                )
             }
-            scanNote = "לא נמצא סנכרון · $detail"
+            scanNote = "לא נמצא סנכרון"
             showResult(scanNote)
             refreshPanel()
             return
@@ -404,18 +408,17 @@ class PlayerActivity : AppCompatActivity() {
         autoOffset = best.offsetMs
         autoScale = 1.0
         autoLocked = true
-        autoLevel = when { best.z >= 8.0 -> 3; best.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
-        scanNote = "מסונכרן ${"%+.1f".format(best.offsetMs / 1000.0)}s"
-        showResult("הכתוביות סונכרנו · ${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
+        scanNote = "מסונכרן \${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳"
+        showResult("הכתוביות סונכרנו · \${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
         refreshPanel()
     }
 
     private val liveSyncTick: Runnable = object : Runnable {
         override fun run() {
             if (!autoOn) return
-            val timeline = liveSpeech
+            val timeline = syncCapture.timeline()
             val elapsed = android.os.SystemClock.elapsedRealtime() - autoStartedMs
             if (timeline == null) { finishLiveSync(null); return }
 
@@ -465,24 +468,11 @@ class PlayerActivity : AppCompatActivity() {
         if (panelOpen) (findViewById<ListView>(R.id.chList).adapter as? BaseAdapter)?.notifyDataSetChanged()
     }
 
-    private fun autoStatus(): String = when {
-        autoOn -> "$scanNote · OK לעצירה"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s · OK לחישוב מחדש"
-        scanNote.isNotEmpty() -> "$scanNote · OK לניסיון נוסף"
-        else -> "OK לסנכרון אוטומטי"
-    }
-
-    private fun setSyncZ(value: Double) {
-        syncZ = (Math.round(value.coerceIn(2.0, 6.0) * 2.0) / 2.0)
-        getSharedPreferences("veo", MODE_PRIVATE).edit().putFloat("syncZ", syncZ.toFloat()).apply()
-        captions?.takeIf { it.any }?.let { offsetAligner = FastOffsetAligner(it.activity(), it.starts(), syncZ) }
-    }
-
     /** Start only when the viewer asks. The film keeps playing; no network seek or second decoder is opened. */
     private fun toggleAuto() {
         if (autoOn) {
             handler.removeCallbacks(liveSyncTick)
-            liveSpeech = null
+            syncCapture.stop()
             autoOn = false
             scanNote = ""
             showResult("ניסיון הסנכרון נעצר")
@@ -495,15 +485,34 @@ class PlayerActivity : AppCompatActivity() {
         if (p == null || !p.playWhenReady) { showResult("הפעל את הסרט ואז נסה שוב"); return }
 
         if (panelOpen) closePanel()
-        offsetAligner = FastOffsetAligner(c.activity(), c.starts(), syncZ)
+        offsetAligner = FastOffsetAligner(c.activity(), c.starts())
         lastLiveEstimate = null
-        liveSpeech = SpeechTimeline()
+        syncCapture.start()
         autoOn = true
         autoStartedMs = android.os.SystemClock.elapsedRealtime()
-        scanNote = "ממתין לאודיו…"
+        scanNote = "מנסה לסנכרן…"
         handler.removeCallbacks(syncHintHide)
-        showPill("מנסה להתאים כתוביות…")
+        showPill(scanNote)
         handler.post(liveSyncTick)
+        refreshPanel()
+    }
+
+    /** Remove only the automatic result; manual shift/stretch remain exactly as the viewer set them. */
+    private fun resetAutoSync() {
+        if (autoOn) {
+            handler.removeCallbacks(liveSyncTick)
+            syncCapture.stop()
+            autoOn = false
+        }
+        autoOffset = 0L
+        autoScale = 1.0
+        autoLocked = false
+        offsetAligner = null
+        lastLiveEstimate = null
+        scanNote = ""
+        applySync()
+        saveSync()
+        showResult("הסנכרון האוטומטי אופס")
         refreshPanel()
     }
 
@@ -628,33 +637,41 @@ class PlayerActivity : AppCompatActivity() {
     private fun subsRows(): List<SubsRow> {
         val out = ArrayList<SubsRow>()
         out.add(SubsRow.Head("כתוביות"))
-        subs.orEmpty().forEachIndexed { i, s ->
-            out.add(SubsRow.Pick(s.label, { subPick == i }, { useCaptions(i) }))
+        subs.orEmpty().forEachIndexed { i, sub ->
+            out.add(SubsRow.Pick(sub.label, { subPick == i }, { useCaptions(i) }))
         }
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
-        out.add(SubsRow.Head("סנכרון כתוביות"))
-        out.add(SubsRow.Pick(if (autoOn) "עצור ניסיון סנכרון" else "הפעל סנכרון אוטומטי", { false }, { toggleAuto() }))
-        out.add(SubsRow.Step("סף ביטחון (Z)", { "%.1f".format(syncZ) }, { step -> setSyncZ(syncZ + step * 0.5) }))
-        out.add(SubsRow.Info {
-            when {
-                autoOn -> "מצב: מנסה להתאים…"
-                autoLocked -> "מצב: מסונכרן ${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
-                scanNote.isNotEmpty() -> "מצב: $scanNote"
-                else -> "מצב: לא בוצע סנכרון"
-            }
-        })
-        out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
-        if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
-        out.add(SubsRow.Head("תיקון ידני"))
-        out.add(SubsRow.Step("הזזה", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
-        out.add(SubsRow.Step("קצב", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
-        out.add(SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true))
-        out.add(SubsRow.Pick("איפוס תיקון ידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
-        out.addAll(audioSyncRows())
-        out.add(SubsRow.Head("גודל"))
-        out.add(SubsRow.Step("גודל הכתוביות", { "%d%%".format((subScale * 100).toInt()) },
+
+        out.add(SubsRow.Head("סנכרון"))
+        out.add(SubsRow.Pick(if (autoOn) "עצור סנכרון" else "סנכרן אוטומטית", { false }, { toggleAuto() }))
+        if (autoLocked || autoOffset != 0L) {
+            out.add(SubsRow.Pick("אפס סנכרון אוטומטי", { false }, { resetAutoSync() }))
+        }
+        if (autoOn || autoLocked || scanNote.isNotEmpty()) {
+            out.add(SubsRow.Info {
+                when {
+                    autoOn -> "מנסה לסנכרן…"
+                    autoLocked -> "מסונכרן \${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
+                    else -> scanNote
+                }
+            })
+        }
+
+        out.add(SubsRow.Step("גודל כתוביות", { "%d%%".format((subScale * 100).toInt()) },
             { step -> setSubScale(subScale + step * 0.1f) }))
+        out.add(SubsRow.Pick("אפשרויות מתקדמות", { false }, { showRowsPanel(advancedSubsRows()) }))
         return out
+    }
+
+    private fun advancedSubsRows(): List<SubsRow> = buildList {
+        add(SubsRow.Pick("חזרה", { false }, { showRowsPanel(subsRows()) }))
+        add(SubsRow.Head("סנכרון ידני"))
+        add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
+        add(SubsRow.Step("הזזה", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
+        add(SubsRow.Step("קצב", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
+        add(SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true))
+        add(SubsRow.Pick("איפוס תיקון ידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
+        addAll(audioSyncRows())
     }
 
     private fun openSubsPanel() {
@@ -2126,7 +2143,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onStop()
         started = false
         autoOn = false
-        liveSpeech = null
+        syncCapture.stop()
         handler.removeCallbacks(liveSyncTick)
         stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
@@ -2156,6 +2173,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)
         guideExec.shutdownNow()          // a guide nobody will see is work nobody needs
+        syncCapture.close()
         // Leaving the player ends the torrent stream and frees its downloaded data.
         if (isFinishing && !toNext && intent.getBooleanExtra("torrent", false)) {
             Thread { TorrentEngine.stopCurrent() }.start()
