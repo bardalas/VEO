@@ -57,7 +57,11 @@ jobs:
       - name: Compile Android debug sources
         run: gradle --no-daemon :app:compileDebugKotlin --stacktrace
       - name: Run Android lint
-        run: gradle --no-daemon :app:lintDebug --stacktrace
+        run: |
+          if ! gradle --no-daemon :app:lintDebug --stacktrace; then
+            cat app/build/reports/lint-results-debug.txt 2>/dev/null || true
+            exit 1
+          fi
 
   build:
     if: github.event_name != 'pull_request'
