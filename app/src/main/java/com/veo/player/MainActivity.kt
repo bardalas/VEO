@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     // to allow it). Kept so that coming back from that setting finishes the job by itself, instead
     // of asking the viewer to find the update card again.
     private var pendingUpdate: java.io.File? = null
+    private var torrentWarmStarted = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,7 +119,6 @@ class MainActivity : AppCompatActivity() {
             if (WebBundle.rollback(this)) web.loadUrl(PAGE)
         }, WebBundle.WATCHDOG_MS)
         web.requestFocus()   // remote D-pad works immediately (Android TV)
-        TorrentEngine.warmUp(applicationContext)
     }
 
     /** Shows torrent progress in the page's status bar (empty = hide; error = red, with dismiss). */
@@ -205,7 +205,17 @@ class MainActivity : AppCompatActivity() {
         /** The first screen is drawn: the splash can go. */
         /** The page says whether the focus is on a card a long press of OK acts on (rows.js): only then is OK timed here. */
         @JavascriptInterface fun holdable(on: Boolean) { holdable = on }
-        @JavascriptInterface fun pageShown() { runOnUiThread { hideSplash(); pageUp = true; deliverLink() } }
+        @JavascriptInterface fun pageShown() {
+            runOnUiThread {
+                hideSplash()
+                pageUp = true
+                deliverLink()
+                if (!torrentWarmStarted) {
+                    torrentWarmStarted = true
+                    TorrentEngine.warmUp(applicationContext)
+                }
+            }
+        }
 
         /** True on Android TV; the page then defaults to its TV (10-foot) layout. */
         @JavascriptInterface fun isTv(): Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
