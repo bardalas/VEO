@@ -42,13 +42,16 @@ object Subtitles {
     private const val WIZDOM = "https://wizdom.xyz/api"
     private const val OPENSUBS = "https://opensubtitles-v3.strem.io"
 
-    private val executor = Executors.newCachedThreadPool()
+    // One request may coordinate several subtitle downloads, but the number of network workers is
+    // deliberately bounded so rapid source changes cannot create an unbounded number of threads.
+    private val coordinator = Executors.newSingleThreadExecutor()
+    private val downloads = Executors.newFixedThreadPool(6)
     @Volatile private var pending: Future<List<Sub>>? = null
 
     /** [videoId] is a Stremio id: "tt0111161" (movie) or "tt0903747:1:2" (series episode). */
     fun prefetch(context: Context, videoId: String, release: String) {
         pending?.cancel(true)
-        pending = executor.submit<List<Sub>> {
+        pending = coordinator.submit<List<Sub>> {
             runCatching { find(File(context.cacheDir, "subs"), videoId, release) }.getOrDefault(emptyList())
         }
     }
@@ -75,7 +78,7 @@ object Subtitles {
         // all at once, each with its own turn at the clock - the order they are offered in is still the order of the match
         val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
         val jobs = candidates.map { c ->
-            executor.submit<Pair<Candidate, String>?> {
+            downloads.submit<Pair<Candidate, String>?> {
                 runCatching { c to decode(unzipIfNeeded(c.download())) }.getOrNull()?.takeIf { it.second.contains("-->") }
             }
         }
