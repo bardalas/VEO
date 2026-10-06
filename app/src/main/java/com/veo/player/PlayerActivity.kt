@@ -356,7 +356,7 @@ class PlayerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
             autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
-            autoLocked = true; autoLevel = 2; autoNote = "נשמר"
+            autoLocked = true
             return
         }
         val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
