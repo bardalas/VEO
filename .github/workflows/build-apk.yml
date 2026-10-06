@@ -37,6 +37,32 @@ jobs:
       - name: Run playback and source regression tests
         run: node --experimental-vm-modules --test tools/regressions.test.mjs
 
+  android_check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Compile Android debug sources
+        run: gradle --no-daemon :app:compileDebugKotlin --stacktrace
+      - name: Run Android lint
+        run: |
+          if ! gradle --no-daemon :app:lintDebug --stacktrace; then
+            cat app/build/reports/lint-results-debug.txt 2>/dev/null || true
+            exit 1
+          fi
+
   build:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest

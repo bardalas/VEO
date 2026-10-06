@@ -844,7 +844,7 @@ test('on a television the live channels are a list, one to a row with room betwe
 test('the sound can be moved against the picture: a delay processor in the audio sink and a sync row on the player panel (#257)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
-  assert.match(proc, /class AudioDelayProcessor\(private val speechTimeline: \(\) -> SpeechTimeline\?\) : BaseAudioProcessor\(\)/);
+  assert.match(proc, /class AudioDelayProcessor\(private val syncCapture: SubtitleSyncCapture\) : BaseAudioProcessor\(\)/);
   assert.match(k, /setAudioProcessors\(arrayOf<androidx\.media3\.common\.audio\.AudioProcessor>\(audioDelay\)\)/);
   assert.match(k, /SubsRow\.Step\("הזזת השמע"/);
   assert.match(k, /KeyEvent\.KEYCODE_MENU, KeyEvent\.KEYCODE_PROG_YELLOW/);
@@ -976,7 +976,7 @@ test('the WebView does not intercept a long press on a poster with its own nativ
 test('subtitles: more than three to choose from, fetched side by side, whole-file dedupe (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
   assert.match(k, /private const val MAX_SUBS = 8/);
-  assert.match(k, /executor\.submit<Pair<Candidate, String>\?>/);
+  assert.match(k, /downloads\.submit<Pair<Candidate, String>\?>/);
   assert.match(k, /seen\.add\("\$\{body\.length\}:\$\{body\.hashCode\(\)\}"\)/);
   assert.match(k, /filename=\$\{java\.net\.URLEncoder\.encode\(release/);
 });
@@ -989,13 +989,15 @@ test('subtitles: the sync is remembered per film and translation, and carried al
   assert.match(k, /it\.shiftMs = autoOffset \+ subShift; it\.scale = autoScale \* manualStretch/);
 });
 
-test('subtitles: sync commands, status and manual corrections are clearly separated in the panel (#302)', async () => {
+test('subtitles: the main panel is compact and advanced corrections are separated (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  for (const label of ['סנכרון כתוביות', 'הפעל סנכרון אוטומטי', 'עצור ניסיון סנכרון', 'מצב:', 'סנכרון לפי שורה', 'תיקון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
+  for (const label of ['סנכרן אוטומטית', 'עצור סנכרון', 'אפס סנכרון אוטומטי', 'אפשרויות מתקדמות', 'סנכרון לפי שורה', 'סנכרון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
     assert.ok(k.includes(label), label);
+  assert.match(k, /private fun advancedSubsRows\(\)/);
   assert.match(k, /class Info\(val text: \(\) -> String\) : SubsRow\(\)/);
   assert.match(k, /rows\[position\] !is SubsRow\.Info/);
   assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
+  assert.doesNotMatch(k, /סף ביטחון \(Z\)/);
 });
 
 test('subtitle sync Down shortcut is actionable only for the temporary offer, never for status/result toast', async () => {
@@ -1029,48 +1031,49 @@ test("line sync allows half a second for the viewer's reaction; the info bar tex
   assert.match(tv, /name="info_name_text">26sp/);
 });
 
-test("live sync stays within the intended +/-60 s offset search and exposes diagnostics", async () => {
+test("live sync stays within +/-60 s and keeps detailed diagnostics out of the menu", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(a, /if \(chosenNonZero == 0\) mode = "local-flat"/);
   assert.doesNotMatch(a, /globalScores|mode = "global"|val minOff = startBin - \(subs\.size - 1\)/);
-  for (const token of ['player=', 'audio=', 'subs=', 'cues=', 'nonzero=', 'peak=', 'best=', 'Z=', 'margin=', 'speech=', 'lines=', 'file='])
-    assert.ok(k.includes(token), token);
+  assert.match(k, /android\.util\.Log\.d\([\s\S]*AutoSync\.TAG/);
+  assert.match(k, /scanNote = "לא נמצא סנכרון"/);
+  assert.doesNotMatch(k, /מצב: .*player=|מצב: .*audio=|מצב: .*margin=/);
 });
 
-test("live sync timestamps PCM from AudioProcessor stream metadata rather than codec or renderer clocks", async () => {
+test("live sync timestamps PCM from AudioProcessor stream metadata and analyzes it off the audio thread", async () => {
   const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
+  const cap = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SubtitleSyncCapture.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(proc, /override fun onFlush\(streamMetadata: AudioProcessor\.StreamMetadata\)/);
   assert.match(proc, /streamStartUs = streamMetadata\.positionOffsetUs/);
-  assert.match(proc, /inputFrames = 0L/);
   assert.match(proc, /val ptsUs = streamStartUs \+ inputFrames \* 1_000_000L \/ inputAudioFormat\.sampleRate/);
-  assert.match(proc, /timeline\.feed\(inputBuffer, inputAudioFormat\.sampleRate, inputAudioFormat\.channelCount, ptsUs\)/);
-  assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
-  assert.doesNotMatch(k, /TappingAudioRenderer\(/);
+  assert.match(proc, /syncCapture\.offer\(inputBuffer,/);
+  assert.doesNotMatch(proc, /SpeechTimeline\(\)|\.feed\(/);
+  assert.match(cap, /ArrayBlockingQueue<Chunk>\(MAX_QUEUED_CHUNKS\)/);
+  assert.match(cap, /newSingleThreadExecutor/);
+  assert.match(cap, /if \(!queue\.offer\(chunk\)\)/);
+  assert.match(cap, /target\.feed\(/);
+  assert.match(k, /private val syncCapture = SubtitleSyncCapture\(\)/);
+  assert.match(k, /private val audioDelay = AudioDelayProcessor\(syncCapture\)/);
+  assert.doesNotMatch(k, /TappingAudioRenderer/);
 });
 
-test("automatic sync is a viewer-requested live offset match over already-playing audio (#318)", async () => {
+test("automatic sync is explicit, fixed at Z=2, lazy, resettable and isolated from playback (#318)", async () => {
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(a, /class FastOffsetAligner/);
   assert.match(a, /const val MIN_WINDOW_MS = 12_000L/);
   assert.match(a, /const val MAX_ATTEMPT_MS = 30_000L/);
-  assert.match(a, /const val DEFAULT_Z_ACCEPT = 3\.5/);
-  assert.match(a, /const val MIN_PEAK_MARGIN_Z = 0\.7/);
-  assert.match(a, /const val PEAK_EXCLUSION_MS = 3_000/);
-  assert.match(a, /z >= zAccept && peakMarginZ >= MIN_PEAK_MARGIN_Z/);
-  assert.match(a, /val reason get\(\) = when/);
-  assert.match(k, /lastLiveEstimate/);
-  assert.match(k, /best\.reason/);
-  assert.match(k, /peakMarginZ/);
-  assert.match(k, /speechSeconds/);
-  assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
-  assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
-  assert.match(k, /"סף ביטחון \(Z\)"/);
-  assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
-  assert.match(k, /if \(autoOn\) liveSpeech else null/);
-  assert.match(k, /הפעל סנכרון אוטומטי/);
+  assert.match(a, /const val Z_ACCEPT = 2\.0/);
+  assert.match(a, /z >= Z_ACCEPT && peakMarginZ >= MIN_PEAK_MARGIN_Z/);
+  assert.doesNotMatch(a, /class AutoAligner|HYPOTHESES|Z_LOCK|DEFAULT_Z_ACCEPT/);
+  assert.match(k, /offsetAligner = null[\s\S]*syncCapture\.stop\(\)/);
+  assert.match(k, /offsetAligner = FastOffsetAligner\(c\.activity\(\), c\.starts\(\)\)/);
+  assert.match(k, /private fun resetAutoSync\(\)/);
+  assert.match(k, /"אפס סנכרון אוטומטי"/);
+  assert.doesNotMatch(k, /syncZ|סף ביטחון \(Z\)/);
+  assert.match(k, /"אפשרויות מתקדמות"/);
   assert.doesNotMatch(k, /private fun startScan\(\)/);
 });
 
@@ -1087,15 +1090,6 @@ test("a film's banner bar has the arrow with the time where we are and a soft fi
   assert.match(b, /var buffered = -1/);
 });
 
-test("the sync scan reads over HTTP ranges and, for a torrent, only what has been played (#326)", async () => {
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
-  const h = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/HttpRangeSource.kt'), 'utf8');
-  assert.match(h, /class HttpRangeSource/);
-  assert.match(h, /setRequestProperty\("Range", range\)/);
-  assert.match(sc, /ex\.setDataSource\(HttpRangeSource\(/);
-  assert.match(sc, /if \(torrent\) \{/);
-});
-
 test("a held OK on a Continue Watching card is timed natively, because the WebView gives the page no keyup (#324)", async () => {
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
@@ -1109,12 +1103,6 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
   assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
 });
 
-test("the sync scan on a torrent reads the minutes just ahead first and never asks to watch more (#332)", async () => {
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
-  assert.match(sc, /just ahead of the picture, a stretch every forty seconds/);
-  assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
-});
-
 test("the buffering wheel takes the skin's primary colour, and a paused torrent fills on like any film (#329, #330)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /exo_buffering\)\?\.indeterminateTintList = .*skin\.accent/);
@@ -1126,9 +1114,9 @@ test("live sync solves offset only without network scan and reports success or f
   const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(a, /class FastOffsetAligner/);
-  assert.match(k, /מנסה להתאים כתוביות/);
+  assert.match(k, /מנסה לסנכרן/);
   assert.match(k, /הכתוביות סונכרנו/);
-  assert.match(k, /לא נמצא סנכרון ·/);
+  assert.match(k, /לא נמצא סנכרון/);
   assert.match(k, /best\.reason/);
   assert.match(k, /margin/);
   assert.match(k, /speech/);
@@ -1145,4 +1133,57 @@ test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Dow
   assert.match(k, /\|\| captions\?\.any != true/);
   assert.match(k, /code == KeyEvent\.KEYCODE_DPAD_DOWN\) \{ acceptSyncHint\(\); return true \}/);
   assert.match(k, /private fun acceptSyncHint\(\)[\s\S]*if \(autoOn\) return[\s\S]*hideSyncHint\(\)[\s\S]*toggleAuto\(\)/);
+});
+
+
+test("subtitle lookup uses bounded executors rather than an unbounded cached thread pool", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
+  assert.match(k, /newSingleThreadExecutor\(\)/);
+  assert.match(k, /newFixedThreadPool\(6\)/);
+  assert.doesNotMatch(k, /newCachedThreadPool\(\)/);
+});
+
+test("pull requests compile and lint Android code before merge", async () => {
+  const yml = await readFile(path.join(repo, '.github/workflows/build-apk.yml'), 'utf8');
+  assert.match(yml, /android_check:/);
+  assert.match(yml, /:app:compileDebugKotlin/);
+  assert.match(yml, /:app:lintDebug/);
+});
+
+
+test("player lifecycle cancels subtitle loading and subtitle sync background work", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const subs = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
+  assert.match(k, /private var subtitleLoadThread: Thread\? = null/);
+  assert.match(k, /subtitleLoadThread\?\.interrupt\(\)/);
+  assert.match(k, /syncCapture\.stop\(\)/);
+  assert.match(k, /syncCapture\.close\(\)/);
+  assert.match(subs, /catch \(e: InterruptedException\)/);
+  assert.match(subs, /Thread\.currentThread\(\)\.interrupt\(\)/);
+});
+
+test("torrent native warmup waits until the first screen has already been drawn", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  const beforePageShown = k.slice(0, k.indexOf('@JavascriptInterface fun pageShown'));
+  assert.doesNotMatch(beforePageShown, /TorrentEngine\.warmUp\(/);
+  assert.match(k, /if \(!torrentWarmStarted\)[\s\S]*TorrentEngine\.warmUp\(applicationContext\)/);
+});
+
+test("obsolete subtitle scan and renderer architectures are not referenced by production code", async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
+  const p = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const m = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  assert.doesNotMatch(a + p + m, /AutoScan|HttpRangeSource|TappingAudioRenderer|AutoAligner/);
+});
+
+
+test("automatic subtitle-sync reset persists as unlocked while manual correction stays saved", async () => {
+  const sy = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SubSync.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(sy, /val autoLocked: Boolean/);
+  assert.match(sy, /if \(s\.autoLocked\) 1 else 0/);
+  assert.match(sy, /p\.size !in 4\.\.5/);
+  assert.match(k, /autoLocked = s\.autoLocked/);
+  assert.match(k, /SubSync\.Saved\(autoOffset, autoScale, subShift, manualStretch, autoLocked\)/);
+  assert.match(k, /private fun resetAutoSync\(\)[\s\S]*autoLocked = false[\s\S]*saveSync\(\)/);
 });

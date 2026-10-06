@@ -39,15 +39,13 @@ class MainActivity : AppCompatActivity() {
     // to allow it). Kept so that coming back from that setting finishes the job by itself, instead
     // of asking the viewer to find the update card again.
     private var pendingUpdate: java.io.File? = null
+    private var torrentWarmStarted = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         web = findViewById(R.id.web)
-        // a debug build, asked by adb (--ez autosync-selftest true): the automatic subtitle alignment's arithmetic, checked on this device
-        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("autosync-selftest", false))
-            Thread { android.util.Log.i(AutoSync.TAG, AutoAligner.selfTest()) }.start()
         // Android 15+ lays app content edge-to-edge. The page is kept inside the visible area, under the
         // status bar (clock, battery) and clear of the navigation bar, so neither floats over VEO. A
         // WebView draws its page over its own padding - padding it did nothing - so the room is made by
@@ -77,7 +75,7 @@ class MainActivity : AppCompatActivity() {
         // refused to play a trailer inside it ("error 153") and why some add-ons turned its requests
         // away. Served this way it is an ordinary https page, and both simply work.
         // ...from a newer web bundle when one has been fetched and has proved itself (WebBundle), else from the APK
-        val appVersion = packageManager.getPackageInfo(packageName, 0).longVersionCode
+        val appVersion = appVersionCode()
         WebBundle.start(this, appVersion)
         val assetsAt = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebBundle.handler(this))
@@ -91,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW   // IPTV and LAN devices are http
         // The page is served from inside the app, so the WebView is allowed to keep it - and would go on
         // showing the old one after an update. A new version throws that copy away, once.
-        val built = packageManager.getPackageInfo(packageName, 0).longVersionCode
+        val built = appVersionCode()
         val seen = getSharedPreferences("veo", MODE_PRIVATE)
         val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         if (debug || seen.getLong("built", 0L) != built) {    // a build under test is always the new one
@@ -121,7 +119,11 @@ class MainActivity : AppCompatActivity() {
             if (WebBundle.rollback(this)) web.loadUrl(PAGE)
         }, WebBundle.WATCHDOG_MS)
         web.requestFocus()   // remote D-pad works immediately (Android TV)
-        TorrentEngine.warmUp(applicationContext)
+    }
+
+    private fun appVersionCode(): Long {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        return if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
     }
 
     /** Shows torrent progress in the page's status bar (empty = hide; error = red, with dismiss). */
@@ -199,7 +201,7 @@ class MainActivity : AppCompatActivity() {
         /** The page came up: the web bundle in use (if any) is good. Also the moment to look for a newer one. */
         @JavascriptInterface fun webReady() {
             WebBundle.ready(applicationContext)
-            val v = packageManager.getPackageInfo(packageName, 0).longVersionCode
+            val v = appVersionCode()
             Thread { android.util.Log.i("WebBundle", WebBundle.check(applicationContext, v, otaFeed, force = otaFeed != null)) }.start()
         }
 
@@ -208,7 +210,17 @@ class MainActivity : AppCompatActivity() {
         /** The first screen is drawn: the splash can go. */
         /** The page says whether the focus is on a card a long press of OK acts on (rows.js): only then is OK timed here. */
         @JavascriptInterface fun holdable(on: Boolean) { holdable = on }
-        @JavascriptInterface fun pageShown() { runOnUiThread { hideSplash(); pageUp = true; deliverLink() } }
+        @JavascriptInterface fun pageShown() {
+            runOnUiThread {
+                hideSplash()
+                pageUp = true
+                deliverLink()
+                if (!torrentWarmStarted) {
+                    torrentWarmStarted = true
+                    TorrentEngine.warmUp(applicationContext)
+                }
+            }
+        }
 
         /** True on Android TV; the page then defaults to its TV (10-foot) layout. */
         @JavascriptInterface fun isTv(): Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
@@ -753,6 +765,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Deprecated("Deprecated in Java")
+    @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         // The page walks its own ladder (one level up per press). At the top, confirm before leaving:
         // an accidental Back press from Home should never throw the viewer out of VEO.
