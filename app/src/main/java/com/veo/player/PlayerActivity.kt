@@ -46,6 +46,7 @@ import org.json.JSONArray
 import kotlin.math.abs
 import kotlin.math.max
 
+@OptIn(UnstableApi::class)
 class PlayerActivity : AppCompatActivity() {
     /** One playable item. Live TV passes a whole channel list so the viewer can zap through it. */
     private data class Source(
