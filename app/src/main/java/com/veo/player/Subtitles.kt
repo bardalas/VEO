@@ -194,6 +194,6 @@ object Subtitles {
         } catch (_: CharacterCodingException) {
             String(bytes, Charset.forName("windows-1255"))
         }
-        return text.removePrefix("﻿")
+        return text.removePrefix("\uFEFF")
     }
 }
