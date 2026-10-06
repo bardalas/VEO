@@ -389,11 +389,11 @@ class PlayerActivity : AppCompatActivity() {
                 val subLabel = subs.orEmpty().getOrNull(subPick)?.label.orEmpty()
                 android.util.Log.d(
                     AutoSync.TAG,
-                    "sync rejected: \${best.reason}; player=\${"%.1f".format(pos / 1000.0)}s " +
-                        "audio=\${"%.1f".format(best.audioFromMs / 1000.0)}..\${"%.1f".format(best.audioToMs / 1000.0)}s " +
-                        "best=\${"%+.1f".format(best.offsetMs / 1000.0)}s Z=\${"%.1f".format(best.z)} " +
-                        "margin=\${"%.1f".format(best.peakMarginZ)} speech=\${"%.1f".format(best.speechSeconds)}s " +
-                        "lines=\${best.events} dropped=\${syncCapture.droppedChunks} file=$subLabel"
+                    "sync rejected: ${best.reason}; player=${"%.1f".format(pos / 1000.0)}s " +
+                        "audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s " +
+                        "best=${"%+.1f".format(best.offsetMs / 1000.0)}s Z=${"%.1f".format(best.z)} " +
+                        "margin=${"%.1f".format(best.peakMarginZ)} speech=${"%.1f".format(best.speechSeconds)}s " +
+                        "lines=${best.events} dropped=${syncCapture.droppedChunks} file=$subLabel"
                 )
             }
             scanNote = "לא נמצא סנכרון"
@@ -410,8 +410,8 @@ class PlayerActivity : AppCompatActivity() {
         autoLocked = true
         applySync()
         saveSync()
-        scanNote = "מסונכרן \${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳"
-        showResult("הכתוביות סונכרנו · \${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
+        scanNote = "מסונכרן ${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳"
+        showResult("הכתוביות סונכרנו · ${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
         refreshPanel()
     }
 
@@ -651,7 +651,7 @@ class PlayerActivity : AppCompatActivity() {
             out.add(SubsRow.Info {
                 when {
                     autoOn -> "מנסה לסנכרן…"
-                    autoLocked -> "מסונכרן \${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
+                    autoLocked -> "מסונכרן ${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
                     else -> scanNote
                 }
             })
