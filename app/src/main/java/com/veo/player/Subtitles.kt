@@ -170,7 +170,11 @@ object Subtitles {
         conn.connectTimeout = 8_000
         conn.readTimeout = 10_000
         conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) VEO")
-        return conn.inputStream.use { it.readBytes() }
+        return try {
+            conn.inputStream.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun unzipIfNeeded(bytes: ByteArray): ByteArray {
