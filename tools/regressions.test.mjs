@@ -1088,15 +1088,6 @@ test("a film's banner bar has the arrow with the time where we are and a soft fi
   assert.match(b, /var buffered = -1/);
 });
 
-test("the sync scan reads over HTTP ranges and, for a torrent, only what has been played (#326)", async () => {
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
-  const h = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/HttpRangeSource.kt'), 'utf8');
-  assert.match(h, /class HttpRangeSource/);
-  assert.match(h, /setRequestProperty\("Range", range\)/);
-  assert.match(sc, /ex\.setDataSource\(HttpRangeSource\(/);
-  assert.match(sc, /if \(torrent\) \{/);
-});
-
 test("a held OK on a Continue Watching card is timed natively, because the WebView gives the page no keyup (#324)", async () => {
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
@@ -1108,12 +1099,6 @@ test("a held OK on a Continue Watching card is timed natively, because the WebVi
   assert.match(main, /fun holdable\(on: Boolean\)/);
   assert.match(main, /web\.postDelayed\(holdRun, 600\)/);
   assert.match(main, /super\.dispatchKeyEvent\(down\); return super\.dispatchKeyEvent\(event\)/);
-});
-
-test("the sync scan on a torrent reads the minutes just ahead first and never asks to watch more (#332)", async () => {
-  const sc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoScan.kt'), 'utf8');
-  assert.match(sc, /just ahead of the picture, a stretch every forty seconds/);
-  assert.doesNotMatch(sc, /צפה עוד כמה דקות/);
 });
 
 test("the buffering wheel takes the skin's primary colour, and a paused torrent fills on like any film (#329, #330)", async () => {
@@ -1161,4 +1146,30 @@ test("pull requests compile and lint Android code before merge", async () => {
   assert.match(yml, /android_check:/);
   assert.match(yml, /:app:compileDebugKotlin/);
   assert.match(yml, /:app:lintDebug/);
+});
+
+
+test("player lifecycle cancels subtitle loading and subtitle sync background work", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const subs = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/Subtitles.kt'), 'utf8');
+  assert.match(k, /private var subtitleLoadThread: Thread\? = null/);
+  assert.match(k, /subtitleLoadThread\?\.interrupt\(\)/);
+  assert.match(k, /syncCapture\.stop\(\)/);
+  assert.match(k, /syncCapture\.close\(\)/);
+  assert.match(subs, /catch \(e: InterruptedException\)/);
+  assert.match(subs, /Thread\.currentThread\(\)\.interrupt\(\)/);
+});
+
+test("torrent native warmup waits until the first screen has already been drawn", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  const beforePageShown = k.slice(0, k.indexOf('@JavascriptInterface fun pageShown'));
+  assert.doesNotMatch(beforePageShown, /TorrentEngine\.warmUp\(/);
+  assert.match(k, /if \(!torrentWarmStarted\)[\s\S]*TorrentEngine\.warmUp\(applicationContext\)/);
+});
+
+test("obsolete subtitle scan and renderer architectures are not referenced by production code", async () => {
+  const a = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AutoSync.kt'), 'utf8');
+  const p = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const m = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  assert.doesNotMatch(a + p + m, /AutoScan|HttpRangeSource|TappingAudioRenderer|AutoAligner/);
 });
