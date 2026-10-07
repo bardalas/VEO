@@ -692,7 +692,7 @@ test('an unsent local profile edit is not overwritten by the account, and the ac
 
 test('the taste plays on a television only, never on a phone (#213)', async () => {
   const taste = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
-  assert.match(taste, /settings\.preview === 'off' \|\| !IS_TV_DEVICE/);
+  assert.match(taste, /settings\.preview === 'off' \|\| Date\.now\(\) - store\.get\('tasteOff', 0\) < TASTE_OFF_MS \|\| !IS_TV_DEVICE/);
   assert.doesNotMatch(taste, /isTvLayout/);            // that one is always true: the layout is one
 });
 
