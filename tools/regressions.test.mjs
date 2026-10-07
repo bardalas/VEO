@@ -637,7 +637,7 @@ test('live TV: a short press walks the guide, a held key scrubs, and the bar is 
   const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const bar = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SeekBarView.kt'), 'utf8');
   assert.match(kt, /if \(!seekLong\) \{ if \(canWalk\(\)\) walkGuide\(back\) else seekBy\(dir, held = false\) \}/);   // a short press: the guide
-  assert.match(kt, /else if \(live\) \{ seekLong = true; seekBy\(dir, held = true\) \}/);                               // held: scrub
+  assert.match(kt, /else if \(live\) \{ val st = heldStep\(\); if \(st > 0\) \{ seekLong = true; seekBy\(dir, held = true, stepMs = st\) \}/);   // held: scrub, gently (#374)
   assert.match(kt, /KEYCODE_MEDIA_NEXT -> if \(live && canWalk\(\)\) \{ walkGuide\(false\)/);                          // the guide keeps its own keys too
   assert.match(kt, /private fun posEpochMs\(\)/); assert.match(kt, /private fun playAt\(atMs: Long\)/); assert.match(kt, /private fun goLive\(\)/);
   assert.match(kt, /private fun paintBar\(/);                                            // the bar: the programme, filled to the present
@@ -869,8 +869,8 @@ test('settings: Info & reset is part of General; add-ons sit with the services, 
 
 test('on live TV, OK with the info banner up opens the sound sync - one channel or many (#264)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(k, /if \(live && bannerOpen\) openSyncPanel\(\) else showBanner\(\)/);
-  assert.match(k, /if \(ok && live && !walking && bannerOpen\) \{\s+if \(!down\) openSyncPanel\(\)/);
+  assert.match(k, /if \(live && bannerOpen\) runAction\(0\) else showBanner\(\)/);   // since #374 OK acts on the lit action; the sound sync is under More
+  assert.match(k, /if \(ok && live && !walking\) \{\s+if \(!down\) \{ if \(bannerOpen\) runAction\(0\) else showBanner\(\) \}/);
 });
 
 test('a film does not open on its audio-description track when the stream marks that one DEFAULT (#267)', async () => {
@@ -1151,4 +1151,16 @@ test("a preview never starts sooner than 2.5 seconds after arriving (#376)", asy
   const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
   assert.match(t, /const MIN_START_MS = 2500;/);
   assert.match(t, /delay = Math\.max\(delay, MIN_START_MS\);/);
+});
+
+test("live TV: a short OK raises the banner with Pause | Channels | More, and a held scan key starts gently (#374)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.match(l, /android:id="@\+id\/liveActions"/);
+  assert.match(k, /private fun paintActions\(\)/);
+  assert.match(k, /"ערוצים", R\.id\.actMore to "עוד"/);
+  assert.match(k, /if \(bannerOpen\) runAction\(0\) else showBanner\(\)/);
+  assert.match(k, /private fun heldStep\(\): Long/);
+  assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
+  assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
 });
