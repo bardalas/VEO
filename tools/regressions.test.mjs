@@ -1166,3 +1166,10 @@ test("the subtitle sync is started from the side menu only, never offered on a p
   assert.match(k, /class Pick\(val text: String, val on: \(\) -> Boolean, val act: \(\) -> Unit, val value: \(\(\) -> String\)\? = null\)/);
   assert.match(k, /box\.minimumHeight = dp\(44\)/);
 });
+
+test("the side menu keeps why the last automatic sync failed, under its line (#387)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /private var lastFail = ""/);
+  assert.match(k, /lastFail\.isNotEmpty\(\) -> "לא הצליח"/);
+  assert.match(k, /if \(lastFail\.isNotEmpty\(\) && !autoOn\) out\.add\(SubsRow\.Info/);
+});

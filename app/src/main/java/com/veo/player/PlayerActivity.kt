@@ -159,6 +159,8 @@ class PlayerActivity : AppCompatActivity() {
     private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
+    /** Why the last automatic sync found nothing, kept for the side menu (the pill over the picture goes in seconds). */
+    private var lastFail = ""
     private var lastLiveEstimate: FastOffsetAligner.Estimate? = null
     private var syncZ = FastOffsetAligner.DEFAULT_Z_ACCEPT
     /** A point the viewer showed (the file's own time, the film's): with a second one far from it, it gives the speed too. */
@@ -269,7 +271,7 @@ class PlayerActivity : AppCompatActivity() {
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
-        handler.removeCallbacks(liveSyncTick); scanNote = ""
+        handler.removeCallbacks(liveSyncTick); scanNote = ""; lastFail = ""
         val drawing = captions?.any == true
         val view = findViewById<TextView>(R.id.cues)
         view.visibility = if (drawing) View.VISIBLE else View.GONE
@@ -396,6 +398,7 @@ class PlayerActivity : AppCompatActivity() {
                 val subLabel = subs.orEmpty().getOrNull(subPick)?.label.orEmpty()
                 "${best.reason} · mode=${best.mode} · player=${"%.1f".format(pos / 1000.0)}s · audio=${"%.1f".format(best.audioFromMs / 1000.0)}..${"%.1f".format(best.audioToMs / 1000.0)}s · subs=${"%.1f".format(best.subtitleFirstMs / 1000.0)}..${"%.1f".format(best.subtitleLastMs / 1000.0)}s · cues=${best.subtitleEvents} · local nonzero=${best.nonZeroScores} · peak=${"%.2f".format(best.peakScore)} · best=${"%+.1f".format(best.offsetMs / 1000.0)}s · Z=${"%.1f".format(best.z)} · margin=${"%.1f".format(best.peakMarginZ)} · speech=${"%.1f".format(best.speechSeconds)}s · lines=${best.events} · file=$subLabel"
             }
+            lastFail = if (best == null) "אין מספיק אודיו" else best.reason
             scanNote = "לא נמצא סנכרון · $detail"
             showResult(scanNote)
             refreshPanel()
@@ -411,6 +414,7 @@ class PlayerActivity : AppCompatActivity() {
         autoLevel = when { best.z >= 8.0 -> 3; best.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
+        lastFail = ""
         scanNote = "מסונכרן ${"%+.1f".format(best.offsetMs / 1000.0)}s"
         showResult("הכתוביות סונכרנו · ${"%+.1f".format(best.offsetMs / 1000.0)} שנ׳")
         refreshPanel()
@@ -475,6 +479,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun autoState(): String = when {
         autoOn -> "מנסה…"
         autoLocked -> "%+.1f שנ׳".format(autoOffset / 1000.0)
+        lastFail.isNotEmpty() -> "לא הצליח"
         else -> "לא בוצע"
     }
 
@@ -651,6 +656,8 @@ class PlayerActivity : AppCompatActivity() {
         out.add(SubsRow.Head("סנכרון כתוביות"))
         // the one way in to the automatic sync, with where it stands written at the end of the line
         out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() }))
+        // after a failure the reason stays here, under the line, for as long as the viewer wants to read it
+        if (lastFail.isNotEmpty() && !autoOn) out.add(SubsRow.Info { "הניסיון האחרון: $lastFail · כדאי לנסות בסצנה עם יותר דיבור" })
         out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
         if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
         out.add(SubsRow.Head("תיקון ידני"))
