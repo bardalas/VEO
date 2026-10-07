@@ -42,11 +42,13 @@ function watchFrames(alive, bad){
 /** How long YouTube's own controls stay over the picture after it starts, or after its sound comes on. */
 const CONTROLS_FADE_MS = 2500;
 /** A preview never starts sooner than this after arriving: the page is still drawing, and a trailer starting with it lags the whole screen (#376). */
-const MIN_START_MS = 2500;
+const MIN_START_MS = 4000;
+/** How long previews stay off on a device that could not carry them even at the lowest picture. */
+const TASTE_OFF_MS = 7 * 24 * 3600e3;
 export function startTaste(hostSel, yt, delay = 1500, quiet = false){
   endTaste();
   delay = Math.max(delay, MIN_START_MS);
-  if(!yt || settings.preview === 'off' || !IS_TV_DEVICE || document.getElementById('acctgate')) return;   // never behind the sign-in screen     // a television only: a phone plays no trailers of its own accord
+  if(!yt || settings.preview === 'off' || Date.now() - store.get('tasteOff', 0) < TASTE_OFF_MS || !IS_TV_DEVICE || document.getElementById('acctgate')) return;   // never behind the sign-in screen     // a television only: a phone plays no trailers of its own accord
   if(settings.preview === 'quiet') quiet = true;     // the viewer asked for trailers without sound, everywhere
   tasteTimer = setTimeout(() => {
     const host = $(hostSel);
@@ -77,6 +79,7 @@ export function startTaste(hostSel, yt, delay = 1500, quiet = false){
       watchFrames(() => frame.isConnected && tasteStop, () => {
         const next = Math.min(tier() + 1, TIERS.length - 1);
         if(next !== tier()){ store.set('tasteQ', TIERS[next]); cmd('setPlaybackQuality', [TIERS[next]]); }
+        else { store.set('tasteOff', Date.now()); tasteStop?.(); }     // it stalls even at the lowest picture: no trailers on this box for a week (#383)
       });
       // No subtitles: loading them brought the player's bar up over the picture, and a taste is to be
       // looked at, not read.
