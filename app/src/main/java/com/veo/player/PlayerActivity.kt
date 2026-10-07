@@ -427,7 +427,10 @@ class PlayerActivity : AppCompatActivity() {
             val first = timeline.bottom
             val top = timeline.top
             val contentMs = if (first != Int.MAX_VALUE && top >= first) (top - first + 1L) * AutoSync.BIN_MS else 0L
-            scanNote = if (contentMs <= 0) "ממתין לאודיו…" else "נאספו ${contentMs / 1000} שנ׳"
+            scanNote = if (contentMs <= 0) {
+                // nothing has come through the processor: after a few seconds say what the player's sound is, so it can be told why
+                if (elapsed > 6_000) "ממתין לאודיו… · " + AudioDelayProcessor.note.ifBlank { "הסאונד לא עובר בעיבוד (העברה ישירה למגבר?)" } else "ממתין לאודיו…"
+            } else "נאספו ${contentMs / 1000} שנ׳"
             showPill("מנסה להתאים כתוביות… · $scanNote")
 
             if (first != Int.MAX_VALUE && contentMs >= FastOffsetAligner.MIN_WINDOW_MS) {
@@ -497,7 +500,9 @@ class PlayerActivity : AppCompatActivity() {
         val c = captions?.takeIf { it.any }
         val p = player
         if (c == null) { showResult("לא ניתן לסנכרן · אין כתוביות פעילות"); return }
-        if (p == null || !p.playWhenReady) { showResult("הפעל את הסרט ואז נסה שוב"); return }
+        if (p == null) { showResult("הפעל את הסרט ואז נסה שוב"); return }
+        // asked for from a pause (the offer made there): the sync listens to the sound that is playing, so the film goes on
+        if (!p.playWhenReady) p.playWhenReady = true
 
         if (panelOpen) closePanel()
         offsetAligner = FastOffsetAligner(c.activity(), c.starts(), syncZ)

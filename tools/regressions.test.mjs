@@ -1045,7 +1045,7 @@ test("live sync timestamps PCM from AudioProcessor stream metadata rather than c
   assert.match(proc, /streamStartUs = streamMetadata\.positionOffsetUs/);
   assert.match(proc, /inputFrames = 0L/);
   assert.match(proc, /val ptsUs = streamStartUs \+ inputFrames \* 1_000_000L \/ inputAudioFormat\.sampleRate/);
-  assert.match(proc, /timeline\.feed\(inputBuffer, inputAudioFormat\.sampleRate, inputAudioFormat\.channelCount, ptsUs\)/);
+  assert.match(proc, /timeline\.feed\(as16\(inputBuffer, inputAudioFormat\.encoding\), inputAudioFormat\.sampleRate, inputAudioFormat\.channelCount, ptsUs\)/);   // read as 16-bit whatever the sound is (#385)
   assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
   assert.doesNotMatch(k, /TappingAudioRenderer\(/);
 });
@@ -1163,4 +1163,18 @@ test("live TV: a short OK raises the banner with Pause | Channels | More, and a 
   assert.match(k, /private fun heldStep\(\): Long/);
   assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
+});
+
+test("the sync tap accepts float and 24/32-bit sound and says what the sound is when nothing is heard (#385)", async () => {
+  const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(proc, /inputAudioFormat\.encoding == C\.ENCODING_PCM_FLOAT/);
+  assert.match(proc, /private fun as16\(buf: ByteBuffer, encoding: Int\)/);
+  assert.match(k, /AudioDelayProcessor\.note\.ifBlank/);
+});
+
+test("asking for the sync from a pause puts the film on, since the sync listens to the sound that plays (#385)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /if \(!p\.playWhenReady\) p\.playWhenReady = true/);
+  assert.doesNotMatch(k, /!p\.playWhenReady\) \{ showResult\("הפעל את הסרט/);
 });
