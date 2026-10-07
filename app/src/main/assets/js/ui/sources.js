@@ -310,8 +310,9 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
         return;
       }
     }
-    const first = $('#eps')?.querySelector('.epcard.on, .epcard');
-    if(first && takeFocus && !focused){ focused = true; first.focus({preventScroll: true}); }
+    // the chosen episode, not the first card: a selector list answers in page order, so '.epcard.on, .epcard' always gave episode one (#379)
+    const first = $('#eps')?.querySelector('.epcard.on') || $('#eps')?.querySelector('.epcard');
+    if(first && takeFocus && !focused){ focused = true; first.focus({preventScroll: true}); first.scrollIntoView({block: 'center'}); }   // and shown: the episode may be far down the list
   };
   render();
   const broadcasterWork = Promise.all(broadcasters.map(async provider => {

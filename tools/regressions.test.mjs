@@ -1164,3 +1164,11 @@ test("live TV: a short OK raises the banner with Pause | Channels | More, and a 
   assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
 });
+
+test("entering a series from Continue Watching lands the focus on the chosen episode, not episode one; the live actions sit in the name row (#379)", async () => {
+  const s = await readFile(path.join(assets, 'js/ui/sources.js'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.doesNotMatch(s, /querySelector\('\.epcard\.on, \.epcard'\)/);
+  assert.match(s, /\$\('#eps'\)\?\.querySelector\('\.epcard\.on'\) \|\| \$\('#eps'\)\?\.querySelector\('\.epcard'\)/);
+  assert.ok(l.indexOf('android:id="@+id/liveActions"') < l.indexOf('android:id="@+id/nowTitle"'), 'the actions are in the first row, above the title line');
+});

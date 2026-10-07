@@ -1397,7 +1397,7 @@ class PlayerActivity : AppCompatActivity() {
             val on = i == lit
             v.setTextColor(if (on) skin.onAccent else skin.light)
             v.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = dp(12).toFloat()
                 setColor(if (on) skin.accent else fade(skin.light, if (actFocus) 0x30 else 0x1C))
             }
         }
