@@ -41,8 +41,11 @@ function watchFrames(alive, bad){
 }
 /** How long YouTube's own controls stay over the picture after it starts, or after its sound comes on. */
 const CONTROLS_FADE_MS = 2500;
+/** A preview never starts sooner than this after arriving: the page is still drawing, and a trailer starting with it lags the whole screen (#376). */
+const MIN_START_MS = 2500;
 export function startTaste(hostSel, yt, delay = 1500, quiet = false){
   endTaste();
+  delay = Math.max(delay, MIN_START_MS);
   if(!yt || settings.preview === 'off' || !IS_TV_DEVICE || document.getElementById('acctgate')) return;   // never behind the sign-in screen     // a television only: a phone plays no trailers of its own accord
   if(settings.preview === 'quiet') quiet = true;     // the viewer asked for trailers without sound, everywhere
   tasteTimer = setTimeout(() => {

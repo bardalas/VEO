@@ -1147,6 +1147,12 @@ test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Dow
   assert.match(k, /private fun acceptSyncHint\(\)[\s\S]*if \(autoOn\) return[\s\S]*hideSyncHint\(\)[\s\S]*toggleAuto\(\)/);
 });
 
+test("a preview never starts sooner than 2.5 seconds after arriving (#376)", async () => {
+  const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
+  assert.match(t, /const MIN_START_MS = 2500;/);
+  assert.match(t, /delay = Math\.max\(delay, MIN_START_MS\);/);
+});
+
 test("live TV: a short OK raises the banner with Pause | Channels | More, and a held scan key starts gently (#374)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
