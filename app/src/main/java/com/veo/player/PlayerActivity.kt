@@ -635,7 +635,9 @@ class PlayerActivity : AppCompatActivity() {
         class Head(val text: String) : SubsRow()
         class Info(val text: () -> String) : SubsRow()
         /** [value]: what the line stands at, written at its end (a state, not a choice). */
-        class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit, val value: (() -> String)? = null) : SubsRow()
+        class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit, val value: (() -> String)? = null,
+            /** a quiet second line under the name, and how the value is toned: 0 quiet, 1 good, 2 warning */
+            val sub: String? = null, val tone: (() -> Int)? = null) : SubsRow()
         /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held. */
         class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false) : SubsRow()
     }
@@ -650,12 +652,17 @@ class PlayerActivity : AppCompatActivity() {
         val out = ArrayList<SubsRow>()
         out.add(SubsRow.Head("כתוביות"))
         subs.orEmpty().forEachIndexed { i, s ->
-            out.add(SubsRow.Pick(s.label, { subPick == i }, { useCaptions(i) }))
+            // "Wizdom · עברית · The.Matrix.1999..." is the source, the language and the release: the release is the name
+            val parts = s.label.split(" · ")
+            val release = if (parts.size >= 3) parts.drop(2).joinToString(" · ") else s.label
+            val from = if (parts.size >= 3) parts.take(2).joinToString(" · ") else null
+            out.add(SubsRow.Pick(release, { subPick == i }, { useCaptions(i) }, sub = from))
         }
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
         out.add(SubsRow.Head("סנכרון כתוביות"))
         // the one way in to the automatic sync, with where it stands written at the end of the line
-        out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() }))
+        out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() },
+            tone = { if (autoLocked && !autoOn) 1 else if (lastFail.isNotEmpty() && !autoOn) 2 else 0 }))
         // after a failure the reason stays here, under the line, for as long as the viewer wants to read it
         if (lastFail.isNotEmpty() && !autoOn) out.add(SubsRow.Info { "הניסיון האחרון: $lastFail · כדאי לנסות בסצנה עם יותר דיבור" })
         out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
@@ -759,16 +766,23 @@ class PlayerActivity : AppCompatActivity() {
             val box = (convertView as? LinearLayout) ?: LinearLayout(this@PlayerActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
-                addView(TextView(this@PlayerActivity).apply {
-                    maxLines = 3
-                    ellipsize = android.text.TextUtils.TruncateAt.END
+                addView(LinearLayout(this@PlayerActivity).apply {
+                    orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(TextView(this@PlayerActivity).apply { maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END })
+                    addView(TextView(this@PlayerActivity).apply { textSize = 12f; maxLines = 1; visibility = View.GONE })
                 })
                 // a value reads left to right whatever the page's direction: "+0.5s", "155%"
                 addView(TextView(this@PlayerActivity).apply { textDirection = View.TEXT_DIRECTION_LTR })
             }
-            val name = box.getChildAt(0) as TextView
+            val column = box.getChildAt(0) as LinearLayout
+            val name = column.getChildAt(0) as TextView
+            val sub = column.getChildAt(1) as TextView
             val value = box.getChildAt(1) as TextView
+            // what a recycled row had been given is taken off before it is dressed again
+            sub.visibility = View.GONE
+            name.maxLines = 3; name.ellipsize = android.text.TextUtils.TruncateAt.END; name.textDirection = View.TEXT_DIRECTION_INHERIT
+            value.background = null; value.setPadding(0, 0, 0, 0)
             val ink = if (focused) skin.night else skin.light
             val quiet = if (focused) skin.night else skin.muted
             val mark = if (focused) skin.night else skin.accent
@@ -800,13 +814,33 @@ class PlayerActivity : AppCompatActivity() {
                     box.setPadding(dp(22), dp(8), dp(22), dp(8))
                     box.minimumHeight = dp(44)
                     name.text = row.text
-                    name.textSize = if (row.text.length > 40) 15f else 17f       // a long release name in a smaller hand
+                    name.textSize = 17f
                     name.setTextColor(if (on && !focused) skin.accent else ink)
                     name.typeface = if (on) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-                    value.text = if (row.value != null) row.value.invoke() else if (on) "✓" else ""
-                    value.textSize = if (row.value != null) 16f else 20f
-                    value.typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    value.setTextColor(if (row.value != null) quiet else mark)
+                    if (row.sub != null) {
+                        // a release name: one line, read left to right, its middle given up before its end (the group is at the end)
+                        name.maxLines = 1; name.ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                        name.textDirection = View.TEXT_DIRECTION_LTR
+                        name.textSize = 16f
+                        sub.visibility = View.VISIBLE
+                        sub.text = row.sub
+                        sub.setTextColor(quiet)
+                    }
+                    if (row.value != null) {
+                        // where something stands, as a small outlined chip: quiet, good (the accent) or a warning
+                        val tone = when (row.tone?.invoke() ?: 0) { 1 -> if (focused) skin.night else skin.accent; 2 -> if (focused) skin.night else 0xFFE5A04B.toInt(); else -> quiet }
+                        value.text = row.value.invoke()
+                        value.textSize = 14f
+                        value.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        value.setTextColor(tone)
+                        value.setPadding(dp(10), dp(3), dp(10), dp(3))
+                        value.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setStroke(dp(1), tone) }
+                    } else {
+                        value.text = if (on) "✓" else ""
+                        value.textSize = 20f
+                        value.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        value.setTextColor(mark)
+                    }
                 }
                 is SubsRow.Step -> {
                     box.setPadding(dp(22), dp(8), dp(22), dp(8))

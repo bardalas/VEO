@@ -1163,7 +1163,7 @@ test("asking for the sync from a pause puts the film on, since the sync listens 
 test("the subtitle sync is started from the side menu only, never offered on a pause; the menu is quieter (#387)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.doesNotMatch(k, /syncHintShow|acceptSyncHint|syncHintActionable/);
-  assert.match(k, /class Pick\(val text: String, val on: \(\) -> Boolean, val act: \(\) -> Unit, val value: \(\(\) -> String\)\? = null\)/);
+  assert.match(k, /class Pick\(val text: String, val on: \(\) -> Boolean, val act: \(\) -> Unit, val value: \(\(\) -> String\)\? = null,/);
   assert.match(k, /box\.minimumHeight = dp\(44\)/);
 });
 
@@ -1172,4 +1172,11 @@ test("the side menu keeps why the last automatic sync failed, under its line (#3
   assert.match(k, /private var lastFail = ""/);
   assert.match(k, /lastFail\.isNotEmpty\(\) -> "לא הצליח"/);
   assert.match(k, /if \(lastFail\.isNotEmpty\(\) && !autoOn\) out\.add\(SubsRow\.Info/);
+});
+
+test("the side menu shows a release name on one line with its source beneath, and the sync state as a toned chip (#387)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(k, /val sub: String\? = null, val tone: \(\(\) -> Int\)\? = null/);
+  assert.match(k, /name\.ellipsize = android\.text\.TextUtils\.TruncateAt\.MIDDLE/);
+  assert.match(k, /setStroke\(dp\(1\), tone\)/);
 });
