@@ -1,5 +1,12 @@
 # VEO Android changelog
 
+## 0.45.61 — 2026-10-07
+- **Live TV: a short OK raises the banner with Pause | Channels | More.** OK acts on the lit one (Pause); Down steps into the row, Left/Right choose,
+  Up or Back leave. The sound sync is under More. (#374)
+- **Scanning back and forward on live TV starts gently.** A held key waits a moment, then steps at a steady rate that quickens the longer it is held,
+  instead of racing by. (#374)
+- **Previews start later** - never sooner than 2.5 s after arriving on a title - so they no longer lag the screen. (#376)
+
 ## 0.45.60 — 2026-10-05
 - Reworked live subtitle-sync timing to use Media3 AudioProcessor StreamMetadata.positionOffsetUs plus exact PCM frame counting in the existing AudioDelayProcessor path. Removes renderer/codec clock inference and the unsafe global offset fallback. (#371)
 
