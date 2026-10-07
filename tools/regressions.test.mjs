@@ -1183,3 +1183,11 @@ test("live TV: OK raises the banner with the remote on Pause | Previous | Next |
   assert.match(k, /coerceIn\(0, 4\)/);
   assert.match(k, /if \(ok && !down\) \{ if \(!okDownSeen\) return true; okDownSeen = false \}/);
 });
+
+test("Previous and Next on live TV go to the programme or channel before/after, never a seek (#381)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const m = k.match(/private fun stepProgramme\(back: Boolean\) \{[\s\S]*?\n    \}/);
+  assert.ok(m, 'stepProgramme exists');
+  assert.doesNotMatch(m[0], /seekBy/);
+  assert.match(m[0], /zapBy\(if \(back\) -1 else 1\)/);
+});

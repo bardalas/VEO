@@ -1420,9 +1420,11 @@ class PlayerActivity : AppCompatActivity() {
         if (!panelOpen) showBanner()
     }
 
-    /** The programme before / after this one, played at once (a channel with no guide: ten seconds back / on). */
+    /** The programme before / after this one, played at once; a channel with no guide has none, so it is the channel before / after. Never a seek. */
     private fun stepProgramme(back: Boolean) {
-        if (canWalk()) { if (walkGuide(back)) tuneWalk() } else seekBy(if (back) -1 else 1, false)
+        if (canWalk()) { if (walkGuide(back)) tuneWalk() }
+        else if (sources.size > 1) zapBy(if (back) -1 else 1)
+        else showMessage("אין תוכן קודם או הבא בערוץ הזה", 2_000)
     }
 
     // explicit type: it reschedules itself (a paused picture keeps its banner)
