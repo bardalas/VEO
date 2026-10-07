@@ -106,12 +106,6 @@
                 android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                 android:layout_marginStart="@dimen/info_gap" android:maxLines="1" android:ellipsize="end"
                 android:textColor="#FFFFFF" android:textSize="@dimen/info_name_text" android:textStyle="bold" />
-            <!-- live TV: live, or how far behind it, or a recording -->
-            <TextView
-                android:id="@+id/liveChip"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/info_gap" android:paddingHorizontal="12dp" android:paddingVertical="3dp"
-                android:textSize="@dimen/info_chip_text" android:textStyle="bold" android:visibility="gone" />
             <!-- live TV: what OK can do from here, small and in this row so the bar is no taller. OK acts on the lit one (Pause); Down steps into them (PlayerActivity.paintActions) -->
             <LinearLayout
                 android:id="@+id/liveActions"
@@ -121,6 +115,16 @@
                 <TextView
                     android:id="@+id/actPause"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:paddingHorizontal="12dp" android:paddingVertical="2dp" android:textSize="@dimen/info_chip_text" android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/actPrev"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:paddingHorizontal="12dp" android:paddingVertical="2dp" android:textSize="@dimen/info_chip_text" android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/actNext"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
                     android:paddingHorizontal="12dp" android:paddingVertical="2dp" android:textSize="@dimen/info_chip_text" android:textStyle="bold" />
                 <TextView
                     android:id="@+id/actChannels"
@@ -138,6 +142,12 @@
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/info_gap"
                 android:textColor="#AAB0BD" android:textSize="@dimen/info_clock_text" />
+            <!-- live TV: live, or how far behind it, or a recording -->
+            <TextView
+                android:id="@+id/liveChip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/info_gap" android:paddingHorizontal="12dp" android:paddingVertical="3dp"
+                android:textSize="@dimen/info_chip_text" android:textStyle="bold" android:visibility="gone" />
         </LinearLayout>
 
         <TextView
