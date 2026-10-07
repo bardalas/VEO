@@ -129,6 +129,11 @@ class PlayerActivity : AppCompatActivity() {
     private var archTry = 0
     /** Left/Right are decided on release too: a press steps a programme, holding them runs inside it. */
     private var seekLong = false
+    private var seekHoldStart = 0L
+    private var lastHeldStep = 0L
+    /** Live banner actions: whether the row has the keys (Down steps into it), and which one is chosen. */
+    private var actFocus = false
+    private var actIdx = 0
     /** Where the arrows are heading in a film, and how fast. The film itself does not move until they
      *  stop - see [scrubHold]. */
     private var scrubTo = -1L
@@ -1366,10 +1371,46 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         paintBanner()
+        paintActions()
         handler.removeCallbacks(hideBanner)
         handler.removeCallbacks(tickBanner)
         handler.postDelayed(tickBanner, if (walking) 30_000 else 1_000)
         handler.postDelayed(hideBanner, if (walking) 12_000L else 8_000L)
+    }
+
+    /*
+     * Live TV: a short OK raises the banner with what can be done from here - Pause | Channels | More. OK acts on the lit one
+     * (Pause, unless the row has been stepped into: Down enters it, Left/Right choose, Up or Back leave). The arrows keep scanning
+     * back and forward as they always did.
+     */
+    private fun paintActions() {
+        val row = findViewById<View>(R.id.liveActions)
+        if (!live || walking) { row.visibility = View.GONE; return }
+        row.visibility = View.VISIBLE
+        row.layoutDirection = if (skin.rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        val paused = player?.playWhenReady == false
+        val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
+        val lit = if (actFocus) actIdx else 0
+        for ((i, p) in labels.withIndex()) {
+            val v = findViewById<TextView>(p.first)
+            v.text = p.second
+            val on = i == lit
+            v.setTextColor(if (on) skin.onAccent else skin.light)
+            v.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(if (on) skin.accent else fade(skin.light, if (actFocus) 0x30 else 0x1C))
+            }
+        }
+    }
+
+    private fun runAction(i: Int) {
+        actFocus = false
+        when (i) {
+            0 -> player?.let { it.playWhenReady = !it.playWhenReady; showMessage(if (it.playWhenReady) "ממשיך" else "מושהה", if (it.playWhenReady) 2_000 else 0) }
+            1 -> openPanel()
+            else -> openSyncPanel()
+        }
+        if (!panelOpen) showBanner()
     }
 
     // explicit type: it reschedules itself (a paused picture keeps its banner)
@@ -1428,6 +1469,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun hideChannelBar() {
+        actFocus = false; actIdx = 0
         walking = false
         walkAt = null
         handler.removeCallbacks(hideBanner)
@@ -1739,9 +1781,22 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /** Step along the line of time: a press ten seconds, a held key thirty. */
-    private fun seekBy(direction: Int, held: Boolean) {
+    /**
+     * A held scan key repeats many times a second, and each repeat used to jump thirty seconds - it ran by faster than the eye
+     * could follow. Now a hold waits a moment, then steps at a steady rate that quickens the longer it is held.
+     * Returns the step in milliseconds, or 0 when this repeat is to be passed over.
+     */
+    private fun heldStep(): Long {
+        val now = android.os.SystemClock.uptimeMillis()
+        val held = now - seekHoldStart
+        if (held < 600 || now - lastHeldStep < 250) return 0L
+        lastHeldStep = now
+        return if (held < 2_500) 10_000L else if (held < 5_000) 30_000L else 60_000L
+    }
+
+    private fun seekBy(direction: Int, held: Boolean, stepMs: Long = if (held) 30_000L else 10_000L) {
         val p = player ?: return
-        val step = if (held) 30_000L else 10_000L
+        val step = stepMs
         val nowMs = System.currentTimeMillis()
         val target = (if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()) + direction * step
         val c = catchUp
@@ -1994,20 +2049,40 @@ class PlayerActivity : AppCompatActivity() {
             if (ok && !down && okLong) { okLong = false; return true }      // the release that ended the long press
             return super.dispatchKeyEvent(event)                 // the list handles the arrows and OK
         }
+        // live, banner up: Down steps into the actions; inside them Left/Right choose, OK does it, Up/Back step out
+        if (live && bannerOpen && !walking) {
+            if (!actFocus) {
+                if (code == KeyEvent.KEYCODE_DPAD_DOWN) { if (down && event.repeatCount == 0) { actFocus = true; actIdx = 0; showBanner() }; return true }
+            } else {
+                val visualBack = if (skin.rtl) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+                when {
+                    code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        // the row reads the way the layout runs: forward is toward the end of the row
+                        if (down && event.repeatCount == 0) { actIdx = (actIdx + (if (code == visualBack) -1 else 1)).coerceIn(0, 2); showBanner() }
+                        return true
+                    }
+                    code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK -> {
+                        if (down && event.repeatCount == 0) { actFocus = false; showBanner() }
+                        return true
+                    }
+                    ok -> { if (!down) runAction(actIdx); return true }
+                }
+            }
+        }
         if (ok && (sources.size > 1 || walking)) {
             if (down) {
                 if (event.repeatCount == 0) okLong = false
                 else if (!okLong) { okLong = true; openPanel() }             // held down
             } else {
                 // OK on a banner that is already up is the way to the sound's sync (a remote without Menu has no other)
-                if (!okLong) { if (!tuneWalk()) { if (live && bannerOpen) openSyncPanel() else showBanner() } }
+                if (!okLong) { if (!tuneWalk()) { if (live && bannerOpen) runAction(0) else showBanner() } }
                 okLong = false
             }
             return true
         }
         // one channel, live: OK with the banner up opens the sound's sync, the same as on many channels (above)
-        if (ok && live && !walking && bannerOpen) {
-            if (!down) openSyncPanel()
+        if (ok && live && !walking) {
+            if (!down) { if (bannerOpen) runAction(0) else showBanner() }
             return true
         }
         // Left and Right are decided on release, so that holding them can mean something else; both the
@@ -2020,8 +2095,8 @@ class PlayerActivity : AppCompatActivity() {
             val back = code == (if (skin.rtl) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT)
             val dir = if (back) -1 else 1
             if (down) {
-                if (event.repeatCount == 0) { seekLong = false; if (!live) scrubStart(dir) }
-                else if (live) { seekLong = true; seekBy(dir, held = true) }
+                if (event.repeatCount == 0) { seekLong = false; seekHoldStart = android.os.SystemClock.uptimeMillis(); lastHeldStep = 0L; if (!live) scrubStart(dir) }
+                else if (live) { val st = heldStep(); if (st > 0) { seekLong = true; seekBy(dir, held = true, stepMs = st) } else if (android.os.SystemClock.uptimeMillis() - seekHoldStart >= 600) seekLong = true }
             } else if (!live) {
                 scrubEnd(dir)
             } else {
@@ -2060,8 +2135,12 @@ class PlayerActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_BACK -> if (walking) { walking = false; walkAt = null; showBanner(); return true }
-            KeyEvent.KEYCODE_MEDIA_REWIND -> if (!controls) { seekBy(-1, event.repeatCount > 0); return true }
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> if (!controls) { seekBy(1, event.repeatCount > 0); return true }
+            KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> if (!controls) {
+                val dir = if (code == KeyEvent.KEYCODE_MEDIA_REWIND) -1 else 1
+                if (event.repeatCount == 0) { seekHoldStart = android.os.SystemClock.uptimeMillis(); lastHeldStep = 0L; seekBy(dir, false) }
+                else { val st = heldStep(); if (st > 0) seekBy(dir, true, st) }
+                return true
+            }
             // the guide: one programme at a time (OK on the one pointed at plays it) - the arrows are for time
             KeyEvent.KEYCODE_MEDIA_NEXT -> if (live && canWalk()) { walkGuide(false); return true }
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (live && canWalk()) { walkGuide(true); return true }
