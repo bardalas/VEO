@@ -198,7 +198,7 @@
         android:background="#99000000" android:visibility="gone">
         <ListView
             android:id="@+id/chList"
-            android:layout_width="380dp" android:layout_height="match_parent"
+            android:layout_width="340dp" android:layout_height="match_parent"
             android:layout_gravity="start"
             android:background="#F2070910" android:divider="#1FFFFFFF" android:dividerHeight="1dp"
             android:listSelector="#33F0B429" android:scrollbars="none"

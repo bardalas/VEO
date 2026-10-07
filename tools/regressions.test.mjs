@@ -991,19 +991,10 @@ test('subtitles: the sync is remembered per film and translation, and carried al
 
 test('subtitles: sync commands, status and manual corrections are clearly separated in the panel (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  for (const label of ['סנכרון כתוביות', 'הפעל סנכרון אוטומטי', 'עצור ניסיון סנכרון', 'מצב:', 'סנכרון לפי שורה', 'תיקון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
+  for (const label of ['סנכרון כתוביות', 'סנכרון אוטומטי', 'לא בוצע', 'סנכרון לפי שורה', 'תיקון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
     assert.ok(k.includes(label), label);
   assert.match(k, /class Info\(val text: \(\) -> String\) : SubsRow\(\)/);
-  assert.match(k, /rows\[position\] !is SubsRow\.Info/);
   assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
-});
-
-test('subtitle sync Down shortcut is actionable only for the temporary offer, never for status/result toast', async () => {
-  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(k, /private var syncHintActionable = false/);
-  assert.match(k, /private fun showPill\(text: String\) \{\s*syncHintActionable = false/);
-  assert.match(k, /syncHintActionable = true\s*hint\.text = if \(autoLocked\)/);
-  assert.match(k, /if \(down && syncHintActionable && findViewById<View>\(R\.id\.syncHint\)\.visibility == View\.VISIBLE\)/);
 });
 
 test('the player info bar is sized by screen (a phone much lower than a television) and the next-episode button fills over the time to press (#303)', async () => {
@@ -1067,10 +1058,10 @@ test("automatic sync is a viewer-requested live offset match over already-playin
   assert.match(k, /speechSeconds/);
   assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
   assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
-  assert.match(k, /"סף ביטחון \(Z\)"/);
+  assert.match(k, /"סף ביטחון לסנכרון"/);
   assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
   assert.match(k, /if \(autoOn\) liveSpeech else null/);
-  assert.match(k, /הפעל סנכרון אוטומטי/);
+  assert.match(k, /"סנכרון אוטומטי", \{ false \}, \{ toggleAuto\(\) \}, \{ autoState\(\) \}/);
   assert.doesNotMatch(k, /private fun startScan\(\)/);
 });
 
@@ -1137,16 +1128,6 @@ test("live sync solves offset only without network scan and reports success or f
   assert.match(k, /autoScale = 1\.0/);
 });
 
-test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Down or a tap (#337)", async () => {
-  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
-  assert.match(l, /android:id="@\+id\/syncHint"/);
-  assert.match(k, /handler\.postDelayed\(syncHintShow, 1_200\)/);
-  assert.match(k, /\|\| captions\?\.any != true/);
-  assert.match(k, /code == KeyEvent\.KEYCODE_DPAD_DOWN\) \{ acceptSyncHint\(\); return true \}/);
-  assert.match(k, /private fun acceptSyncHint\(\)[\s\S]*if \(autoOn\) return[\s\S]*hideSyncHint\(\)[\s\S]*toggleAuto\(\)/);
-});
-
 test("a preview never starts sooner than 2.5 seconds after arriving (#376)", async () => {
   const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
   assert.match(t, /const MIN_START_MS = 2500;/);
@@ -1177,4 +1158,11 @@ test("asking for the sync from a pause puts the film on, since the sync listens 
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /if \(!p\.playWhenReady\) p\.playWhenReady = true/);
   assert.doesNotMatch(k, /!p\.playWhenReady\) \{ showResult\("הפעל את הסרט/);
+});
+
+test("the subtitle sync is started from the side menu only, never offered on a pause; the menu is quieter (#387)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.doesNotMatch(k, /syncHintShow|acceptSyncHint|syncHintActionable/);
+  assert.match(k, /class Pick\(val text: String, val on: \(\) -> Boolean, val act: \(\) -> Unit, val value: \(\(\) -> String\)\? = null\)/);
+  assert.match(k, /box\.minimumHeight = dp\(44\)/);
 });

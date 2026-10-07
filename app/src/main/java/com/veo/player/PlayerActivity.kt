@@ -69,7 +69,6 @@ class PlayerActivity : AppCompatActivity() {
     private var index = 0
     private val live get() = intent.getBooleanExtra("live", false) || sources.size > 1
     private val handler = Handler(Looper.getMainLooper())
-    private var syncHintActionable = false
     /** Automatic retries for the current channel (IPTV servers may still hold the previous session). */
     private var retries = 0
     /** The video's own rate, in bits a second, as the tracks say it (0 until they do) - read by the load control on another thread. */
@@ -452,7 +451,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showPill(text: String) {
-        syncHintActionable = false
         val hint = findViewById<TextView>(R.id.syncHint)
         hint.text = text
         hint.setTextColor(skin.light)
@@ -471,6 +469,13 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun refreshPanel() {
         if (panelOpen) (findViewById<ListView>(R.id.chList).adapter as? BaseAdapter)?.notifyDataSetChanged()
+    }
+
+    /** Where the automatic sync stands, for the end of its line in the menu. */
+    private fun autoState(): String = when {
+        autoOn -> "מנסה…"
+        autoLocked -> "%+.1f שנ׳".format(autoOffset / 1000.0)
+        else -> "לא בוצע"
     }
 
     private fun autoStatus(): String = when {
@@ -624,7 +629,8 @@ class PlayerActivity : AppCompatActivity() {
     private sealed class SubsRow {
         class Head(val text: String) : SubsRow()
         class Info(val text: () -> String) : SubsRow()
-        class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit) : SubsRow()
+        /** [value]: what the line stands at, written at its end (a state, not a choice). */
+        class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit, val value: (() -> String)? = null) : SubsRow()
         /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held. */
         class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false) : SubsRow()
     }
@@ -643,16 +649,8 @@ class PlayerActivity : AppCompatActivity() {
         }
         out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
         out.add(SubsRow.Head("סנכרון כתוביות"))
-        out.add(SubsRow.Pick(if (autoOn) "עצור ניסיון סנכרון" else "הפעל סנכרון אוטומטי", { false }, { toggleAuto() }))
-        out.add(SubsRow.Step("סף ביטחון (Z)", { "%.1f".format(syncZ) }, { step -> setSyncZ(syncZ + step * 0.5) }))
-        out.add(SubsRow.Info {
-            when {
-                autoOn -> "מצב: מנסה להתאים…"
-                autoLocked -> "מצב: מסונכרן ${"%+.1f".format(autoOffset / 1000.0)} שנ׳"
-                scanNote.isNotEmpty() -> "מצב: $scanNote"
-                else -> "מצב: לא בוצע סנכרון"
-            }
-        })
+        // the one way in to the automatic sync, with where it stands written at the end of the line
+        out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() }))
         out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
         if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
         out.add(SubsRow.Head("תיקון ידני"))
@@ -664,6 +662,8 @@ class PlayerActivity : AppCompatActivity() {
         out.add(SubsRow.Head("גודל"))
         out.add(SubsRow.Step("גודל הכתוביות", { "%d%%".format((subScale * 100).toInt()) },
             { step -> setSubScale(subScale + step * 0.1f) }))
+        out.add(SubsRow.Head("מתקדם"))
+        out.add(SubsRow.Step("סף ביטחון לסנכרון", { "%.1f".format(syncZ) }, { step -> setSyncZ(syncZ + step * 0.5) }))
         return out
     }
 
@@ -721,13 +721,13 @@ class PlayerActivity : AppCompatActivity() {
        the pill is put on when a panel of choices opens and taken off again when it closes (closePanel). */
     private fun dressPanel(list: ListView) {
         val pill = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dp(14).toFloat()
+            cornerRadius = dp(10).toFloat()
             setColor(skin.light)
         }
-        list.selector = android.graphics.drawable.InsetDrawable(pill, dp(12), dp(2), dp(12), dp(2))
+        list.selector = android.graphics.drawable.InsetDrawable(pill, dp(10), dp(1), dp(10), dp(1))
         list.dividerHeight = 0
         list.clipToPadding = false
-        list.setPadding(0, dp(14), 0, dp(14))
+        list.setPadding(0, dp(10), 0, dp(10))
         list.background = android.graphics.drawable.ColorDrawable(fade(skin.night, 0xEE))
     }
 
@@ -768,44 +768,44 @@ class PlayerActivity : AppCompatActivity() {
             box.minimumHeight = 0
             name.typeface = android.graphics.Typeface.DEFAULT
             value.typeface = android.graphics.Typeface.DEFAULT
-            value.textSize = 20f
+            value.textSize = 16f
             when (row) {
                 is SubsRow.Info -> {
-                    box.setPadding(dp(30), dp(4), dp(30), dp(10))
+                    box.setPadding(dp(22), dp(2), dp(22), dp(8))
                     name.text = row.text()
-                    name.textSize = 15f
+                    name.textSize = 13f
                     name.setTextColor(skin.muted)
                     value.text = ""
                 }
                 is SubsRow.Head -> {
                     // the first heading is the panel's title; the others open a group, with room above them
                     val title = position == 0
-                    box.setPadding(dp(30), if (title) dp(8) else dp(26), dp(30), dp(8))
+                    box.setPadding(dp(22), if (title) dp(6) else dp(16), dp(22), dp(4))
                     box.minimumHeight = 0
                     name.text = row.text
-                    name.textSize = if (title) 24f else 15f
+                    name.textSize = if (title) 20f else 13f
                     name.typeface = if (title) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
                     name.setTextColor(if (title) skin.light else skin.muted)
                     value.text = ""
                 }
                 is SubsRow.Pick -> {
                     val on = row.on()
-                    box.setPadding(dp(30), dp(12), dp(30), dp(12))
-                    box.minimumHeight = dp(58)
+                    box.setPadding(dp(22), dp(8), dp(22), dp(8))
+                    box.minimumHeight = dp(44)
                     name.text = row.text
-                    name.textSize = if (row.text.length > 40) 18f else 20f       // a long release name in a smaller hand
+                    name.textSize = if (row.text.length > 40) 15f else 17f       // a long release name in a smaller hand
                     name.setTextColor(if (on && !focused) skin.accent else ink)
                     name.typeface = if (on) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-                    value.text = if (on) "✓" else ""
-                    value.textSize = 24f
+                    value.text = if (row.value != null) row.value.invoke() else if (on) "✓" else ""
+                    value.textSize = if (row.value != null) 16f else 20f
                     value.typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    value.setTextColor(mark)
+                    value.setTextColor(if (row.value != null) quiet else mark)
                 }
                 is SubsRow.Step -> {
-                    box.setPadding(dp(30), dp(12), dp(30), dp(12))
-                    box.minimumHeight = dp(58)
+                    box.setPadding(dp(22), dp(8), dp(22), dp(8))
+                    box.minimumHeight = dp(44)
                     name.text = row.text
-                    name.textSize = 20f
+                    name.textSize = 17f
                     name.setTextColor(ink)
                     // the arrows say what the side keys do on this line
                     value.text = "‹  ${row.value()}  ›"
@@ -1937,40 +1937,13 @@ class PlayerActivity : AppCompatActivity() {
     private fun showPaused(paused: Boolean) {
         findViewById<View>(R.id.pausebox).visibility = if (paused && !live) View.VISIBLE else View.GONE
         if (paused && !live) showBanner()
-        handler.removeCallbacks(syncHintShow)
-        hideSyncHint()
-        if (paused && !live && !autoOn) handler.postDelayed(syncHintShow, 1_200)
     }
 
-    /*
-     * A pause is a pause. After a moment a small, quiet pill offers to sync the subtitles - Down on a remote, a tap on a
-     * touch screen - and ignoring it costs nothing: it goes with Back, with playing on, or by itself after a few seconds.
-     * Only when there are subtitles that have not been synced yet. Sync is only ever started by the viewer.
-     */
-    private val syncHintShow = Runnable {
-        val p = player ?: return@Runnable
-        if (p.playWhenReady || live || autoOn || captions?.any != true || panelOpen || lineSync >= 0) return@Runnable
-        val hint = findViewById<TextView>(R.id.syncHint)
-        syncHintActionable = true
-        hint.text = if (autoLocked) "▼ סנכרון מחדש" else "הכתוביות לא מסונכרנות?  ▼ סנכרון"
-        hint.setTextColor(skin.muted)
-        hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xD8)) }
-        hint.setOnClickListener { acceptSyncHint() }
-        hint.isClickable = true
-        hint.visibility = View.VISIBLE
-        hint.bringToFront()
-        handler.postDelayed(syncHintHide, 9_000)
-    }
+    // The pill over the picture says how a sync is going and what it found; it is never an offer - the sync is started from the side menu.
     private val syncHintHide = Runnable { hideSyncHint() }
     private fun hideSyncHint() {
         handler.removeCallbacks(syncHintHide)
-        syncHintActionable = false
         findViewById<View>(R.id.syncHint).visibility = View.GONE
-    }
-    private fun acceptSyncHint() {
-        if (autoOn) return
-        hideSyncHint()
-        toggleAuto()
     }
 
     /** The panel over the video: why it stopped, and the buttons that get the viewer moving again. */
@@ -2035,11 +2008,6 @@ class PlayerActivity : AppCompatActivity() {
             return super.dispatchKeyEvent(event)                 // arrows move between the panel's buttons
         }
         // choosing the line to sync to: Up/Down pick another line, OK says it is being spoken, Back gives it up
-        // the offer made on a pause: Down takes it, anything else just goes on as it would (Back puts it away)
-        if (down && syncHintActionable && findViewById<View>(R.id.syncHint).visibility == View.VISIBLE) {
-            if (code == KeyEvent.KEYCODE_DPAD_DOWN) { acceptSyncHint(); return true }
-            if (code == KeyEvent.KEYCODE_BACK) { hideSyncHint(); return true }
-        }
         if (lineSync >= 0 && (ok || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK)) {
             if (down) when {
                 code == KeyEvent.KEYCODE_BACK -> if (event.repeatCount == 0) lineSyncEnd()
