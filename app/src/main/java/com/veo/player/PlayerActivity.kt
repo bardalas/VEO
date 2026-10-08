@@ -129,6 +129,8 @@ class PlayerActivity : AppCompatActivity() {
     private var archTry = 0
     /** Left/Right are decided on release too: a press steps a programme, holding them runs inside it. */
     private var seekLong = false
+    /** An OK is a press only if its coming down was seen here: the release of the one that opened the channel is not. */
+    private var okDownSeen = false
     private var seekHoldStart = 0L
     private var lastHeldStep = 0L
     /** Live banner actions: whether the row has the keys (Down steps into it), and which one is chosen. */
@@ -1389,28 +1391,40 @@ class PlayerActivity : AppCompatActivity() {
         row.visibility = View.VISIBLE
         row.layoutDirection = if (skin.rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         val paused = player?.playWhenReady == false
-        val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
-        val lit = if (actFocus) actIdx else 0
+        val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actPrev to "הקודם", R.id.actNext to "הבא",
+            R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
+        val lit = if (actFocus) actIdx else -1
         for ((i, p) in labels.withIndex()) {
             val v = findViewById<TextView>(p.first)
             v.text = p.second
             val on = i == lit
             v.setTextColor(if (on) skin.onAccent else skin.light)
             v.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
-                setColor(if (on) skin.accent else fade(skin.light, if (actFocus) 0x30 else 0x1C))
+                cornerRadius = dp(12).toFloat()
+                setColor(if (on) skin.accent else fade(skin.light, 0x30))
             }
         }
     }
 
+    /** OK on live TV raises the banner with the remote on its buttons (Pause first): the arrows then choose among them. */
+    private fun okRaise() { actFocus = true; actIdx = 0; showBanner() }
+
     private fun runAction(i: Int) {
-        actFocus = false
         when (i) {
             0 -> player?.let { it.playWhenReady = !it.playWhenReady; showMessage(if (it.playWhenReady) "ממשיך" else "מושהה", if (it.playWhenReady) 2_000 else 0) }
-            1 -> openPanel()
-            else -> openSyncPanel()
+            1 -> stepProgramme(true)
+            2 -> stepProgramme(false)
+            3 -> { actFocus = false; openPanel() }
+            else -> { actFocus = false; openSyncPanel() }
         }
         if (!panelOpen) showBanner()
+    }
+
+    /** The programme before / after this one, played at once; a channel with no guide has none, so it is the channel before / after. Never a seek. */
+    private fun stepProgramme(back: Boolean) {
+        if (canWalk()) { if (walkGuide(back)) tuneWalk() }
+        else if (sources.size > 1) zapBy(if (back) -1 else 1)
+        else showMessage("אין תוכן קודם או הבא בערוץ הזה", 2_000)
     }
 
     // explicit type: it reschedules itself (a paused picture keeps its banner)
@@ -2025,6 +2039,9 @@ class PlayerActivity : AppCompatActivity() {
         val down = event.action == KeyEvent.ACTION_DOWN
         val ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER ||
             code == KeyEvent.KEYCODE_NUMPAD_ENTER || code == KeyEvent.KEYCODE_BUTTON_A
+        // the release of the OK that opened this screen was not pressed here: it is not a press (it paused a channel as it opened, #381)
+        if (ok && down && event.repeatCount == 0) okDownSeen = true
+        if (ok && !down) { if (!okDownSeen) return true; okDownSeen = false }
         if (findViewById<View>(R.id.errbox).visibility == View.VISIBLE) {
             if (down && code == KeyEvent.KEYCODE_BACK) { hideErrorPanel(); finish(); return true }
             return super.dispatchKeyEvent(event)                 // arrows move between the panel's buttons
@@ -2049,24 +2066,18 @@ class PlayerActivity : AppCompatActivity() {
             if (ok && !down && okLong) { okLong = false; return true }      // the release that ended the long press
             return super.dispatchKeyEvent(event)                 // the list handles the arrows and OK
         }
-        // live, banner up: Down steps into the actions; inside them Left/Right choose, OK does it, Up/Back step out
-        if (live && bannerOpen && !walking) {
-            if (!actFocus) {
-                if (code == KeyEvent.KEYCODE_DPAD_DOWN) { if (down && event.repeatCount == 0) { actFocus = true; actIdx = 0; showBanner() }; return true }
-            } else {
-                val visualBack = if (skin.rtl) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
-                when {
-                    code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        // the row reads the way the layout runs: forward is toward the end of the row
-                        if (down && event.repeatCount == 0) { actIdx = (actIdx + (if (code == visualBack) -1 else 1)).coerceIn(0, 2); showBanner() }
-                        return true
-                    }
-                    code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK -> {
-                        if (down && event.repeatCount == 0) { actFocus = false; showBanner() }
-                        return true
-                    }
-                    ok -> { if (!down) runAction(actIdx); return true }
+        // live, banner raised by OK: the arrows choose among its buttons, OK does the chosen one, Back puts the banner away
+        // (Up and Down go on switching channel). Without OK first, the arrows scan as they always did.
+        if (live && bannerOpen && !walking && actFocus) {
+            val visualBack = if (skin.rtl) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+            when {
+                code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    // the row reads the way the layout runs: forward is toward the end of the row
+                    if (down && event.repeatCount == 0) { actIdx = (actIdx + (if (code == visualBack) -1 else 1)).coerceIn(0, 4); showBanner() }
+                    return true
                 }
+                code == KeyEvent.KEYCODE_BACK -> { if (down && event.repeatCount == 0) hideChannelBar(); return true }
+                ok -> { if (!down) runAction(actIdx); return true }
             }
         }
         if (ok && (sources.size > 1 || walking)) {
@@ -2075,14 +2086,14 @@ class PlayerActivity : AppCompatActivity() {
                 else if (!okLong) { okLong = true; openPanel() }             // held down
             } else {
                 // OK on a banner that is already up is the way to the sound's sync (a remote without Menu has no other)
-                if (!okLong) { if (!tuneWalk()) { if (live && bannerOpen) runAction(0) else showBanner() } }
+                if (!okLong) { if (!tuneWalk()) { if (live) okRaise() else showBanner() } }
                 okLong = false
             }
             return true
         }
         // one channel, live: OK with the banner up opens the sound's sync, the same as on many channels (above)
         if (ok && live && !walking) {
-            if (!down) { if (bannerOpen) runAction(0) else showBanner() }
+            if (!down) okRaise()
             return true
         }
         // Left and Right are decided on release, so that holding them can mean something else; both the
