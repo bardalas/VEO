@@ -692,7 +692,7 @@ test('an unsent local profile edit is not overwritten by the account, and the ac
 
 test('the taste plays on a television only, never on a phone (#213)', async () => {
   const taste = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
-  assert.match(taste, /settings\.preview === 'off' \|\| !IS_TV_DEVICE/);
+  assert.match(taste, /settings\.preview === 'off' \|\| Date\.now\(\) - store\.get\('tasteOff', 0\) < TASTE_OFF_MS \|\| !IS_TV_DEVICE/);
   assert.doesNotMatch(taste, /isTvLayout/);            // that one is always true: the layout is one
 });
 
@@ -1147,9 +1147,9 @@ test("a pause only pauses; a quiet pill offers the subtitle sync, taken with Dow
   assert.match(k, /private fun acceptSyncHint\(\)[\s\S]*if \(autoOn\) return[\s\S]*hideSyncHint\(\)[\s\S]*toggleAuto\(\)/);
 });
 
-test("a preview never starts sooner than 2.5 seconds after arriving (#376)", async () => {
+test("a preview never starts sooner than 4 seconds after arriving (#376)", async () => {
   const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
-  assert.match(t, /const MIN_START_MS = 2500;/);
+  assert.match(t, /const MIN_START_MS = 4000;/);
   assert.match(t, /delay = Math\.max\(delay, MIN_START_MS\);/);
 });
 
@@ -1163,6 +1163,12 @@ test("live TV: a short OK raises the banner with Pause | Channels | More, and a 
   assert.match(k, /private fun heldStep\(\): Long/);
   assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
+});
+
+test("a device that stalls even at the lowest trailer picture gets no trailers for a week (#383)", async () => {
+  const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
+  assert.match(t, /store\.set\('tasteOff', Date\.now\(\)\)/);
+  assert.match(t, /Date\.now\(\) - store\.get\('tasteOff', 0\) < TASTE_OFF_MS/);
 });
 
 test("entering a series from Continue Watching lands the focus on the chosen episode, not episode one; the live actions sit in the name row (#379)", async () => {
