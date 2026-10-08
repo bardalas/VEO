@@ -22,10 +22,42 @@ class AudioDelayProcessor(private val speechTimeline: () -> SpeechTimeline?) : B
     private var streamStartUs = 0L
     private var inputFrames = 0L
 
+    companion object {
+        /** What the player last said its sound is, for the sync's message when nothing is heard. */
+        @Volatile var note = ""
+        private fun name(e: Int) = when (e) {
+            C.ENCODING_PCM_16BIT -> "PCM16"; C.ENCODING_PCM_FLOAT -> "float"; C.ENCODING_PCM_24BIT -> "PCM24"
+            C.ENCODING_PCM_32BIT -> "PCM32"; C.ENCODING_PCM_8BIT -> "PCM8"; else -> "encoding $e"
+        }
+    }
+
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
-        // any other sound (24-bit, float, ...) goes by untouched: refusing it would fail the whole audio sink, and with it the playback
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.bytesPerFrame <= 0) return AudioFormat.NOT_SET
+        note = "${name(inputAudioFormat.encoding)} ${inputAudioFormat.sampleRate}Hz ${inputAudioFormat.channelCount}ch"
+        // 16-bit, float, 24- and 32-bit all pass (the delay is silence or a cut, whatever the sample is made of; the sync reads them
+        // converted to 16-bit). Anything else goes by untouched: refusing it would fail the whole audio sink, and with it the playback
+        val ok = inputAudioFormat.encoding == C.ENCODING_PCM_16BIT || inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT ||
+            inputAudioFormat.encoding == C.ENCODING_PCM_24BIT || inputAudioFormat.encoding == C.ENCODING_PCM_32BIT
+        if (!ok || inputAudioFormat.bytesPerFrame <= 0) return AudioFormat.NOT_SET
         return inputAudioFormat
+    }
+
+    /** The sound as the timeline reads it: 16-bit little-endian, whatever it came as. */
+    private fun as16(buf: ByteBuffer, encoding: Int): ByteBuffer {
+        if (encoding == C.ENCODING_PCM_16BIT) return buf
+        val src = buf.duplicate().order(java.nio.ByteOrder.nativeOrder())
+        val bytes = when (encoding) { C.ENCODING_PCM_FLOAT, C.ENCODING_PCM_32BIT -> 4; else -> 3 }
+        val n = src.remaining() / bytes
+        val out = ByteBuffer.allocate(n * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        when (encoding) {
+            C.ENCODING_PCM_FLOAT -> { val f = src.asFloatBuffer(); repeat(n) { out.putShort((f.get() * 32767f).coerceIn(-32768f, 32767f).toInt().toShort()) } }
+            C.ENCODING_PCM_32BIT -> { val i = src.asIntBuffer(); repeat(n) { out.putShort((i.get() shr 16).toShort()) } }
+            else -> { // 24-bit: the top two of the three bytes
+                var p = src.position()
+                repeat(n) { out.putShort(((src.get(p + 1).toInt() and 0xFF) or (src.get(p + 2).toInt() shl 8)).toShort()); p += 3 }
+            }
+        }
+        out.flip()
+        return out
     }
 
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
@@ -41,7 +73,7 @@ class AudioDelayProcessor(private val speechTimeline: () -> SpeechTimeline?) : B
         val timeline = speechTimeline()
         if (timeline != null && frames > 0 && inputAudioFormat.sampleRate > 0) {
             val ptsUs = streamStartUs + inputFrames * 1_000_000L / inputAudioFormat.sampleRate
-            timeline.feed(inputBuffer, inputAudioFormat.sampleRate, inputAudioFormat.channelCount, ptsUs)
+            timeline.feed(as16(inputBuffer, inputAudioFormat.encoding), inputAudioFormat.sampleRate, inputAudioFormat.channelCount, ptsUs)
         }
         inputFrames += frames.toLong()
         val target = (delayMs.toLong() * inputAudioFormat.sampleRate / 1000).toInt() * frame
