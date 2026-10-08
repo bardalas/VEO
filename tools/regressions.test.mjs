@@ -144,6 +144,7 @@ async function fixture(opts = {}){
    its row like any other, and the episode to resume is chosen on the title's own page. */
 
 // Source aggregation, deadlines, navigation and availability.
+
 test('built-in sources run without any matching add-on and link to the program', async () => {
   const f = await fixture({realSources: true, kan: async () => kanResult}); const s = await f.load('ui/sources.js');
   await s.loadStreams(movie, 'movie', 'Test Show');
@@ -152,18 +153,21 @@ test('built-in sources run without any matching add-on and link to the program',
   f.box.querySelector('[data-i]').onclick(); assert.equal(f.location.hash, '#/kan/%2Fshow/Test%20Show');
   assert.equal(f.calls.availability.length, 0);
 });
+
 test('an empty add-on does not end the search before a late Mako result', async () => {
   const d = deferred(); const f = await fixture({realSources: true, addons: [addon], mako: () => d.promise});
   const s = await f.load('ui/sources.js'); const pending = s.loadStreams(movie, 'movie', 'Test Show'); await flush();
   assert.match(f.box.innerHTML, /src.searching/); assert.doesNotMatch(f.box.innerHTML, /src.none/);
   d.resolve(makoResult); await pending; assert.match(f.box.innerHTML, /mako/); assert.doesNotMatch(f.box.innerHTML, /src.searching/);
 });
+
 test('provider failure remains visible alongside another provider result', async () => {
   const f = await fixture({realSources: true, kan: async () => { throw Error('kan failed'); }, mako: async () => makoResult});
   const s = await f.load('ui/sources.js'); await s.loadStreams(movie, 'movie', 'Test Show');
   assert.match(f.box.innerHTML, /kan failed/); assert.match(f.box.innerHTML, /src.watchOn/);
   assert.ok(f.box.querySelector('#sretry')); assert.doesNotMatch(f.box.innerHTML, /src.none|src.searching/);
 });
+
 test('provider timeout settles loading once and discards a late result', async () => {
   const d = deferred(); const f = await fixture({realSources: true, kan: () => d.promise});
   const s = await f.load('ui/sources.js'); const pending = s.loadStreams(movie, 'movie', 'Test Show'); await flush();
@@ -172,11 +176,13 @@ test('provider timeout settles loading once and discards a late result', async (
   const writes = f.box.writes; d.resolve(kanResult); await flush();
   assert.equal(f.box.writes, writes); assert.equal(f.timers.size, 0);
 });
+
 test('direct autoplay does not wait for pending broadcasters', async () => {
   const d = deferred(); const f = await fixture({realSources: true, addons: [addon], fetchStreams: async () => [stream], kan: () => d.promise});
   const s = await f.load('ui/sources.js'); const pending = s.loadStreams(movie, 'movie', 'Test Show', true); await flush();
   assert.equal(f.calls.plays.length, 1); d.resolve(kanResult); await pending; assert.equal(f.calls.plays.length, 1);
 });
+
 test('last add-on completion permits torrent autoplay before broadcasters finish', async () => {
   const d = deferred(); const f = await fixture({realSources: true, native: true, addons: [addon], kan: () => d.promise,
     fetchStreams: async () => [{infoHash: 'hash', title: '720p\n\u{1F464} 10'}]});
@@ -184,11 +190,13 @@ test('last add-on completion permits torrent autoplay before broadcasters finish
   assert.equal(f.calls.plays.length, 1); assert.equal(f.calls.plays[0].native, 'torrent');
   d.resolve([]); await pending;
 });
+
 test('a program-only result never autoplays or receives a playable rank', async () => {
   const f = await fixture({realSources: true, kan: async () => kanResult}); const s = await f.load('ui/sources.js');
   await s.loadStreams(movie, 'movie', 'Test Show', true); assert.equal(f.calls.plays.length, 0);
   assert.equal(s.rank({external: true, direct: true}), -1);
 });
+
 test('episode A results cannot contaminate episode B even when B has no add-on', async () => {
   const d = deferred(); const f = await fixture({realSources: true, addons: [addon], supports: (_m, _r, _t, id) => id === 'A', fetchStreams: () => d.promise});
   const s = await f.load('ui/sources.js'); const first = s.loadStreams(movie, 'A', 'Test Show', true); await flush();
@@ -196,12 +204,14 @@ test('episode A results cannot contaminate episode B even when B has no add-on',
   d.resolve([stream]); await first;
   assert.equal(f.calls.plays.length, 0); assert.equal(f.box.writes, writes); assert.equal(f.calls.availability.length, 0);
 });
+
 test('missing streams element still invalidates the old request and lastStreams', async () => {
   const d = deferred(); const f = await fixture({realSources: true, addons: [addon], fetchStreams: () => d.promise});
   const s = await f.load('ui/sources.js'); const first = s.loadStreams(movie, 'A', 'Test Show', true); await flush();
   f.doc.ids.delete('streams'); await s.loadStreams(movie, 'B', 'Test Show'); assert.equal(s.lastStreams, null);
   d.resolve([stream]); await first; assert.equal(f.calls.plays.length, 0); assert.equal(f.calls.availability.length, 0);
 });
+
 test('same-route view invalidation stops stale source rendering and cache writes', async () => {
   const d = deferred(); const f = await fixture({realSources: true, addons: [addon], fetchStreams: () => d.promise});
   const s = await f.load('ui/sources.js'); const pending = s.loadStreams(movie, 'movie', 'Test Show', true); await flush();
@@ -209,6 +219,7 @@ test('same-route view invalidation stops stale source rendering and cache writes
   d.resolve([stream]); await pending; redraw();
   assert.equal(f.box.writes, writes); assert.equal(f.calls.plays.length, 0); assert.equal(f.calls.availability.length, 0);
 });
+
 test('interleaved provider completion keeps every data-i bound to its correct target', async () => {
   const k = deferred(), m = deferred(), r = deferred();
   const f = await fixture({realSources: true, kan: () => k.promise, mako: () => m.promise, r13: () => r.promise});
@@ -219,11 +230,13 @@ test('interleaved provider completion keeps every data-i bound to its correct ta
   const routes = ['#/r13/13/Test%20Show', '#/mako/%2Fshow/Test%20Show', '#/kan/%2Fshow/Test%20Show'];
   for(let i = 0; i < buttons.length; i++){ f.location.hash = '#/'; buttons[i].onclick(); assert.equal(f.location.hash, routes[i]); }
 });
+
 test('stale rendered source buttons cannot navigate after the view changes', async () => {
   const f = await fixture({realSources: true, kan: async () => kanResult}); const s = await f.load('ui/sources.js');
   await s.loadStreams(movie, 'movie', 'Test Show'); const btn = f.box.querySelector('[data-i]');
   f.location.hash = '#/library'; btn.onclick(); assert.equal(f.location.hash, '#/library');
 });
+
 test('retry creates a new token and ignores the previous pending provider', async () => {
   const old = deferred(); let n = 0;
   const f = await fixture({realSources: true, kan: async () => { if(++n === 1) throw Error('retry me'); return kanResult; },
@@ -245,11 +258,13 @@ for(const [name, opts, expected] of [
   // an empty answer from every add-on is sure (the title's own page asked them all in full)
   assert.deepEqual(f.calls.availability, expected === undefined ? [] : [expected ? ['movie:movie', true] : ['movie:movie', false, true]]);
 });
+
 test('missing content title does not launch irrelevant broadcaster searches', async () => {
   const f = await fixture({realSources: true}); const s = await f.load('ui/sources.js');
   await s.loadStreams({type: 'movie', meta: {id: 'movie'}}, 'movie', '');
   assert.equal(f.calls.kan + f.calls.mako + f.calls.r13, 0); assert.equal(f.calls.availability.length, 0);
 });
+
 test('empty broadcaster item names do not match every long title', async () => {
   const f = await fixture({realSources: true, mako: async () => [{name: '', path: '/wrong'}]}); const s = await f.load('ui/sources.js');
   await s.loadStreams(movie, 'movie', 'Test Show'); assert.equal(f.box.querySelectorAll('[data-i]').length, 0);
@@ -260,7 +275,6 @@ test('router invalidates asynchronous work before every view, including same-has
   assert.match(app, /export async function route\(\)\{\s*invalidateView\(\)/);
 });
 
-
 test('successful in-app report remains usable for another independent issue', async () => {
   const report = await readFile(path.join(assets, 'js/ui/report.js'), 'utf8');
   assert.match(report, /delete btn\.dataset\.busy/);
@@ -269,7 +283,6 @@ test('successful in-app report remains usable for another independent issue', as
   assert.doesNotMatch(report, /btn\.remove\(\)[\s\S]{0,120}#\\\/settings\\\/about/);
 });
 
-
 test('Only a few basic skins are offered, and a removed one falls back to the default', async () => {
   const settings = await readFile(path.join(assets, 'js/core/settings.js'), 'utf8');
   const ids = [...settings.matchAll(/^\s+\{id: '(\w+)', c:/gm)].map(m => m[1]);
@@ -277,14 +290,12 @@ test('Only a few basic skins are offered, and a removed one falls back to the de
   assert.match(settings, /SKINS\.some\(k => k\.id === settings\.skin\)\) settings\.skin = DEFAULTS\.skin/);
 });
 
-
 test('M3U inline stream headers are stripped from URL and preserved as headers', async () => {
   const live = await readFile(path.join(assets, 'js/providers/live.js'), 'utf8');
   assert.match(live, /line\.split\('\|', 2\)/);
   assert.match(live, /headers\.get\('User-Agent'\)/);
   assert.match(live, /headers\.get\('Referer'\)/);
 });
-
 
 test('custom colours use VEO HSV picker and remain reachable by TV navigation', async () => {
   const settings = await readFile(path.join(assets, 'js/screens/settings.js'), 'utf8');
@@ -307,13 +318,11 @@ test('the colour picker can be finished with the remote: OK and Cancel are reach
   assert.match(settings, /e\.key === 'ArrowDown' \|\| e\.key === 'Enter'\)\{[^}]*\[data-done\]'\)\.focus\(\)/);
 });
 
-
 test('profile editor exposes visible focus states for avatar and name', async () => {
   const css = await readFile(path.join(assets, 'css/profiles.css'), 'utf8');
   assert.match(css, /\.avbtn:focus[^\{]*\{[^\}]*border-color:var\(--light\)/s);
   assert.match(css, /\.profhead \.field:focus[^\{]*\{[^\}]*box-shadow:/s);
 });
-
 
 test('the player names each remote key once: a second branch for a key is never reached (#102)', async () => {
   const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
@@ -435,7 +444,6 @@ test('a plot: Hebrew Wikipedia first, then the machine, marked and with the orig
   assert.equal(calls.length, 1);                                    // and no request was spent on the machine
 });
 
-
 test('kids are set per profile: no Kids page in Settings for a grown-up, the code is changed beside the profiles (#109)', async () => {
   const settings = await readFile(path.join(assets, 'js/screens/settings.js'), 'utf8');
   const profiles = await readFile(path.join(assets, 'js/screens/profiles.js'), 'utf8');
@@ -447,14 +455,12 @@ test('kids are set per profile: no Kids page in Settings for a grown-up, the cod
   assert.match(profiles, /hasPin\(\) \? section\('', lines\(line\(\{fid: 'kidsPin'/);
 });
 
-
 test('the colour plane: OK goes on to the saturation, and from there to OK - Up/Down are the brightness (#115)', async () => {
   const settings = await readFile(path.join(assets, 'js/screens/settings.js'), 'utf8');
   assert.match(settings, /if\(e\.key === 'Enter'\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); sat\.focus\(\); return; \}/);
   assert.match(settings, /e\.key === 'ArrowDown' \|\| e\.key === 'Enter'\)\{[^}]*\[data-done\]'\)\.focus\(\)/);
   assert.match(settings, /data-cue/);                                        // and the screen says what OK does here
 });
-
 
 test('continue watching: one card per series, the newest episode, with its season and episode (#121)', async () => {
   const {store} = memStore();
@@ -481,7 +487,6 @@ test('continue watching: one card per series, the newest episode, with its seaso
   assert.equal(byId.tt2.season, undefined);                            // a film has none
 });
 
-
 test('Shows player: the app\'s banner, and a captions panel for size and position (#119 #120)', async () => {
   const yt = await readFile(path.join(assets, 'js/ui/ytplayer.js'), 'utf8');
   const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
@@ -495,7 +500,6 @@ test('Shows player: the app\'s banner, and a captions panel for size and positio
   assert.match(css, /bottom:var\(--lift,9%\)/);                                    // the height comes from the setting
 });
 
-
 test('colour picker: the colour is applied while it is chosen, Cancel and Back put the old one back, OK keeps it (#126)', async () => {
   const settings = await readFile(path.join(assets, 'js/screens/settings.js'), 'utf8');
   assert.match(settings, /const was = \{colors: \{\.\.\.\(settings\.customColors \|\| \{\}\)\}, skin: settings\.skin\}/);
@@ -505,7 +509,6 @@ test('colour picker: the colour is applied while it is chosen, Cancel and Back p
   assert.match(settings, /setSetting\('customColors', was\.colors\);\s*setSetting\('skin', was\.skin\)/);
 });
 
-
 test('moving between rows travels smoothly, both ways, and only a leap across the whole page jumps (#128)', async () => {
   const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
   assert.match(nav, /GLIDE_MIN_MS = 240, GLIDE_MAX_MS = 400/);
@@ -513,7 +516,6 @@ test('moving between rows travels smoothly, both ways, and only a leap across th
   assert.match(nav, /innerHeight \* 3;/);
   assert.match(nav, /takeOver/);                                    // a move made during another carries it on
 });
-
 
 test('cards are cut from the landscape picture and open on focus; the continue card is a card like the rest (#127)', async () => {
   const cards = await readFile(path.join(assets, 'js/ui/cards.js'), 'utf8');
@@ -529,7 +531,6 @@ test('cards are cut from the landscape picture and open on focus; the continue c
   assert.match(rows, /\{tag: ep, href\}/);
 });
 
-
 test('seek keys and bars follow the layout direction, and live shows the emptied part (#125)', async () => {
   const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const bar = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SeekBarView.kt'), 'utf8');
@@ -541,13 +542,11 @@ test('seek keys and bars follow the layout direction, and live shows the emptied
   assert.match(yt, /rtl\(\) \? 'ArrowLeft' : 'ArrowRight'/);                   // the Shows player moves the same way
 });
 
-
 test('the taste plays over the landscape picture, not under it (#137)', async () => {
   const css = await readFile(path.join(assets, 'css/reel.css'), 'utf8');
   const z = re => +css.match(re)[1];
   assert.ok(z(/\.poster\.spot \.art \.taste\{z-index:(\d+)\}/) > z(/\.poster\.spot \.art \.landpic\{[^}]*z-index:(\d+)/));
 });
-
 
 test('a programme watched in the Shows player is kept, resumed, and shown in continue watching (#135)', async () => {
   const yt = await readFile(path.join(assets, 'js/ui/ytplayer.js'), 'utf8');
@@ -557,7 +556,6 @@ test('a programme watched in the Shows player is kept, resumed, and shown in con
   assert.match(yt, /closeYt\(\)\{\s*keep\(true\)/);
   assert.match(rows, /x\.type === 'show'/); assert.match(rows, /data-yt="\$\{esc\(id\)\}"/);
 });
-
 
 test('series page: the resume / start-over question is asked on the episode, its name labels the sources, the list is narrow (#136)', async () => {
   const d = await readFile(path.join(assets, 'js/screens/detail.js'), 'utf8');
@@ -574,7 +572,6 @@ test('series page: the resume / start-over question is asked on the episode, its
   assert.doesNotMatch(css, /\.bprog\{/);
 });
 
-
 test('the spot card is wide at once: no window, no growing, no sliding neighbours (#134 #159)', async () => {
   const reel = await readFile(path.join(assets, 'js/ui/reel.js'), 'utf8');
   const css = await readFile(path.join(assets, 'css/reel.css'), 'utf8');
@@ -582,12 +579,10 @@ test('the spot card is wide at once: no window, no growing, no sliding neighbour
   assert.doesNotMatch(css, /spotOpen|clip-path:inset/);
 });
 
-
 test('on a television the search field is one stop of the menu: the mark above it is not (#139)', async () => {
   const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
   assert.match(nav, /!\(isTvLayout\(\) && el\.matches\('#sf \.ic'\)\)/);
 });
-
 
 test('search suggestions: known titles are ranked by how the words match, what was touched first (#138)', async () => {
   const {store} = memStore();
@@ -607,7 +602,6 @@ test('search suggestions: known titles are ranked by how the words match, what w
   assert.equal(JSON.stringify(k.known('seen on').map(x => x.id)), JSON.stringify(['tt9']));                         // a title that was on a screen is offered; a non-title is not
 });
 
-
 test('the load control fetches further ahead on a fast line, and a pause goes on filling - only for a film over the network (#142)', async () => {
   const lc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AdaptiveLoadControl.kt'), 'utf8');
   const pa = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
@@ -620,7 +614,6 @@ test('the load control fetches further ahead on a fast line, and a pause goes on
   assert.match(pa, /@Volatile private var streamBps/);                                // the player is not asked from its own thread
 });
 
-
 test('the menu is open or shut by ONE state, worked out in one place (#150 #151 #193)', async () => {
   const rail = await readFile(path.join(assets, 'js/ui/rail.js'), 'utf8');
   const css = await readFile(path.join(assets, 'css/chrome.css'), 'utf8');
@@ -631,7 +624,6 @@ test('the menu is open or shut by ONE state, worked out in one place (#150 #151 
   assert.match(css, /body\.railwide \.rail\{width:/);
   assert.match(rail, /e\.key !== 'Enter' \|\| e\.defaultPrevented \|\| \$\('#q'\)\.readOnly/);   // the OK that unlocks the search field is not a search
 });
-
 
 test('live TV: a short press walks the guide, a held key scrubs, and the bar is the programme with an arrow and its time (#158)', async () => {
   const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
@@ -692,7 +684,7 @@ test('an unsent local profile edit is not overwritten by the account, and the ac
 
 test('the taste plays on a television only, never on a phone (#213)', async () => {
   const taste = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
-  assert.match(taste, /settings\.preview === 'off' \|\| !IS_TV_DEVICE/);
+  assert.match(taste, /settings\.preview === 'off' \|\| Date\.now\(\) - store\.get\('tasteOff', 0\) < TASTE_OFF_MS \|\| !IS_TV_DEVICE/);
   assert.doesNotMatch(taste, /isTvLayout/);            // that one is always true: the layout is one
 });
 
@@ -869,8 +861,8 @@ test('settings: Info & reset is part of General; add-ons sit with the services, 
 
 test('on live TV, OK with the info banner up opens the sound sync - one channel or many (#264)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(k, /if \(live && bannerOpen\) runAction\(0\) else showBanner\(\)/);   // since #374 OK acts on the lit action; the sound sync is under More
-  assert.match(k, /if \(ok && live && !walking\) \{\s+if \(!down\) \{ if \(bannerOpen\) runAction\(0\) else showBanner\(\) \}/);
+  assert.match(k, /if \(live\) okRaise\(\) else showBanner\(\)/);   // since #381 OK raises the banner with the remote on its buttons; the sound sync is under More
+  assert.match(k, /if \(ok && live && !walking\) \{\s+if \(!down\) okRaise\(\)/);
 });
 
 test('a film does not open on its audio-description track when the stream marks that one DEFAULT (#267)', async () => {
@@ -1128,19 +1120,13 @@ test("live sync solves offset only without network scan and reports success or f
   assert.match(k, /autoScale = 1\.0/);
 });
 
-test("a preview never starts sooner than 2.5 seconds after arriving (#376)", async () => {
-  const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
-  assert.match(t, /const MIN_START_MS = 2500;/);
-  assert.match(t, /delay = Math\.max\(delay, MIN_START_MS\);/);
-});
-
 test("live TV: a short OK raises the banner with Pause | Channels | More, and a held scan key starts gently (#374)", async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
   assert.match(l, /android:id="@\+id\/liveActions"/);
   assert.match(k, /private fun paintActions\(\)/);
   assert.match(k, /"ערוצים", R\.id\.actMore to "עוד"/);
-  assert.match(k, /if \(bannerOpen\) runAction\(0\) else showBanner\(\)/);
+  assert.match(k, /private fun okRaise\(\)/);
   assert.match(k, /private fun heldStep\(\): Long/);
   assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
@@ -1179,4 +1165,43 @@ test("the side menu shows a release name on one line with its source beneath, an
   assert.match(k, /val sub: String\? = null, val tone: \(\(\) -> Int\)\? = null/);
   assert.match(k, /name\.ellipsize = android\.text\.TextUtils\.TruncateAt\.MIDDLE/);
   assert.match(k, /setStroke\(dp\(1\), tone\)/);
+});
+
+test("a preview never starts sooner than 4 seconds after arriving (#376)", async () => {
+  const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
+  assert.match(t, /const MIN_START_MS = 4000;/);
+  assert.match(t, /delay = Math\.max\(delay, MIN_START_MS\);/);
+});
+
+test("a device that stalls even at the lowest trailer picture gets no trailers for a week (#383)", async () => {
+  const t = await readFile(path.join(assets, 'js/ui/taste.js'), 'utf8');
+  assert.match(t, /store\.set\('tasteOff', Date\.now\(\)\)/);
+  assert.match(t, /Date\.now\(\) - store\.get\('tasteOff', 0\) < TASTE_OFF_MS/);
+});
+
+test("entering a series from Continue Watching lands the focus on the chosen episode, not episode one; the live actions sit in the name row (#379)", async () => {
+  const s = await readFile(path.join(assets, 'js/ui/sources.js'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.doesNotMatch(s, /querySelector\('\.epcard\.on, \.epcard'\)/);
+  assert.match(s, /\$\('#eps'\)\?\.querySelector\('\.epcard\.on'\) \|\| \$\('#eps'\)\?\.querySelector\('\.epcard'\)/);
+  assert.ok(l.indexOf('android:id="@+id/liveActions"') < l.indexOf('android:id="@+id/nowTitle"'), 'the actions are in the first row, above the title line');
+});
+
+test("live TV: OK raises the banner with the remote on Pause | Previous | Next | Channels | More; a stray OK release does not pause a channel as it opens (#381)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.match(l, /android:id="@\+id\/actPrev"/);
+  assert.match(l, /android:id="@\+id\/actNext"/);
+  assert.ok(l.indexOf('@+id/nowClock') < l.indexOf('@+id/liveChip'), 'the live capsule is at the far end, after the clock');
+  assert.match(k, /private fun stepProgramme\(back: Boolean\)/);
+  assert.match(k, /coerceIn\(0, 4\)/);
+  assert.match(k, /if \(ok && !down\) \{ if \(!okDownSeen\) return true; okDownSeen = false \}/);
+});
+
+test("Previous and Next on live TV go to the programme or channel before/after, never a seek (#381)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const m = k.match(/private fun stepProgramme\(back: Boolean\) \{[\s\S]*?\n    \}/);
+  assert.ok(m, 'stepProgramme exists');
+  assert.doesNotMatch(m[0], /seekBy/);
+  assert.match(m[0], /zapBy\(if \(back\) -1 else 1\)/);
 });

@@ -214,7 +214,7 @@ export async function viewDetail(type, id, requestedVideoId = ''){
       if(btn){
         pick(btn);
         // the remote lands on the episode you would watch, before any source has answered
-        if(isTvLayout() && (!document.activeElement || document.activeElement === document.body)) btn.focus({preventScroll: true});
+        if(isTvLayout() && (!document.activeElement || document.activeElement === document.body)) { btn.focus({preventScroll: true}); btn.scrollIntoView({block: 'center'}); }
       }
     };
     /* The season the viewer is in the middle of - not season one. nextEpisode() is what the card's
