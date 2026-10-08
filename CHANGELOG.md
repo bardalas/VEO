@@ -1,5 +1,14 @@
 # VEO Android changelog
 
+## 0.45.62 — 2026-10-08
+- **Live TV: a channel starts playing** (the release of the OK that opened it was pausing it), and **OK raises the banner with the remote on its buttons**:
+  Pause | Previous | Next | Channels | More, small, in the channel-name row, with the live capsule at the far end. Previous/Next play the programme (or channel) before/after. (#381)
+- **Continue Watching lands the focus on the episode you left off on**, not episode one, and shows it. (#379)
+- **Subtitle sync is started from the side menu only** - no offer on a pause. The menu is quieter: a release name on one line with its source beneath, the
+  sync state as a small chip, the reason a sync failed kept under its line, the confidence threshold under Advanced. (#387)
+- **The sync listens to float and 24/32-bit sound too**, and says what the sound is when nothing is heard. (#385)
+- **Trailers start after 4 s of rest and switch off for a week on a device that stalls even at the lowest picture** - loading one made the app heavy. (#383)
+
 ## 0.45.61 — 2026-10-07
 - **Live TV: a short OK raises the banner with Pause | Channels | More.** OK acts on the lit one (Pause); Down steps into the row, Left/Right choose,
   Up or Back leave. The sound sync is under More. (#374)
