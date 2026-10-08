@@ -869,8 +869,8 @@ test('settings: Info & reset is part of General; add-ons sit with the services, 
 
 test('on live TV, OK with the info banner up opens the sound sync - one channel or many (#264)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  assert.match(k, /if \(live && bannerOpen\) runAction\(0\) else showBanner\(\)/);   // since #374 OK acts on the lit action; the sound sync is under More
-  assert.match(k, /if \(ok && live && !walking\) \{\s+if \(!down\) \{ if \(bannerOpen\) runAction\(0\) else showBanner\(\) \}/);
+  assert.match(k, /if \(live\) okRaise\(\) else showBanner\(\)/);   // since #381 OK raises the banner with the remote on its buttons; the sound sync is under More
+  assert.match(k, /if \(ok && live && !walking\) \{\s+if \(!down\) okRaise\(\)/);
 });
 
 test('a film does not open on its audio-description track when the stream marks that one DEFAULT (#267)', async () => {
@@ -1159,8 +1159,35 @@ test("live TV: a short OK raises the banner with Pause | Channels | More, and a 
   assert.match(l, /android:id="@\+id\/liveActions"/);
   assert.match(k, /private fun paintActions\(\)/);
   assert.match(k, /"ערוצים", R\.id\.actMore to "עוד"/);
-  assert.match(k, /if \(bannerOpen\) runAction\(0\) else showBanner\(\)/);
+  assert.match(k, /private fun okRaise\(\)/);
   assert.match(k, /private fun heldStep\(\): Long/);
   assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
+});
+
+test("entering a series from Continue Watching lands the focus on the chosen episode, not episode one; the live actions sit in the name row (#379)", async () => {
+  const s = await readFile(path.join(assets, 'js/ui/sources.js'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.doesNotMatch(s, /querySelector\('\.epcard\.on, \.epcard'\)/);
+  assert.match(s, /\$\('#eps'\)\?\.querySelector\('\.epcard\.on'\) \|\| \$\('#eps'\)\?\.querySelector\('\.epcard'\)/);
+  assert.ok(l.indexOf('android:id="@+id/liveActions"') < l.indexOf('android:id="@+id/nowTitle"'), 'the actions are in the first row, above the title line');
+});
+
+test("live TV: OK raises the banner with the remote on Pause | Previous | Next | Channels | More; a stray OK release does not pause a channel as it opens (#381)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const l = await readFile(path.join(repo, 'app/src/main/res/layout/activity_player.xml'), 'utf8');
+  assert.match(l, /android:id="@\+id\/actPrev"/);
+  assert.match(l, /android:id="@\+id\/actNext"/);
+  assert.ok(l.indexOf('@+id/nowClock') < l.indexOf('@+id/liveChip'), 'the live capsule is at the far end, after the clock');
+  assert.match(k, /private fun stepProgramme\(back: Boolean\)/);
+  assert.match(k, /coerceIn\(0, 4\)/);
+  assert.match(k, /if \(ok && !down\) \{ if \(!okDownSeen\) return true; okDownSeen = false \}/);
+});
+
+test("Previous and Next on live TV go to the programme or channel before/after, never a seek (#381)", async () => {
+  const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const m = k.match(/private fun stepProgramme\(back: Boolean\) \{[\s\S]*?\n    \}/);
+  assert.ok(m, 'stepProgramme exists');
+  assert.doesNotMatch(m[0], /seekBy/);
+  assert.match(m[0], /zapBy\(if \(back\) -1 else 1\)/);
 });
