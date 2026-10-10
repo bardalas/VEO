@@ -1,0 +1,1 @@
+{"private": true, "description": "build tooling only (tools/build_webos.mjs)", "devDependencies": {"esbuild": "^0.25.0", "@webos-tools/cli": "^3.2.0"}}

@@ -13,3 +13,6 @@ local.properties
 
 # Android Studio picks its own build JDK here
 gradle/
+tools/node_modules/
+webos/dist/
+webos/*.ipk

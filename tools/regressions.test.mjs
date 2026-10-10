@@ -1205,3 +1205,17 @@ test("Previous and Next on live TV go to the programme or channel before/after, 
   assert.doesNotMatch(m[0], /seekBy/);
   assert.match(m[0], /zapBy\(if \(back\) -1 else 1\)/);
 });
+
+test("VEO has a separate webOS release: a shim for the bridge, a bundling build, a CI workflow (#390)", async () => {
+  const shim = await readFile(path.join(repo, 'webos/shim.js'), 'utf8');
+  const build = await readFile(path.join(repo, 'tools/build_webos.mjs'), 'utf8');
+  const wf = await readFile(path.join(repo, '.github/workflows/webos-release.yml'), 'utf8');
+  const html = await readFile(path.join(assets, 'booth.html'), 'utf8');
+  for (const m of ['playUrl', 'playLive', 'playChannels', 'playTorrent', 'fetchText', 'postText', 'isTv', 'appVersion'])
+    assert.match(shim, new RegExp(m + ': function'));
+  assert.match(shim, /KEY = \{[^}]*BACK: 461/);
+  assert.ok(html.includes('<script type="module" src="js/app.js"></script>'), 'the build replaces this exact script tag');
+  assert.match(build, /target: \['chrome53'\]/);
+  assert.match(wf, /tags: \[ 'webos-v\*' \]/);
+  assert.doesNotMatch(shim, /\?\.|\?\?/);              // an old television's Chromium has neither
+});

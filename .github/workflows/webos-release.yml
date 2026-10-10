@@ -1,0 +1,40 @@
+name: Build VEO for LG webOS
+
+# The web layer of the app, bundled for an LG television (a webOS app, an .ipk), published as a PRE-release tagged webos-v<version> so it
+# never becomes the "latest" release the Android updater reads. Run by hand from the Actions tab, or by pushing a webos-v* tag.
+# See webos/README.md for putting it on a television.
+on:
+  workflow_dispatch:
+  push:
+    tags: [ 'webos-v*' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Tests
+        run: node --experimental-vm-modules --test tools/regressions.test.mjs
+      - name: Install the build tools
+        run: npm install --prefix tools --no-audit --no-fund
+      - name: Build the .ipk
+        run: node tools/build_webos.mjs --package
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IPK=$(ls webos/*.ipk)
+          VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
+          TAG="webos-v$VERSION"
+          cp "$IPK" webos/VEO-webos.ipk
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$IPK" webos/VEO-webos.ipk --clobber
+          else
+            gh release create "$TAG" "$IPK" webos/VEO-webos.ipk --prerelease --title "VEO for LG webOS $VERSION" \
+              --notes "The VEO web layer as an LG webOS app (.ipk). No torrents on a television - direct (Debrid) sources, live channels and Continue Watching work. Install: webos/README.md."
+          fi
