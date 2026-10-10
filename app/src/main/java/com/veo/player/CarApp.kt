@@ -36,10 +36,10 @@ import androidx.media3.common.util.UnstableApi
  */
 @UnstableApi
 class VeoCarService : CarAppService() {
-    // Android Auto's own host is the only one that binds a car app; the sample allow-list of the library names it
-    override fun createHostValidator(): HostValidator =
-        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
-        else HostValidator.Builder(applicationContext).addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample).build()
+    // Any host may bind it. The library's own *sample* allow-list names only a few of Android Auto's signing certificates, and a host that
+    // is not on it is refused without a word - the app then never shows in the car's list (#392). This app is not in a store and is run on
+    // one family's phone, with Android Auto set to accept unknown sources; Android Auto is what binds it.
+    override fun createHostValidator(): HostValidator = HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
 
     override fun onCreateSession(): Session = object : Session() {
         override fun onCreateScreen(intent: Intent): Screen = VideoScreen(carContext)
