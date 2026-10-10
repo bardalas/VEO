@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.63 — 2026-10-10
+- **VEO on Android Auto.** A car app of its own (no mirroring): whatever the phone's VEO is playing is drawn on the car's screen, with play/pause and ten seconds
+  back and forward. The film is chosen and started on the phone. It is not in any store: Android Auto must be allowed to run apps from unknown sources (its developer
+  settings). For a screen only passengers can see. Not yet tried in a car - please test it. (#392)
+
 ## 0.45.62 — 2026-10-08
 - **Live TV: a channel starts playing** (the release of the OK that opened it was pausing it), and **OK raises the banner with the remote on its buttons**:
   Pause | Previous | Next | Channels | More, small, in the channel-name row, with the live capsule at the far end. Previous/Next play the programme (or channel) before/after. (#381)
