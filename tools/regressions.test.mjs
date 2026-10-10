@@ -1252,6 +1252,18 @@ test("VEO is an Android Auto car app of its own: the phone's film is drawn on th
 
 test("the car app accepts any host: the library's sample allow-list refused Android Auto silently (#392)", async () => {
   const car = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarApp.kt'), 'utf8');
-  assert.match(car, /createHostValidator\(\): HostValidator = HostValidator\.ALLOW_ALL_HOSTS_VALIDATOR/);
+  assert.match(car, /createHostValidator\(\): HostValidator \{[^}]*return HostValidator\.ALLOW_ALL_HOSTS_VALIDATOR \}/);
   assert.doesNotMatch(car, /hosts_allowlist_sample/);
+});
+
+test("Settings has an Android Auto diagnostics dialog: install source, car service state, Android Auto version and what the car asked (#398)", async () => {
+  const d = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarDiag.kt'), 'utf8');
+  const m = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  const c = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarApp.kt'), 'utf8');
+  const s = await readFile(path.join(assets, 'js/screens/settings.js'), 'utf8');
+  assert.match(d, /Car service resolves/);
+  assert.match(d, /What Android Auto asked of VEO/);
+  assert.match(m, /fun showCarDiag\(\)/);
+  assert.match(c, /CarDiag\.log\(/);
+  assert.match(s, /BoothAndroid\?\.showCarDiag/);
 });

@@ -222,7 +222,8 @@ const PANES = {
       line({fid: 'upd', label: 'VEO', note: tr('set.about.check'),
         value: [APP_VERSION ? tr('set.about.ver', {v: APP_VERSION}) : tr('set.about.browser'), updKey ? tr(updKey) : ''].filter(Boolean).join(' · '),
         attrs: 'data-act="upd"'})
-      + line({fid: 'report', label: tr('rep.title'), href: '#/report'})))
+      + line({fid: 'report', label: tr('rep.title'), href: '#/report'})
+      + (window.BoothAndroid?.showCarDiag ? line({fid: 'cardiag', label: 'Android Auto', note: 'אבחון', value: 'הצג', attrs: 'data-act="cardiag"'}) : '')))
     + section(tr('set.sec.data'), lines(line({fid: 'hist', label: tr('set.hist.title'), value: tr('set.hist.btn'), danger: true, attrs: 'data-act="hist"'})
       + line({fid: 'reset', label: tr('set.reset.title'), value: tr('set.reset.btn'), danger: true, attrs: 'data-act="reset"'}))),
   profiles: () => profilesPane(),
@@ -352,6 +353,7 @@ const ACTS = {
     updKey = UPD_SAYS[found] ?? 'set.about.latest';
     if(b.isConnected) b.querySelector('.sv span').textContent = updKey ? tr(updKey) : '';
   },
+  cardiag: () => window.BoothAndroid?.showCarDiag?.(),
   hist: b => { clearProgress(); forgetWatched(); b.querySelector('.sv span').textContent = tr('set.hist.done'); },
   lockAll: async () => { await lockAll(); paintSettings('switch'); },
   // every choice back - the ones kept outside the settings too: the quality, and the subtitles' size the player keeps

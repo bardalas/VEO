@@ -208,6 +208,19 @@ class MainActivity : AppCompatActivity() {
         /** The first screen is drawn: the splash can go. */
         /** The page says whether the focus is on a card a long press of OK acts on (rows.js): only then is OK timed here. */
         @JavascriptInterface fun holdable(on: Boolean) { holdable = on }
+        /** Settings → Android Auto: what VEO can see of Android Auto, and what Android Auto has asked of VEO's car service (CarDiag). */
+        @JavascriptInterface fun showCarDiag() {
+            runOnUiThread {
+                val text = CarDiag.report(applicationContext)
+                val box = android.widget.ScrollView(this@MainActivity).apply {
+                    addView(android.widget.TextView(this@MainActivity).apply { this.text = text; textSize = 13f; setTextIsSelectable(true); setPadding(40, 20, 40, 20); typeface = android.graphics.Typeface.MONOSPACE })
+                }
+                android.app.AlertDialog.Builder(this@MainActivity).setTitle("Android Auto").setView(box)
+                    .setPositiveButton("העתקה") { _, _ ->
+                        (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("VEO", text))
+                    }.setNegativeButton("סגירה", null).show()
+            }
+        }
         @JavascriptInterface fun pageShown() { runOnUiThread { hideSplash(); pageUp = true; deliverLink() } }
 
         /** True on Android TV; the page then defaults to its TV (10-foot) layout. */
