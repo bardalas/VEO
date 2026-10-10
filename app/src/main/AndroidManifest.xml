@@ -3,6 +3,10 @@
     <!-- Self-update, at the user's explicit request: the app downloads its own new APK and hands
          it to Android's package installer, which asks the user to confirm every install. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Android Auto: VEO draws the phone's film on the car's screen (CarApp.kt). A navigation-category car app is the one kind given a free
+         surface to draw on. -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE"/>
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <application android:theme="@style/Theme.Veo" android:label="VEO" android:icon="@mipmap/ic_launcher"
@@ -12,6 +16,14 @@
              and the player reads the Back key itself. Android 16 stops calling either for an app that
              targets it unless this says so - and Back then left the app from anywhere. -->
         <receiver android:name=".InstallResultReceiver" android:exported="false"/>
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc"/>
+        <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1"/>
+        <service android:name=".VeoCarService" android:exported="true" android:label="VEO" android:icon="@mipmap/ic_launcher">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService"/>
+                <category android:name="androidx.car.app.category.NAVIGATION"/>
+            </intent-filter>
+        </service>
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
             android:exported="false" android:grantUriPermissions="true">

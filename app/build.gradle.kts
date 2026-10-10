@@ -64,4 +64,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
+    // VEO as an Android Auto app: the film on the car's screen (CarApp.kt)
+    implementation("androidx.car.app:app:1.4.0")
 }

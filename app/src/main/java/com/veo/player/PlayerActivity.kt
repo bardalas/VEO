@@ -180,9 +180,15 @@ class PlayerActivity : AppCompatActivity() {
     private val skin by lazy { Skin(getSharedPreferences("veo", MODE_PRIVATE)) }
 
     @OptIn(UnstableApi::class)
+    // what the car's screen (VeoCarService) needs of this player: the player, its picture view and the title
+    internal fun carPlayer(): ExoPlayer? = player
+    internal fun carView(): PlayerView? = findViewById(R.id.playerView)
+    internal fun carTitle(): String = intent.getStringExtra("title").orEmpty()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
+        CarHub.attach(this)
         // Active video playback must keep the display awake; otherwise Android/TV screensavers
         // can start simply because the viewer has not touched the remote for a while.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1154,6 +1160,7 @@ class PlayerActivity : AppCompatActivity() {
                 applyTextTracks(it)                        // what the panel chose, told to the player too
                 findViewById<PlayerView>(R.id.playerView).apply {
                     player = it
+                    CarHub.reapply()                          // a car screen that is up takes the picture of this player too
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)   // fetching looks like work, not like nothing
                     // the wheel is the skin's primary colour, not the player's white
                     findViewById<android.widget.ProgressBar>(androidx.media3.ui.R.id.exo_buffering)?.indeterminateTintList = android.content.res.ColorStateList.valueOf(skin.accent)
@@ -2234,6 +2241,8 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(liveSyncTick)
         stopNextFill()                              // the next episode is not started from a screen nobody is looking at
         handler.removeCallbacks(vodStallTimeout)
+        // the car's screen is showing the picture: the player goes on, with the phone's screen off
+        if (CarHub.onCar()) { player?.let { saveProgress(it.currentPosition, it.duration) }; return }
         player?.let { resumePosition = it.currentPosition; saveProgress(it.currentPosition, it.duration); it.release() }
         player = null
     }
@@ -2258,6 +2267,8 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        CarHub.release(null)
+        CarHub.detach(this)
         handler.removeCallbacksAndMessages(null)
         guideExec.shutdownNow()          // a guide nobody will see is work nobody needs
         // Leaving the player ends the torrent stream and frees its downloaded data.
