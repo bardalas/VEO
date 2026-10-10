@@ -1,5 +1,9 @@
 # VEO Android changelog
 
+## 0.45.65 — 2026-10-11
+- **Android Auto diagnostics.** Settings → General → Android Auto shows how VEO was installed, whether its car service is found, the Android Auto version, and a history of
+  what Android Auto has asked of the car service - to find out why VEO is not offered in the car's app list. (#398)
+
 ## 0.45.64 — 2026-10-10
 - **Android Auto: the car app accepts any host.** It was checking Android Auto against the library's sample allow-list, which may have refused the real one without
   a word, so VEO never showed in the car's app list. Not yet tried in a car. (#395)
