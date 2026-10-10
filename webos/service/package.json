@@ -1,0 +1,8 @@
+{
+  "name": "com.veo.player.webos.service",
+  "version": "1.0.0",
+  "description": "VEO's torrent engine for LG webOS: streams a torrent file over HTTP on the television itself",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {"webtorrent": "1.9.7"}
+}

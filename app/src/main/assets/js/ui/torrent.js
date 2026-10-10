@@ -49,6 +49,8 @@ export function endBusy(){
 }
 // the player has the screen: its card has done its work (and is not there when the viewer comes back)
 addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden' && document.getElementById('tstatus')?.classList.contains('busy')) endBusy(); });
+// a player that opens inside the page (the webOS app, webos/shim.js) does not hide it: it says so
+addEventListener('veo:player', () => { if(document.getElementById('tstatus')?.classList.contains('busy')) endBusy(); });
 window.boothTorrentStatus = (raw, isError) => {
   const bar = document.getElementById('tstatus'), btn = document.getElementById('tstatusBtn');
   const {msg, sub = '', frac} = torrentText(raw, isError);

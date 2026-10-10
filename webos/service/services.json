@@ -1,0 +1,5 @@
+{
+  "id": "com.veo.player.webos.service",
+  "description": "VEO torrent engine",
+  "services": [{"name": "com.veo.player.webos.service"}]
+}
