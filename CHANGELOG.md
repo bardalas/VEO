@@ -1,5 +1,9 @@
 # VEO Android changelog
 
+## 0.45.64 — 2026-10-10
+- **Android Auto: the car app accepts any host.** It was checking Android Auto against the library's sample allow-list, which may have refused the real one without
+  a word, so VEO never showed in the car's app list. Not yet tried in a car. (#395)
+
 ## 0.45.63 — 2026-10-10
 - **VEO on Android Auto.** A car app of its own (no mirroring): whatever the phone's VEO is playing is drawn on the car's screen, with play/pause and ten seconds
   back and forward. The film is chosen and started on the phone. It is not in any store: Android Auto must be allowed to run apps from unknown sources (its developer
