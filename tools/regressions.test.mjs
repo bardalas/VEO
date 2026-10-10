@@ -1219,3 +1219,18 @@ test("VEO has a separate webOS release: a shim for the bridge, a bundling build,
   assert.match(wf, /tags: \[ 'webos-v\*' \]/);
   assert.doesNotMatch(shim, /\?\.|\?\?/);              // an old television's Chromium has neither
 });
+
+test("the webOS app streams torrents with an engine of its own: a Luna service over HTTP, with a Stremio-style address (#390)", async () => {
+  const shim = await readFile(path.join(repo, 'webos/shim.js'), 'utf8');
+  const eng = await readFile(path.join(repo, 'webos/service/engine.js'), 'utf8');
+  const svc = await readFile(path.join(repo, 'webos/service/index.js'), 'utf8');
+  const build = await readFile(path.join(repo, 'tools/build_webos.mjs'), 'utf8');
+  assert.match(shim, /luna:\/\/com\.veo\.player\.webos\.service\//);
+  assert.match(shim, /var LOCAL = 'http:\/\/127\.0\.0\.1:11470'/);
+  assert.match(shim, /playTorrent: function\(infoHash, fileIdx, title, sourcesJson, videoId, release, meta, pos\)/);
+  assert.match(eng, /GET \/<infoHash>\/<fileIdx>/);
+  assert.match(eng, /createReadStream\(\{start: start, end: end\}\)/);
+  assert.match(svc, /start\(PORT, \{host: '127\.0\.0\.1'\}\)/);
+  assert.match(build, /svcOut/);
+  assert.doesNotMatch(shim, /\?\.|\?\?/);
+});

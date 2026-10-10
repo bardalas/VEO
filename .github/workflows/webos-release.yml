@@ -20,8 +20,10 @@ jobs:
           node-version: '22'
       - name: Tests
         run: node --experimental-vm-modules --test tools/regressions.test.mjs
-      - name: Install the build tools
-        run: npm install --prefix tools --no-audit --no-fund
+      - name: Install the build tools and the torrent engine
+        run: |
+          npm install --prefix tools --no-audit --no-fund
+          npm install --prefix webos/service --no-audit --no-fund
       - name: Build the .ipk
         run: node tools/build_webos.mjs --package
       - name: Publish

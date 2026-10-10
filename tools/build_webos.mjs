@@ -42,9 +42,22 @@ info.version = version.replace(/^(\d+)\.(\d+)\.(\d+).*$/, '$1.$2.$3');
 writeFileSync(path.join(out, 'appinfo.json'), JSON.stringify(info, null, 2));
 for (const icon of ['icon.png', 'largeIcon.png', 'splash.png']) cpSync(path.join(root, 'webos', icon), path.join(out, icon));
 
+// the torrent engine: a Luna service that comes with the app (webos/service), bundled to one file for the Node a television has
+const svcOut = path.join(root, 'webos/dist-service');
+rmSync(svcOut, {recursive: true, force: true});
+mkdirSync(svcOut, {recursive: true});
+if (!existsSync(path.join(root, 'webos/service/node_modules/webtorrent'))) throw new Error('run `npm install` in webos/service first (the torrent engine needs webtorrent)');
+await esbuild({
+  entryPoints: [path.join(root, 'webos/service/index.js')], bundle: true, platform: 'node', target: 'node12',
+  outfile: path.join(svcOut, 'index.js'), logLevel: 'warning',
+  external: ['webos-service', 'utp-native', 'node-datachannel', 'bufferutil', 'utf-8-validate'],     // webos-service is the platform's; the others are optional speed-ups
+});
+cpSync(path.join(root, 'webos/service/services.json'), path.join(svcOut, 'services.json'));
+writeFileSync(path.join(svcOut, 'package.json'), JSON.stringify({name: 'com.veo.player.webos.service', version: '1.0.0', main: 'index.js', private: true}, null, 2));
+
 console.log(`webOS app folder ready: ${out} (version ${info.version})`);
 if (process.argv.includes('--package')) {
   const local = path.join(root, 'tools/node_modules/.bin', process.platform === 'win32' ? 'ares-package.cmd' : 'ares-package');
   const bin = existsSync(local) ? local : 'ares-package';        // from `npm install --prefix tools`, else one on the PATH
-  execFileSync(bin, ['--no-minify', out, '-o', path.join(root, 'webos')], {stdio: 'inherit', shell: process.platform === 'win32'});
+  execFileSync(bin, ['--no-minify', out, svcOut, '-o', path.join(root, 'webos')], {stdio: 'inherit', shell: process.platform === 'win32'});
 }

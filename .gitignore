@@ -16,3 +16,6 @@ gradle/
 tools/node_modules/
 webos/dist/
 webos/*.ipk
+webos/service/node_modules/
+webos/dist-service/
+webos/dist-test/

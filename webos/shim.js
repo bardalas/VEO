@@ -156,9 +156,84 @@
       .catch(function(){ call('boothFetchDone', id, false, ''); });
   }
 
+  /* ---------- torrents ----------
+   A television has no torrent engine of its own, so one comes with the app: webos/service, a Luna service that runs a torrent client
+   on the television and streams a file of it over HTTP on 127.0.0.1:11470 (the same address a Stremio streaming server answers on).
+   If that cannot run (an old webOS), a Stremio server - or VEO's engine - somewhere on the home network can be used instead:
+   its address is kept as torrentServer, and asked for when there is nothing to stream from. */
+  var LOCAL = 'http://127.0.0.1:11470', probe = null;
+  function luna(method, done){
+    try{
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function(r){ var o = {}; try{ o = JSON.parse(r); }catch(e){} done(o); };
+      b.call('luna://com.veo.player.webos.service/' + method, '{}');
+    }catch(e){ done({returnValue: false, errorText: String(e)}); }
+  }
+  function reachable(base, ms, cb){
+    var t0 = Date.now();
+    (function tick(){
+      var c = new AbortController(), kill = setTimeout(function(){ c.abort(); }, 1500);
+      fetch(base + '/status', {signal: c.signal}).then(function(r){ clearTimeout(kill); cb(r.ok); })
+        .catch(function(){ clearTimeout(kill); if(Date.now() - t0 > ms) cb(false); else setTimeout(tick, 600); });
+    })();
+  }
+  function server(cb){                       // where to stream from: the engine on this television, else the address the viewer gave
+    var given = pref('torrentServer', '');
+    if(given) return reachable(given, 4000, function(ok){ cb(ok ? given : null); });
+    reachable(LOCAL, 1200, function(up){
+      if(up) return cb(LOCAL);
+      luna('start', function(r){ if(!r.returnValue) return cb(null); reachable(LOCAL, 15000, function(ok){ cb(ok ? LOCAL : null); }); });
+    });
+  }
+  function askServer(then){
+    build();
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;z-index:100001;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#fff';
+    box.innerHTML = '<div style="width:900px;padding:40px;border-radius:20px;background:#0d1524;direction:rtl;font-size:28px;line-height:1.5">' +
+      '<div style="font-weight:700;margin-bottom:12px">מנוע הטורנטים של הטלוויזיה לא עלה</div>' +
+      '<div style="color:#9fb0cf;font-size:24px;margin-bottom:22px">אפשר להשתמש בשרת טורנטים אחר ברשת הביתית (שרת Stremio או מנוע VEO). הקלידו את כתובתו:</div>' +
+      '<input id="wpSrv" dir="ltr" placeholder="http://192.168.1.20:11470" style="width:100%;box-sizing:border-box;font-size:30px;padding:14px;border-radius:10px;border:2px solid #3d8bff;background:#050a16;color:#fff">' +
+      '<div style="margin-top:22px;display:flex;gap:16px"><button id="wpOk" style="font-size:26px;padding:12px 34px;border-radius:12px;border:0;background:#3d8bff;color:#fff">שמירה</button><button id="wpNo" style="font-size:26px;padding:12px 34px;border-radius:12px;border:0;background:#22304f;color:#fff">ביטול</button></div></div>';
+    document.body.appendChild(box);
+    var inp = box.querySelector('#wpSrv'); inp.value = pref('torrentServer', ''); inp.focus();
+    function done(save){ document.body.removeChild(box); if(save){ var v = inp.value.replace(/\/+$/, ''); if(/^https?:\/\//.test(v)){ setPref('torrentServer', v); then(); } } }
+    box.querySelector('#wpOk').onclick = function(){ done(true); };
+    box.querySelector('#wpNo').onclick = function(){ done(false); };
+    box.addEventListener('keydown', function(e){ if(e.keyCode === 461){ e.preventDefault(); e.stopPropagation(); done(false); } }, true);
+  }
+  function torrent(hash, idx, title, sourcesJson, vid, meta, pos){
+    var trackers = []; try{ JSON.parse(sourcesJson || '[]').forEach(function(s){ if(/^tracker:/.test(s)) trackers.push(s.slice(8)); }); }catch(e){}
+    var m = {}; try{ m = JSON.parse(meta || '{}'); }catch(e){}
+    var ctl = probe = new AbortController(), cancelled = function(){ return probe !== ctl; };
+    call('boothTorrentStatus', '{"p":"start"}', false);
+    server(function(base){
+      if(cancelled()) return;
+      if(!base){ call('boothTorrentStatus', 'מנוע הטורנטים לא זמין', true); askServer(function(){ torrent(hash, idx, title, sourcesJson, vid, meta, pos); }); return; }
+      var url = base + '/' + hash + '/' + (idx == null || idx < 0 ? -1 : idx) + (trackers.length ? '?' + trackers.map(function(t){ return 'tr=' + encodeURIComponent(t); }).join('&') : '');
+      call('boothTorrentStatus', '{"p":"meta"}', false);
+      var poll = setInterval(function(){
+        if(cancelled()){ clearInterval(poll); return; }
+        fetch(base + '/status').then(function(r){ return r.json(); }).then(function(s){
+          if(s.idle || cancelled()) return;
+          var need = 6 * 1048576;
+          call('boothTorrentStatus', JSON.stringify({p: s.peers ? 'buffer' : 'dht', peers: s.peers || 0, kbs: Math.round((s.down || 0) / 1024), got: Math.min(s.got || 0, need), need: need}), false);
+        }).catch(function(){});
+      }, 1000);
+      // the first megabyte: when it arrives the film can start (the metadata is in, the first pieces are down)
+      fetch(url, {headers: {Range: 'bytes=0-1048575'}, signal: ctl.signal}).then(function(r){ return r.arrayBuffer(); }).then(function(){
+        clearInterval(poll);
+        if(cancelled()) return;
+        probe = null;
+        open({url: url, title: title, vid: vid, meta: m, pos: pos || 0, live: false});
+      }).catch(function(){
+        clearInterval(poll);
+        if(!cancelled()){ probe = null; call('boothTorrentStatus', 'לא נמצאו עמיתים לטורנט הזה', true); }
+      });
+    });
+  }
+
   /* ---------- the bridge ---------- */
   var unsupported = function(msg){ return function(){ say(msg, 3500); }; };
-  var NO_TORRENT = 'טורנטים לא נתמכים ב-webOS - בחרו מקור ישיר (Debrid)';
   window.BoothAndroid = {
     isTv: function(){ return true; },
     appVersion: function(){ return VERSION; },
@@ -174,7 +249,6 @@
     openYouTube: function(id){ say('פותח את היוטיוב בנגן…', 1500); },
     ytCaptions: function(){},
     siteExtract: function(url, reader, id){ call('boothFetchDone', id, false, ''); },
-    cancelTorrent: function(){},
     fetchText: function(url, id){ fetchWith(url, {}, id); },
     postText: function(url, body, headersJson, id){
       var h = {}; try{ h = JSON.parse(headersJson || '{}'); }catch(e){}
@@ -193,7 +267,10 @@
     },
     playVod: function(url, license, title){ if(license){ say('תוכן מוגן (DRM) לא נתמך כאן', 3500); return; } open({url: url, title: title, live: false}); },
     playDrm: function(){ say('תוכן מוגן (DRM) לא נתמך כאן', 3500); },
-    playTorrent: function(){ call('boothTorrentStatus', NO_TORRENT, true); }
+    playTorrent: function(infoHash, fileIdx, title, sourcesJson, videoId, release, meta, pos){
+      torrent(infoHash, fileIdx, title, sourcesJson, videoId, meta, pos);
+    },
+    cancelTorrent: function(){ if(probe){ probe.abort(); probe = null; } }
   };
   window.VEO_WEBOS = true;
 })();
