@@ -1249,3 +1249,9 @@ test("VEO is an Android Auto car app of its own: the phone's film is drawn on th
   assert.match(pa, /CarHub\.attach\(this\)/);
   assert.match(pa, /if \(CarHub\.onCar\(\)\) \{ player\?\.let \{ saveProgress/);          // the phone's screen going off does not stop the film the car shows
 });
+
+test("the car app accepts any host: the library's sample allow-list refused Android Auto silently (#392)", async () => {
+  const car = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarApp.kt'), 'utf8');
+  assert.match(car, /createHostValidator\(\): HostValidator = HostValidator\.ALLOW_ALL_HOSTS_VALIDATOR/);
+  assert.doesNotMatch(car, /hosts_allowlist_sample/);
+});
