@@ -1234,3 +1234,18 @@ test("the webOS app streams torrents with an engine of its own: a Luna service o
   assert.match(build, /svcOut/);
   assert.doesNotMatch(shim, /\?\.|\?\?/);
 });
+
+test("VEO is an Android Auto car app of its own: the phone's film is drawn on the car's surface, controlled from the car (#392)", async () => {
+  const man = await readFile(path.join(repo, 'app/src/main/AndroidManifest.xml'), 'utf8');
+  const car = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarApp.kt'), 'utf8');
+  const hub = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/CarHub.kt'), 'utf8');
+  const pa = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(man, /androidx\.car\.app\.category\.NAVIGATION/);
+  assert.match(man, /com\.google\.android\.gms\.car\.application/);
+  assert.match(man, /androidx\.car\.app\.ACCESS_SURFACE/);
+  assert.match(car, /class VeoCarService : CarAppService\(\)/);
+  assert.match(car, /NavigationTemplate\.Builder\(\)/);
+  assert.match(hub, /setVideoSurface\(surface\)/);
+  assert.match(pa, /CarHub\.attach\(this\)/);
+  assert.match(pa, /if \(CarHub\.onCar\(\)\) \{ player\?\.let \{ saveProgress/);          // the phone's screen going off does not stop the film the car shows
+});
