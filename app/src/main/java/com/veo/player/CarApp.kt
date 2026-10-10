@@ -39,10 +39,12 @@ class VeoCarService : CarAppService() {
     // Any host may bind it. The library's own *sample* allow-list names only a few of Android Auto's signing certificates, and a host that
     // is not on it is refused without a word - the app then never shows in the car's list (#392). This app is not in a store and is run on
     // one family's phone, with Android Auto set to accept unknown sources; Android Auto is what binds it.
-    override fun createHostValidator(): HostValidator = HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+    override fun createHostValidator(): HostValidator { CarDiag.log(this, "a host asked who may bind (host validator)"); return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR }
 
+    override fun onCreate() { super.onCreate(); CarDiag.log(this, "service created") }
+  
     override fun onCreateSession(): Session = object : Session() {
-        override fun onCreateScreen(intent: Intent): Screen = VideoScreen(carContext)
+        override fun onCreateScreen(intent: Intent): Screen { CarDiag.log(applicationContext, "session started - screen created"); return VideoScreen(carContext) }
     }
 }
 
@@ -54,6 +56,7 @@ class VideoScreen(ctx: CarContext) : Screen(ctx) {
 
     private val surfaceCallback = object : SurfaceCallback {
         override fun onSurfaceAvailable(surfaceContainer: SurfaceContainer) {
+            CarDiag.log(carContext, "car surface available ${surfaceContainer.width}x${surfaceContainer.height}")
             surfaceContainer.surface?.let { surface = it; CarHub.show(it) }
         }
         override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
@@ -85,6 +88,7 @@ class VideoScreen(ctx: CarContext) : Screen(ctx) {
     private fun act(res: Int, then: () -> Unit) = Action.Builder().setIcon(icon(res)).setOnClickListener { then(); invalidate() }.build()
 
     override fun onGetTemplate(): Template {
+        CarDiag.log(carContext, if (CarHub.player() == null) "showing: nothing playing" else "showing: the film")
         if (CarHub.player() == null) {
             return MessageTemplate.Builder("בחרו סרט ב-VEO בטלפון, והוא יופיע כאן")
                 .setTitle("VEO")
