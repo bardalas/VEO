@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.70 — 2026-10-19
+- **24-hour clock in the player** - 20:30 and 00:00, no AM/PM, whatever the device is set to. (#414)
+- **Running back and forward on live TV is smooth.** Holding an arrow (or ⏪/⏩) moves only the bar's pointer, continuously and to the second, slowly at first
+  and faster the longer it is held; the picture goes there once, when the key is let go. It used to seek on every repeat, so the picture jumped. (#414)
+- **The guide is a box over 85% of the picture**, and switching days keeps the list at about the same hour. (#414)
+
 ## 0.45.69 — 2026-10-18
 - **Live TV: the programme guide opens over the stream.** Choosing a channel in the side panel opens its guide on top of the picture instead of leaving the
   player: the day tabs stay at the top (Left/Right), the hours scroll under them (Up/Down), and OK plays the one chosen - the programme on now goes live, a
