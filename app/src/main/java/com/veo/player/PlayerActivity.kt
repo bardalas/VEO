@@ -1244,7 +1244,7 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.chNum).text = if (src.num > 0) "${src.num}" else "—"
         findViewById<TextView>(R.id.chName).text = src.name
         findViewById<TextView>(R.id.nowClock).text =
-            android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date())
+            clock24.format(java.util.Date())
         val logo = findViewById<ImageView>(R.id.chLogo)
         val cached = logos[src.logo]
         logo.visibility = if (cached != null) View.VISIBLE else View.GONE
@@ -1275,7 +1275,7 @@ class PlayerActivity : AppCompatActivity() {
             }
             return
         }
-        val at = if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()     // where you are on the line of time (or where a held key would land)
+        val at = if (liveScrubAt > 0) liveScrubAt else if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()     // where you are on the line of time (or where a held key would land)
         val behindMs = (nowMs - at - liveEdgeMs()).coerceAtLeast(0L)      // behind the edge, not behind the very second
         val at_s = at / 1000
         val prog = progs?.firstOrNull { at_s in it.from until it.to } ?: progs?.firstOrNull { now in it.from until it.to }
@@ -1306,7 +1306,7 @@ class PlayerActivity : AppCompatActivity() {
         bar.progress = (((minOf(nowMs, to) - from) * 100) / span).toInt().coerceIn(0, 100)
         bar.secondaryProgress = 0
         bar.buffered = -1
-        if (mark) { bar.marker = (((at - from) * 100) / span).toInt().coerceIn(0, 100); bar.markLabel = hhmm(at / 1000) }
+        if (mark) { bar.marker = (((at - from) * 100) / span).toInt().coerceIn(0, 100); bar.markLabel = clock24s.format(java.util.Date(at)) }
         else bar.marker = -1
     }
 
@@ -1355,8 +1355,11 @@ class PlayerActivity : AppCompatActivity() {
         handler.postDelayed(hideSeekSign, 1_300)
     }
 
-    private fun hhmm(epochSeconds: Long): String =
-        android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(epochSeconds * 1000))
+    /** Times always on the 24-hour clock (20:30, 00:00), whatever the device is set to: no AM/PM. */
+    private val clock24 = java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT)
+    /** Where the pointer on the live bar stands, to the second: it is what a viewer running back and forward watches. */
+    private val clock24s = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT)
+    private fun hhmm(epochSeconds: Long): String = clock24.format(java.util.Date(epochSeconds * 1000))
 
     private fun loadGuide(url: String) {
         if (isDestroyed || !loadingGuides.add(url)) return
@@ -1529,7 +1532,7 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.liveChip).visibility = View.GONE
         findViewById<ImageView>(R.id.chLogo).visibility = View.GONE
         findViewById<TextView>(R.id.nowClock).text =
-            android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date())
+            clock24.format(java.util.Date())
         val bar = findViewById<SeekBarView>(R.id.nowBar)
         bar.visibility = if (dur > 0) View.VISIBLE else View.GONE
         if (dur > 0) {
@@ -1615,6 +1618,17 @@ class PlayerActivity : AppCompatActivity() {
             list.setOnItemClickListener { _, _, pos, _ -> playEpgRow(pos) }
         }
         buildEpgDays()
+        // a box over 85% of the picture, centred, with the picture showing around it
+        val dm = resources.displayMetrics
+        findViewById<View>(R.id.epgBox).apply {
+            layoutParams = (layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+                width = (dm.widthPixels * 0.85f).toInt(); height = (dm.heightPixels * 0.85f).toInt()
+                gravity = android.view.Gravity.CENTER
+            }
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat(); setColor(fade(skin.night, 0xEE)); setStroke(dp(1), fade(skin.light, 0x22))
+            }
+        }
         findViewById<View>(R.id.epgPanel).visibility = View.VISIBLE
         drawEpgDays(); drawEpgList(toNow = true)
         list.requestFocus()
@@ -1647,19 +1661,41 @@ class PlayerActivity : AppCompatActivity() {
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(12).toFloat(); setColor(if (on) skin.accent else fade(skin.light, 0x24))
                 }
-                setOnClickListener { if (epgDay != i) { epgDay = i; drawEpgDays(); drawEpgList(toNow = true) } }
+                setOnClickListener { switchEpgDay(i) }
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
         }
     }
 
-    /** The chosen day's programmes. [toNow] puts the selection on the one showing now (or the last that has aired). */
-    private fun drawEpgList(toNow: Boolean) {
+    /** The hour the list is at, as seconds into its day: the chosen row, or the top one shown. */
+    private fun epgTimeOfDay(): Long {
+        val list = findViewById<ListView>(R.id.epgList)
+        val p = epgRows.getOrNull(list.selectedItemPosition) ?: epgRows.getOrNull(list.firstVisiblePosition) ?: return -1L
+        return p.from - dayStart(p.from)
+    }
+
+    /** Another day: the list stays at about the same hour it was at, instead of dropping to the latest programme. */
+    private fun switchEpgDay(to: Int) {
+        if (to == epgDay || to !in epgDays.indices) return
+        val tod = epgTimeOfDay()
+        epgDay = to
+        drawEpgDays()
+        drawEpgList(toNow = tod < 0, timeOfDay = tod)
+    }
+
+    /** The chosen day's programmes. [toNow] puts the selection on the one showing now (or the last that has aired);
+     *  [timeOfDay] (seconds into the day) puts it on the programme on at that hour instead. */
+    private fun drawEpgList(toNow: Boolean, timeOfDay: Long = -1L) {
         val progs = guides[sources[index].epg].orEmpty()
         val day = epgDays.getOrNull(epgDay)
         epgRows = if (day == null) emptyList() else progs.filter { dayStart(it.from) == day }
         val list = findViewById<ListView>(R.id.epgList)
         (list.adapter as EpgAdapter).notifyDataSetChanged()
-        if (toNow && epgRows.isNotEmpty()) {
+        if (timeOfDay >= 0 && day != null && epgRows.isNotEmpty()) {
+            val target = day + timeOfDay
+            val sel = epgRows.indexOfFirst { target in it.from until it.to }.takeIf { it >= 0 }
+                ?: epgRows.indices.minByOrNull { kotlin.math.abs(epgRows[it].from - target) } ?: 0
+            list.setSelection(sel)
+        } else if (toNow && epgRows.isNotEmpty()) {
             val now = System.currentTimeMillis() / 1000
             val sel = epgRows.indexOfFirst { now in it.from until it.to }
                 .let { if (it >= 0) it else epgRows.indexOfLast { it.to <= now }.takeIf { j -> j >= 0 } ?: 0 }
@@ -2001,6 +2037,65 @@ class PlayerActivity : AppCompatActivity() {
         return (1_000L + secs * 1_000L).coerceAtMost(60_000L)
     }
 
+    /* ---------- live TV: running back and forward with a held arrow ----------
+       Every repeat of a held key used to be a seek of its own - or a new piece of archive - so the picture jumped and
+       jumped. Now, while the key is held, only the pointer on the bar runs: smoothly, to the second, slowly at first and
+       faster the longer it is held, while the picture plays on underneath. Letting go takes the picture there, once. */
+    private var liveScrubAt = -1L                  // where the pointer stands (epoch ms), or -1 when not running
+    private var liveScrubDir = 0
+    private var liveScrubBegan = 0L                // when the run started (uptime)
+    private var liveScrubKeyAt = 0L                // the last repeat of the held key: a run whose key went quiet ends itself
+    private val LIVE_TICK_MS = 40L
+
+    private fun liveScrubBegin(dir: Int) {
+        liveScrubDir = dir
+        liveScrubBegan = android.os.SystemClock.uptimeMillis()
+        liveScrubKeyAt = liveScrubBegan
+        liveScrubAt = if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()
+        handler.removeCallbacks(liveScrubTick)
+        handler.post(liveScrubTick)
+    }
+
+    private val liveScrubTick: Runnable = object : Runnable {
+        override fun run() {
+            val up = android.os.SystemClock.uptimeMillis()
+            if (up - liveScrubKeyAt > 500) { liveScrubCommit(); return }      // the key's release was not seen
+            val held = (up - liveScrubBegan) / 1000.0
+            // seconds of broadcast per second held: 3 at first, then quicker and quicker, up to ten minutes a second
+            val rate = (3.0 + held * held * 6.0).coerceAtMost(600.0)
+            val nowMs = System.currentTimeMillis()
+            val edge = nowMs - liveEdgeMs()
+            val rec = sources[index].rec
+            val earliest = if (sources[index].arch.isNotBlank()) nowMs - (if (rec > 0) rec else 7) * 86_400_000L
+                           else nowMs - liveWindowMs()
+            liveScrubAt = (liveScrubAt + (liveScrubDir * rate * LIVE_TICK_MS).toLong()).coerceIn(earliest, edge)
+            if (!walking) showBanner() else if (bannerOpen) paintNow()
+            handler.postDelayed(this, LIVE_TICK_MS)
+        }
+    }
+
+    /** The key was let go: the picture goes to where the pointer stands - the live edge, a seek, or the archive from that second. */
+    private fun liveScrubCommit() {
+        handler.removeCallbacks(liveScrubTick)
+        val t = liveScrubAt
+        liveScrubAt = -1L
+        if (t <= 0) return
+        val p = player
+        val nowMs = System.currentTimeMillis()
+        val c = catchUp
+        handler.removeCallbacks(applyPending); pendingAt = -1
+        when {
+            t >= nowMs - liveEdgeMs() - 3_000 -> { aimAt = -1L; if (c != null) goLive() else p?.seekToDefaultPosition() }
+            p != null && c != null && t - c.from * 1000 >= 0 && (p.duration == C.TIME_UNSET || t - c.from * 1000 < p.duration - 2_000) ->
+                p.seekTo(t - c.from * 1000)
+            p != null && c == null && (sources[index].arch.isBlank() || nowMs - t <= liveWindowMs() - 4_000) ->
+                p.seekTo((p.currentPosition + (t - posEpochMs())).coerceAtLeast(0))
+            else -> playAt(t)
+        }
+        aimAt = t; aimUntil = System.currentTimeMillis() + 8_000L
+        if (!walking) showBanner() else if (bannerOpen) paintNow()
+    }
+
     private fun seekBy(direction: Int, held: Boolean, stepMs: Long = if (held) 30_000L else 10_000L) {
         val p = player ?: return
         val step = stepMs
@@ -2038,6 +2133,7 @@ class PlayerActivity : AppCompatActivity() {
     /** Live TV: switch to the previous/next channel in the list (wraps around). */
     private fun zapBy(step: Int) {
         if (sources.size < 2) return
+        handler.removeCallbacks(liveScrubTick); liveScrubAt = -1L   // a run on the old channel is not carried to the new one
         catchUp = null                                           // another channel starts at its live edge
         aimAt = -1L
         walking = false
@@ -2231,7 +2327,7 @@ class PlayerActivity : AppCompatActivity() {
                 code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (down && event.repeatCount == 0 && epgDays.size > 1) {
                         val n = (epgDay + (if (code == visualBack) -1 else 1)).coerceIn(0, epgDays.size - 1)
-                        if (n != epgDay) { epgDay = n; drawEpgDays(); drawEpgList(toNow = true) }
+                        switchEpgDay(n)
                     }
                     return true
                 }
@@ -2295,11 +2391,17 @@ class PlayerActivity : AppCompatActivity() {
             val dir = if (back) -1 else 1
             if (down) {
                 if (event.repeatCount == 0) { seekLong = false; seekHoldStart = android.os.SystemClock.uptimeMillis(); lastHeldStep = 0L; if (!live) scrubStart(dir) }
-                else if (live) { val st = heldStep(); if (st > 0) { seekLong = true; seekBy(dir, held = true, stepMs = st) } else if (android.os.SystemClock.uptimeMillis() - seekHoldStart >= 600) seekLong = true }
+                else if (live) {
+                    // held: the pointer runs smoothly while the key is down (liveScrubTick); the picture follows once, on release
+                    val up = android.os.SystemClock.uptimeMillis()
+                    if (liveScrubAt > 0) liveScrubKeyAt = up
+                    else if (up - seekHoldStart >= 400) { seekLong = true; liveScrubBegin(dir) }
+                }
             } else if (!live) {
                 scrubEnd(dir)
             } else {
-                if (!seekLong) { if (canWalk()) walkGuide(back) else seekBy(dir, held = false) }   // a short press: a programme in the guide (OK plays it); a held key scrubs
+                if (liveScrubAt > 0) liveScrubCommit()
+                else if (!seekLong) { if (canWalk()) walkGuide(back) else seekBy(dir, held = false) }   // a short press: a programme in the guide (OK plays it); a held key runs
                 seekLong = false
             }
             return true
@@ -2337,6 +2439,10 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> if (!controls) {
                 val dir = if (code == KeyEvent.KEYCODE_MEDIA_REWIND) -1 else 1
                 if (event.repeatCount == 0) { seekHoldStart = android.os.SystemClock.uptimeMillis(); lastHeldStep = 0L; seekBy(dir, false) }
+                else if (live) {
+                    // held on live TV: the same smooth run as the arrows; it ends itself a moment after the key goes quiet
+                    if (liveScrubAt > 0) liveScrubKeyAt = android.os.SystemClock.uptimeMillis() else liveScrubBegin(dir)
+                }
                 else { val st = heldStep(); if (st > 0) seekBy(dir, true, st) }
                 return true
             }

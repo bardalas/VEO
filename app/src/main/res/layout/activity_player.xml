@@ -222,11 +222,17 @@
 
     <!-- Live TV: the programme guide (EPG), over the channel that plays underneath. The day tabs stay put at the
          top (Left/Right chooses a day); the hours scroll under them (Up/Down), and OK plays the one chosen. -->
-    <LinearLayout
+    <FrameLayout
         android:id="@+id/epgPanel"
         android:layout_width="match_parent" android:layout_height="match_parent"
-        android:orientation="vertical" android:background="#CC05070C"
-        android:paddingHorizontal="28dp" android:paddingVertical="22dp" android:visibility="gone">
+        android:background="#55000000" android:visibility="gone">
+    <!-- the guide itself: a box over 85% of the picture (sized in PlayerActivity.openEpg), the rest of the picture around it -->
+    <LinearLayout
+        android:id="@+id/epgBox"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="28dp" android:paddingVertical="22dp">
         <TextView
             android:id="@+id/epgTitle"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -249,4 +255,5 @@
             android:listSelector="#33F0B429" android:scrollbars="none"
             android:clipToPadding="false" />
     </LinearLayout>
+    </FrameLayout>
 </FrameLayout>
