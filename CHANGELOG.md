@@ -1,5 +1,9 @@
 # VEO Android changelog
 
+## 0.45.68 — 2026-10-18
+- **Live TV: a short press on a channel in the side panel opens its guide.** The long press (unreliable on the remote) is dropped - a short press now opens
+  the channel's catch-up guide, browsable by days and hours; a channel with no archive just plays. (#408)
+
 ## 0.45.67 — 2026-10-18
 - **Live TV: holding OK on a channel in the list opens its guide.** It used to re-tune the channel over and over (the list read a held remote OK as repeated
   clicks); now a short press tunes and a hold opens that channel's catch-up guide, with day tabs and programme times. (#404)
