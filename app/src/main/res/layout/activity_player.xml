@@ -116,6 +116,12 @@
                     android:id="@+id/actPause"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:paddingHorizontal="12dp" android:paddingVertical="2dp" android:textSize="@dimen/info_chip_text" android:textStyle="bold" />
+                <!-- live: start the current programme from its beginning; catch-up: back to the live edge -->
+                <TextView
+                    android:id="@+id/actRestart"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:paddingHorizontal="12dp" android:paddingVertical="2dp" android:textSize="@dimen/info_chip_text" android:textStyle="bold" />
                 <TextView
                     android:id="@+id/actPrev"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -213,4 +219,34 @@
             android:listSelector="#33F0B429" android:scrollbars="none"
             android:paddingVertical="10dp" android:clipToPadding="false" />
     </FrameLayout>
+
+    <!-- Live TV: the programme guide (EPG), over the channel that plays underneath. The day tabs stay put at the
+         top (Left/Right chooses a day); the hours scroll under them (Up/Down), and OK plays the one chosen. -->
+    <LinearLayout
+        android:id="@+id/epgPanel"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:background="#CC05070C"
+        android:paddingHorizontal="28dp" android:paddingVertical="22dp" android:visibility="gone">
+        <TextView
+            android:id="@+id/epgTitle"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
+            android:textColor="#FFFFFF" android:textSize="24sp" android:textStyle="bold" />
+        <HorizontalScrollView
+            android:id="@+id/epgDaysScroll"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:scrollbars="none" android:fillViewport="false">
+            <LinearLayout
+                android:id="@+id/epgDays"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+        <ListView
+            android:id="@+id/epgList"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:layout_marginTop="16dp"
+            android:divider="#14FFFFFF" android:dividerHeight="1dp"
+            android:listSelector="#33F0B429" android:scrollbars="none"
+            android:clipToPadding="false" />
+    </LinearLayout>
 </FrameLayout>

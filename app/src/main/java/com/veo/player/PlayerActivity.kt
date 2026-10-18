@@ -1390,6 +1390,7 @@ class PlayerActivity : AppCompatActivity() {
                 list.onSuccess { guides[url] = it }
                 list.onFailure { loadingGuides.remove(url) }
                 if (bannerOpen) paintNow()
+                if (epgOpen && url == sources[index].epg) { buildEpgDays(); drawEpgDays(); drawEpgList(toNow = true) }
                 (findViewById<ListView>(R.id.chList).adapter as? BaseAdapter)?.notifyDataSetChanged()
             }
         }
@@ -1445,8 +1446,11 @@ class PlayerActivity : AppCompatActivity() {
         row.visibility = View.VISIBLE
         row.layoutDirection = if (skin.rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         val paused = player?.playWhenReady == false
-        val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actPrev to "הקודם", R.id.actNext to "הבא",
-            R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
+        // one button, two jobs: on the live edge it starts the programme now showing from its beginning; back in the
+        // past it returns to the live edge
+        val restart = if (catchUp != null) "●  לשידור חי" else "⏮  מהתחלה"
+        val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actRestart to restart,
+            R.id.actPrev to "הקודם", R.id.actNext to "הבא", R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
         val lit = if (actFocus) actIdx else -1
         for ((i, p) in labels.withIndex()) {
             val v = findViewById<TextView>(p.first)
@@ -1466,12 +1470,21 @@ class PlayerActivity : AppCompatActivity() {
     private fun runAction(i: Int) {
         when (i) {
             0 -> player?.let { it.playWhenReady = !it.playWhenReady; showMessage(if (it.playWhenReady) "ממשיך" else "מושהה", if (it.playWhenReady) 2_000 else 0) }
-            1 -> stepProgramme(true)
-            2 -> stepProgramme(false)
-            3 -> { actFocus = false; openPanel() }
+            1 -> if (catchUp != null) goLive() else startFromBeginning()
+            2 -> stepProgramme(true)
+            3 -> stepProgramme(false)
+            4 -> { actFocus = false; openPanel() }
             else -> { actFocus = false; openSyncPanel() }
         }
         if (!panelOpen) showBanner()
+    }
+
+    /** Live: play the programme now showing from its beginning (catch-up), if the guide says where it began. */
+    private fun startFromBeginning() {
+        val now = System.currentTimeMillis() / 1000
+        val prog = guides[sources[index].epg]?.firstOrNull { now in it.from until it.to }
+        if (prog != null && sources[index].arch.isNotBlank()) playAt(prog.from * 1000)
+        else showMessage("אין מידע על תחילת התוכנית", 2_000)
     }
 
     /** The programme before / after this one - pointed at, not played yet: like scanning the guide with the
@@ -1561,17 +1574,133 @@ class PlayerActivity : AppCompatActivity() {
         if (i != index) zapBy(i - index) else showBanner()
     }
 
-    /** Back to the app, opening that channel's catch-up (programme guide). */
-    private fun openCatchUp(i: Int) {
-        setResult(RESULT_OK, android.content.Intent().putExtra("catchup", sources[i].name))
-        finish()
+    /** A channel chosen in the list: it starts playing, and if it keeps its past its guide opens over it (the EPG,
+     *  days and hours). A channel with no archive has no guide, so it just plays. Both a tap and a press of OK come here. */
+    private fun chooseChannel(i: Int) {
+        closePanel()
+        if (i != index) zapBy(i - index)                       // the chosen channel plays underneath
+        if (sources[index].arch.isNotBlank()) openEpg() else showBanner()
     }
 
-    /** A channel chosen in the list: its guide opens (browsable EPG, days and hours) if it keeps its past; a channel
-     *  with no archive has no guide, so it just plays. Both a tap and a press of OK come here. */
-    private fun chooseChannel(i: Int) {
-        if (sources[i].arch.isNotBlank()) openCatchUp(i)
-        else { closePanel(); if (i != index) zapBy(i - index) else showBanner() }
+    // ---- the programme guide (EPG): day tabs pinned at the top, the hours scrolling under them, over the stream ----
+    private val epgOpen get() = findViewById<View>(R.id.epgPanel).visibility == View.VISIBLE
+    private var epgDays: List<Long> = emptyList()              // the start of each day the guide covers, epoch seconds
+    private var epgDay = 0                                     // which of them is shown
+    private var epgRows: List<Prog> = emptyList()             // the programmes of that day, as the list shows them
+
+    /** Local midnight of the day [sec] falls in, in epoch seconds. */
+    private fun dayStart(sec: Long): Long = java.util.Calendar.getInstance().apply {
+        timeInMillis = sec * 1000
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis / 1000
+
+    private fun dayLabel(dayStartSec: Long): String {
+        val today = dayStart(System.currentTimeMillis() / 1000)
+        return when (dayStartSec) {
+            today -> "היום"
+            today - 86_400 -> "אתמול"
+            else -> java.text.SimpleDateFormat("EEEE", java.util.Locale("he")).format(java.util.Date(dayStartSec * 1000))
+        }
+    }
+
+    private fun openEpg() {
+        hideChannelBar()
+        val epg = sources[index].epg
+        if (guides[epg] == null) loadGuide(epg)
+        findViewById<TextView>(R.id.epgTitle).text = sources[index].name
+        val list = findViewById<ListView>(R.id.epgList)
+        if (list.adapter !is EpgAdapter) {
+            list.adapter = EpgAdapter()
+            list.setOnItemClickListener { _, _, pos, _ -> playEpgRow(pos) }
+        }
+        buildEpgDays()
+        findViewById<View>(R.id.epgPanel).visibility = View.VISIBLE
+        drawEpgDays(); drawEpgList(toNow = true)
+        list.requestFocus()
+    }
+
+    private fun closeEpg() {
+        findViewById<View>(R.id.epgPanel).visibility = View.GONE
+        findViewById<LinearLayout>(R.id.epgDays).removeAllViews()
+    }
+
+    /** The days the guide covers; today is shown first of all, or the newest day if the guide stops short of it. */
+    private fun buildEpgDays() {
+        val progs = guides[sources[index].epg].orEmpty()
+        epgDays = progs.map { dayStart(it.from) }.distinct().sorted()
+        val today = dayStart(System.currentTimeMillis() / 1000)
+        epgDay = epgDays.indexOf(today).takeIf { it >= 0 } ?: (epgDays.size - 1).coerceAtLeast(0)
+    }
+
+    private fun drawEpgDays() {
+        val box = findViewById<LinearLayout>(R.id.epgDays)
+        box.layoutDirection = if (skin.rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        box.removeAllViews()
+        epgDays.forEachIndexed { i, d ->
+            val on = i == epgDay
+            box.addView(TextView(this).apply {
+                text = dayLabel(d)
+                textSize = 16f
+                setPadding(dp(18), dp(8), dp(18), dp(8))
+                setTextColor(if (on) skin.onAccent else skin.light)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat(); setColor(if (on) skin.accent else fade(skin.light, 0x24))
+                }
+                setOnClickListener { if (epgDay != i) { epgDay = i; drawEpgDays(); drawEpgList(toNow = true) } }
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
+        }
+    }
+
+    /** The chosen day's programmes. [toNow] puts the selection on the one showing now (or the last that has aired). */
+    private fun drawEpgList(toNow: Boolean) {
+        val progs = guides[sources[index].epg].orEmpty()
+        val day = epgDays.getOrNull(epgDay)
+        epgRows = if (day == null) emptyList() else progs.filter { dayStart(it.from) == day }
+        val list = findViewById<ListView>(R.id.epgList)
+        (list.adapter as EpgAdapter).notifyDataSetChanged()
+        if (toNow && epgRows.isNotEmpty()) {
+            val now = System.currentTimeMillis() / 1000
+            val sel = epgRows.indexOfFirst { now in it.from until it.to }
+                .let { if (it >= 0) it else epgRows.indexOfLast { it.to <= now }.takeIf { j -> j >= 0 } ?: 0 }
+            list.setSelection(sel)
+        }
+    }
+
+    private fun playEpgRow(pos: Int) {
+        val prog = epgRows.getOrNull(pos) ?: return
+        val now = System.currentTimeMillis() / 1000
+        if (prog.from > now) { showMessage("התוכנית עדיין לא שודרה", 1_500); return }      // the future is not there to watch
+        closeEpg()
+        if (now in prog.from until prog.to) { if (catchUp != null) goLive() else showBanner() }   // the one on now: the live edge
+        else playAt(prog.from * 1000)                                                             // a past one: from its beginning
+    }
+
+    private inner class EpgAdapter : BaseAdapter() {
+        override fun getCount() = epgRows.size
+        override fun getItem(position: Int) = epgRows[position]
+        override fun getItemId(position: Int) = position.toLong()
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
+            val row = (convertView as? LinearLayout) ?: LinearLayout(this@PlayerActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                addView(TextView(context).apply { textSize = 17f; minWidth = dp(72); textDirection = View.TEXT_DIRECTION_LTR })
+                addView(TextView(context).apply { textSize = 17f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(16) })
+            }
+            val time = row.getChildAt(0) as TextView
+            val name = row.getChildAt(1) as TextView
+            val p = epgRows[position]
+            val now = System.currentTimeMillis() / 1000
+            val onNow = now in p.from until p.to
+            val future = p.from > now
+            time.text = hhmm(p.from)
+            name.text = p.name + if (onNow) "   ●  חי" else ""
+            val colour = when { future -> fade(skin.light, 0x66); onNow -> skin.accent; else -> skin.light }
+            time.setTextColor(colour); name.setTextColor(colour)
+            return row
+        }
     }
 
     // ---- the channel list: a floating panel over the picture, opened by holding OK ----
@@ -1859,16 +1988,17 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Step along the line of time: a press ten seconds, a held key thirty. */
     /**
-     * A held scan key repeats many times a second, and each repeat used to jump thirty seconds - it ran by faster than the eye
-     * could follow. Now a hold waits a moment, then steps at a steady rate that quickens the longer it is held.
-     * Returns the step in milliseconds, or 0 when this repeat is to be passed over.
+     * A held scan key repeats many times a second. It runs almost linearly: a second at a time at first, then a little
+     * more each second it is held, so a short hold moves gently and a long one covers ground - without the big jumps that
+     * ran past the eye. Returns the step in milliseconds, or 0 when this repeat is to be passed over.
      */
     private fun heldStep(): Long {
         val now = android.os.SystemClock.uptimeMillis()
         val held = now - seekHoldStart
-        if (held < 600 || now - lastHeldStep < 250) return 0L
+        if (held < 500 || now - lastHeldStep < 200) return 0L     // ~5 steps a second once it starts
         lastHeldStep = now
-        return if (held < 2_500) 10_000L else if (held < 5_000) 30_000L else 60_000L
+        val secs = held / 1000                                    // one second a step to begin, +1s for every second held
+        return (1_000L + secs * 1_000L).coerceAtMost(60_000L)
     }
 
     private fun seekBy(direction: Int, held: Boolean, stepMs: Long = if (held) 30_000L else 10_000L) {
@@ -1878,7 +2008,7 @@ class PlayerActivity : AppCompatActivity() {
         val target = (if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()) + direction * step
         val c = catchUp
         if (direction > 0 && target >= nowMs - liveEdgeMs() - 3_000) {       // forward into the present: the live edge
-            showSeekSign(direction * step, nowMs)
+            if (!held) showSeekSign(direction * step, nowMs)                 // a held run says where it is in the banner, not in the middle of the picture
             aimAt = -1L
             if (c != null || pendingAt > 0) goLive() else p.seekToDefaultPosition()
             return
@@ -1896,7 +2026,7 @@ class PlayerActivity : AppCompatActivity() {
             handler.removeCallbacks(applyPending); handler.postDelayed(applyPending, 450)
         }
         aimAt = target; aimUntil = System.currentTimeMillis() + 8_000L
-        showSeekSign(direction * step, target)
+        if (!held) showSeekSign(direction * step, target)
         if (!walking) showBanner() else if (bannerOpen) paintNow()
     }
 
@@ -2092,6 +2222,23 @@ class PlayerActivity : AppCompatActivity() {
             }
             return true
         }
+        // the programme guide: Left/Right choose the day (the tabs stay put), Up/Down scroll the hours (the list does
+        // that itself), OK plays the one chosen, Back closes it
+        if (epgOpen) {
+            val visualBack = if (skin.rtl) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+            when {
+                code == KeyEvent.KEYCODE_BACK -> { if (down) closeEpg(); return true }
+                code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (down && event.repeatCount == 0 && epgDays.size > 1) {
+                        val n = (epgDay + (if (code == visualBack) -1 else 1)).coerceIn(0, epgDays.size - 1)
+                        if (n != epgDay) { epgDay = n; drawEpgDays(); drawEpgList(toNow = true) }
+                    }
+                    return true
+                }
+                ok -> { if (!down) findViewById<ListView>(R.id.epgList).selectedItemPosition.takeIf { it >= 0 }?.let { playEpgRow(it) }; return true }
+                else -> return super.dispatchKeyEvent(event)       // Up/Down: the list scrolls the hours
+            }
+        }
         if (panelOpen) {
             if (code == KeyEvent.KEYCODE_BACK) { if (down) closePanel(); return true }
             // OK on the channel list is decided here, not by the list (which reads a held remote OK as a run of clicks):
@@ -2114,7 +2261,7 @@ class PlayerActivity : AppCompatActivity() {
             when {
                 code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     // the row reads the way the layout runs: forward is toward the end of the row
-                    if (down && event.repeatCount == 0) { actIdx = (actIdx + (if (code == visualBack) -1 else 1)).coerceIn(0, 4); showBanner() }
+                    if (down && event.repeatCount == 0) { actIdx = (actIdx + (if (code == visualBack) -1 else 1)).coerceIn(0, 5); showBanner() }
                     return true
                 }
                 code == KeyEvent.KEYCODE_BACK -> { if (down && event.repeatCount == 0) hideChannelBar(); return true }
