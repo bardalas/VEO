@@ -1,5 +1,9 @@
 # VEO Android changelog
 
+## 0.45.66 — 2026-10-18
+- **Live TV info bar: Previous/Next only move the pointer.** Choosing them in the action row and pressing OK used to jump straight to that programme; now it points the
+  banner at it (showing "OK · hh:mm–hh:mm") and the switch happens only when Play is pressed on it, same as scanning the guide with the bare arrows. (#401)
+
 ## 0.45.65 — 2026-10-11
 - **Android Auto diagnostics.** Settings → General → Android Auto shows how VEO was installed, whether its car service is found, the Android Auto version, and a history of
   what Android Auto has asked of the car service - to find out why VEO is not offered in the car's app list. (#398)
