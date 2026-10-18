@@ -135,9 +135,6 @@ class PlayerActivity : AppCompatActivity() {
     /** Live banner actions: whether the row has the keys (Down steps into it), and which one is chosen. */
     private var actFocus = false
     private var actIdx = 0
-    /** OK in the channel list: a press that began there (not the held OK that opened it), and whether it was held long. */
-    private var listOk = false
-    private var listOkHeld = false
     /** Where the arrows are heading in a film, and how fast. The film itself does not move until they
      *  stop - see [scrubHold]. */
     private var scrubTo = -1L
@@ -1564,35 +1561,17 @@ class PlayerActivity : AppCompatActivity() {
         if (i != index) zapBy(i - index) else showBanner()
     }
 
-    /** Long press OK on a channel of the list: back to the app, opening that channel's catch-up (programme guide). */
+    /** Back to the app, opening that channel's catch-up (programme guide). */
     private fun openCatchUp(i: Int) {
-        // only a channel that keeps its past has a guide to walk back through; the page would show just "watch live"
-        if (sources[i].arch.isBlank()) { showMessage("לערוץ הזה אין שידורים קודמים", 2_000); return }
         setResult(RESULT_OK, android.content.Intent().putExtra("catchup", sources[i].name))
         finish()
     }
 
-    /**
-     * OK in the channel list, decided here rather than by the list: a short press tunes the channel, holding it opens
-     * that channel's guide (#404). Left to the list, a held remote OK was a run of clicks - the channel tuned again and
-     * again, and the guide never opened (its long-click listener answers touch). Only a press that began in the list
-     * counts: the OK held to open the panel goes on repeating into it, and its release is not a press either.
-     */
-    private fun channelListOk(event: KeyEvent, down: Boolean) {
-        val list = findViewById<ListView>(R.id.chList)
-        if (down) {
-            if (event.repeatCount == 0) { listOk = true; listOkHeld = false; okLong = false }
-            // a remote repeats the key while it is held; some send a single repeat, marked as the long press
-            else if (listOk && !listOkHeld && (event.isLongPress || event.eventTime - event.downTime >= 600)) {
-                listOkHeld = true
-                list.selectedItemPosition.takeIf { it >= 0 }?.let { openCatchUp(it) }
-            }
-            return
-        }
-        val i = list.selectedItemPosition
-        val tap = listOk && !listOkHeld && i >= 0
-        listOk = false; listOkHeld = false; okLong = false
-        if (tap) { closePanel(); if (i != index) zapBy(i - index) else showBanner() }
+    /** A channel chosen in the list: its guide opens (browsable EPG, days and hours) if it keeps its past; a channel
+     *  with no archive has no guide, so it just plays. Both a tap and a press of OK come here. */
+    private fun chooseChannel(i: Int) {
+        if (sources[i].arch.isNotBlank()) openCatchUp(i)
+        else { closePanel(); if (i != index) zapBy(i - index) else showBanner() }
     }
 
     // ---- the channel list: a floating panel over the picture, opened by holding OK ----
@@ -1639,12 +1618,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun openPanel() {
         hideChannelBar()
-        listOk = false; listOkHeld = false                     // a press still held as it opens is not one made in it
         val list = findViewById<ListView>(R.id.chList)
         if (list.adapter !is ChannelAdapter) {
             list.adapter = ChannelAdapter()
-            list.setOnItemClickListener { _, _, i, _ -> closePanel(); if (i != index) zapBy(i - index) else showBanner() }
-            list.setOnItemLongClickListener { _, _, i, _ -> openCatchUp(i); true }
+            list.setOnItemClickListener { _, _, i, _ -> chooseChannel(i) }      // a touch tap; OK is handled in dispatchKeyEvent
         }
         (list.adapter as BaseAdapter).notifyDataSetChanged()
         findViewById<View>(R.id.chPanel).visibility = View.VISIBLE
@@ -2117,7 +2094,16 @@ class PlayerActivity : AppCompatActivity() {
         }
         if (panelOpen) {
             if (code == KeyEvent.KEYCODE_BACK) { if (down) closePanel(); return true }
-            if (ok && findViewById<ListView>(R.id.chList).adapter is ChannelAdapter) { channelListOk(event, down); return true }
+            // OK on the channel list is decided here, not by the list (which reads a held remote OK as a run of clicks):
+            // one press, acted on when it is let go, opens the chosen channel. The OK held to open the panel is let go
+            // once the panel is up - that release is not a choice, so it is swallowed.
+            if (ok && findViewById<ListView>(R.id.chList).adapter is ChannelAdapter) {
+                if (!down) {
+                    if (okLong) okLong = false
+                    else findViewById<ListView>(R.id.chList).selectedItemPosition.takeIf { it >= 0 }?.let { chooseChannel(it) }
+                }
+                return true
+            }
             if (ok && !down && okLong) { okLong = false; return true }      // the release that ended the long press
             return super.dispatchKeyEvent(event)                 // the list handles the arrows and OK
         }
