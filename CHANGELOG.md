@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.67 — 2026-10-18
+- **Live TV: holding OK on a channel in the list opens its guide.** It used to re-tune the channel over and over (the list read a held remote OK as repeated
+  clicks); now a short press tunes and a hold opens that channel's catch-up guide, with day tabs and programme times. (#404)
+- **Audio sync up to ±3 seconds.** "הזזת השמע" was limited to half a second, too little for some streams; the range is now three seconds either way. (#405)
+
 ## 0.45.66 — 2026-10-18
 - **Live TV info bar: Previous/Next only move the pointer.** Choosing them in the action row and pressing OK used to jump straight to that programme; now it points the
   banner at it (showing "OK · hh:mm–hh:mm") and the switch happens only when Play is pressed on it, same as scanning the guide with the bare arrows. (#401)
