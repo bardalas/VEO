@@ -135,6 +135,9 @@ class PlayerActivity : AppCompatActivity() {
     /** Live banner actions: whether the row has the keys (Down steps into it), and which one is chosen. */
     private var actFocus = false
     private var actIdx = 0
+    /** OK in the channel list: a press that began there (not the held OK that opened it), and whether it was held long. */
+    private var listOk = false
+    private var listOkHeld = false
     /** Where the arrows are heading in a film, and how fast. The film itself does not move until they
      *  stop - see [scrubHold]. */
     private var scrubTo = -1L
@@ -615,9 +618,10 @@ class PlayerActivity : AppCompatActivity() {
         return out
     }
 
-    /** How large the subtitles are drawn: it takes effect as it is pressed, and is remembered. */
+    /** The sound moved later or earlier than the picture: it takes effect as it is pressed, and is remembered. Up to three
+     *  seconds either way - half a second was not enough for some streams (the delay is silence or a cut, so any size works). */
     private fun shiftAudio(byMs: Int) {
-        audioDelay.delayMs = (audioDelay.delayMs + byMs).coerceIn(-500, 500)
+        audioDelay.delayMs = (audioDelay.delayMs + byMs).coerceIn(-AUDIO_SHIFT_MAX_MS, AUDIO_SHIFT_MAX_MS)
         getSharedPreferences("veo", MODE_PRIVATE).edit().putInt("audioDelayMs", audioDelay.delayMs).apply()
     }
 
@@ -1562,8 +1566,33 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Long press OK on a channel of the list: back to the app, opening that channel's catch-up (programme guide). */
     private fun openCatchUp(i: Int) {
+        // only a channel that keeps its past has a guide to walk back through; the page would show just "watch live"
+        if (sources[i].arch.isBlank()) { showMessage("לערוץ הזה אין שידורים קודמים", 2_000); return }
         setResult(RESULT_OK, android.content.Intent().putExtra("catchup", sources[i].name))
         finish()
+    }
+
+    /**
+     * OK in the channel list, decided here rather than by the list: a short press tunes the channel, holding it opens
+     * that channel's guide (#404). Left to the list, a held remote OK was a run of clicks - the channel tuned again and
+     * again, and the guide never opened (its long-click listener answers touch). Only a press that began in the list
+     * counts: the OK held to open the panel goes on repeating into it, and its release is not a press either.
+     */
+    private fun channelListOk(event: KeyEvent, down: Boolean) {
+        val list = findViewById<ListView>(R.id.chList)
+        if (down) {
+            if (event.repeatCount == 0) { listOk = true; listOkHeld = false; okLong = false }
+            // a remote repeats the key while it is held; some send a single repeat, marked as the long press
+            else if (listOk && !listOkHeld && (event.isLongPress || event.eventTime - event.downTime >= 600)) {
+                listOkHeld = true
+                list.selectedItemPosition.takeIf { it >= 0 }?.let { openCatchUp(it) }
+            }
+            return
+        }
+        val i = list.selectedItemPosition
+        val tap = listOk && !listOkHeld && i >= 0
+        listOk = false; listOkHeld = false; okLong = false
+        if (tap) { closePanel(); if (i != index) zapBy(i - index) else showBanner() }
     }
 
     // ---- the channel list: a floating panel over the picture, opened by holding OK ----
@@ -1610,6 +1639,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun openPanel() {
         hideChannelBar()
+        listOk = false; listOkHeld = false                     // a press still held as it opens is not one made in it
         val list = findViewById<ListView>(R.id.chList)
         if (list.adapter !is ChannelAdapter) {
             list.adapter = ChannelAdapter()
@@ -2087,6 +2117,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         if (panelOpen) {
             if (code == KeyEvent.KEYCODE_BACK) { if (down) closePanel(); return true }
+            if (ok && findViewById<ListView>(R.id.chList).adapter is ChannelAdapter) { channelListOk(event, down); return true }
             if (ok && !down && okLong) { okLong = false; return true }      // the release that ended the long press
             return super.dispatchKeyEvent(event)                 // the list handles the arrows and OK
         }
@@ -2281,6 +2312,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val AUDIO_SHIFT_MAX_MS = 3_000
         /** What live requests identify as when the playlist names no agent of its own. */
         private const val LIVE_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
