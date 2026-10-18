@@ -1,5 +1,14 @@
 # VEO Android changelog
 
+## 0.45.69 — 2026-10-18
+- **Live TV: the programme guide opens over the stream.** Choosing a channel in the side panel opens its guide on top of the picture instead of leaving the
+  player: the day tabs stay at the top (Left/Right), the hours scroll under them (Up/Down), and OK plays the one chosen - the programme on now goes live, a
+  past one plays from its start. (#411)
+- **Start from the beginning / back to live.** A button in the live banner starts the programme now showing from its beginning; in the past it returns to
+  the live edge. (#411)
+- **Fast-forward on live TV is smoother.** A held arrow runs about a second at a time to begin with and faster the longer it is held, and the sign in the
+  middle of the picture is gone while it runs (the banner shows where you are). (#411)
+
 ## 0.45.68 — 2026-10-18
 - **Live TV: a short press on a channel in the side panel opens its guide.** The long press (unreliable on the remote) is dropped - a short press now opens
   the channel's catch-up guide, browsable by days and hours; a channel with no archive just plays. (#408)
