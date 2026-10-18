@@ -1128,7 +1128,8 @@ test("live TV: a short OK raises the banner with Pause | Channels | More, and a 
   assert.match(k, /"ערוצים", R\.id\.actMore to "עוד"/);
   assert.match(k, /private fun okRaise\(\)/);
   assert.match(k, /private fun heldStep\(\): Long/);
-  assert.match(k, /if \(held < 600 \|\| now - lastHeldStep < 250\) return 0L/);
+  assert.match(k, /if \(held < 500 \|\| now - lastHeldStep < 200\) return 0L/);   // a held scan key runs almost linearly: ~1s a step, growing (#411)
+  assert.match(k, /\(1_000L \+ secs \* 1_000L\)\.coerceAtMost\(60_000L\)/);
   assert.doesNotMatch(k, /seekLong = true; seekBy\(dir, held = true\) \}/);
 });
 
@@ -1194,7 +1195,7 @@ test("live TV: OK raises the banner with the remote on Pause | Previous | Next |
   assert.match(l, /android:id="@\+id\/actNext"/);
   assert.ok(l.indexOf('@+id/nowClock') < l.indexOf('@+id/liveChip'), 'the live capsule is at the far end, after the clock');
   assert.match(k, /private fun stepProgramme\(back: Boolean\)/);
-  assert.match(k, /coerceIn\(0, 4\)/);
+  assert.match(k, /coerceIn\(0, 5\)/);                                          // a sixth button joined the row: start-from-beginning / back-to-live (#411)
   assert.match(k, /if \(ok && !down\) \{ if \(!okDownSeen\) return true; okDownSeen = false \}/);
 });
 
