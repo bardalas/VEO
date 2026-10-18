@@ -629,11 +629,11 @@ test('live TV: a short press walks the guide, a held key scrubs, and the bar is 
   const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   const bar = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/SeekBarView.kt'), 'utf8');
   assert.match(kt, /if \(!seekLong\) \{ if \(canWalk\(\)\) walkGuide\(back\) else seekBy\(dir, held = false\) \}/);   // a short press: the guide
-  assert.match(kt, /else if \(live\) \{ val st = heldStep\(\); if \(st > 0\) \{ seekLong = true; seekBy\(dir, held = true, stepMs = st\) \}/);   // held: scrub, gently (#374)
+  assert.match(kt, /else if \(up - seekHoldStart >= 400\) \{ seekLong = true; liveScrubBegin\(dir\) \}/);   // held: scrub, gently (#374)
   assert.match(kt, /KEYCODE_MEDIA_NEXT -> if \(live && canWalk\(\)\) \{ walkGuide\(false\)/);                          // the guide keeps its own keys too
   assert.match(kt, /private fun posEpochMs\(\)/); assert.match(kt, /private fun playAt\(atMs: Long\)/); assert.match(kt, /private fun goLive\(\)/);
   assert.match(kt, /private fun paintBar\(/);                                            // the bar: the programme, filled to the present
-  assert.match(kt, /bar\.markLabel = hhmm\(at \/ 1000\)/);                               // the time beside the arrow
+  assert.match(kt, /bar\.markLabel = clock24s\.format\(java\.util\.Date\(at\)\)/);                               // the time beside the arrow
   assert.doesNotMatch(kt, /מאחורי השידור החי|timelineSpanMs|הציר:/);                      // no "N seconds behind live" captions, no ruler
   assert.match(bar, /var marker = -1/); assert.match(bar, /var markLabel/);
   assert.match(kt, /catchSeekMs = atMs - start \* 1000/);                                 // the archive opens a little before the minute asked for
@@ -814,7 +814,7 @@ test('the first sync after launch does not reload the app unless the profile lis
 test('the live-TV arrow holds the place aimed at until the picture has got there, instead of jumping back (#252)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /private fun aimActive\(\): Boolean/);
-  assert.match(k, /val at = if \(pendingAt > 0\) pendingAt else if \(aimActive\(\)\) aimAt else posEpochMs\(\)/);
+  assert.match(k, /val at = if \(liveScrubAt > 0\) liveScrubAt else if \(pendingAt > 0\) pendingAt else if \(aimActive\(\)\) aimAt else posEpochMs\(\)/);
   assert.match(k, /aimAt = target; aimUntil = /);
 });
 
