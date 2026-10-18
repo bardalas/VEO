@@ -1473,9 +1473,12 @@ class PlayerActivity : AppCompatActivity() {
         if (!panelOpen) showBanner()
     }
 
-    /** The programme before / after this one, played at once; a channel with no guide has none, so it is the channel before / after. Never a seek. */
+    /** The programme before / after this one - pointed at, not played yet: like scanning the guide with the
+     *  arrows, this only moves the banner (walkGuide hides the action row and shows "OK · hh:mm–hh:mm");
+     *  the Play button is what commits it (runAction case 0 while walking, or the generic OK-while-walking
+     *  handler below). A channel with no guide has no programme to point at, so it switches channel at once. */
     private fun stepProgramme(back: Boolean) {
-        if (canWalk()) { if (walkGuide(back)) tuneWalk() }
+        if (canWalk()) walkGuide(back)
         else if (sources.size > 1) zapBy(if (back) -1 else 1)
         else showMessage("אין תוכן קודם או הבא בערוץ הזה", 2_000)
     }
