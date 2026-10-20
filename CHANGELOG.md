@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.71 — 2026-10-20
+- **Live TV: the bar's pointer keeps up after a run back.** In catch-up it stood still where the run had ended, and the next run started from there; it now
+  follows the picture. (#417)
+- **The run back and forward is a little faster**, and the "from the beginning" mark points the way the bar runs back. (#417)
+
 ## 0.45.70 — 2026-10-19
 - **24-hour clock in the player** - 20:30 and 00:00, no AM/PM, whatever the device is set to. (#414)
 - **Running back and forward on live TV is smooth.** Holding an arrow (or ⏪/⏩) moves only the bar's pointer, continuously and to the second, slowly at first
