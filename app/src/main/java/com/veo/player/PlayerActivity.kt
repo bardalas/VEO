@@ -1985,8 +1985,24 @@ class PlayerActivity : AppCompatActivity() {
     private fun posEpochMs(): Long {
         val p = player ?: return System.currentTimeMillis()
         val c = catchUp
-        return if (c != null) c.from * 1000 + p.currentPosition
-        else System.currentTimeMillis() - (p.currentLiveOffset.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L)
+        val offset = p.currentLiveOffset.takeIf { it != C.TIME_UNSET }
+        // An archive can come as a finished recording (its position counts from the start asked for) or as a live
+        // playlist that slides along from that minute (utc= / timeshift): there the position is inside a window that
+        // moves with it, stays about the same, and the time worked out from it stood still (#417). The clock written into
+        // the stream - the live offset - says where the picture really is.
+        return if (c != null) {
+            if (p.isCurrentMediaItemDynamic && offset != null) System.currentTimeMillis() - offset else c.from * 1000 + p.currentPosition
+        } else System.currentTimeMillis() - (offset?.coerceAtLeast(0L) ?: 0L)
+    }
+
+    /** Where in the player's own timeline the minute [t] (epoch ms) is: counted from where the picture is now, so it is right
+     *  for a sliding archive as well as a finished one. */
+    private fun relPosition(p: ExoPlayer, t: Long): Long = p.currentPosition + (t - posEpochMs())
+
+    /** Whether the minute [t] is in what the catch-up player already holds. */
+    private fun inCatchUp(p: ExoPlayer, t: Long): Boolean {
+        val rel = relPosition(p, t)
+        return rel >= 0 && (p.duration == C.TIME_UNSET || rel < p.duration - 2_000)
     }
 
     /** How far behind the true present a live stream plays when it is "live": the player keeps some seconds in hand,
@@ -2086,8 +2102,7 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(applyPending); pendingAt = -1
         when {
             t >= nowMs - liveEdgeMs() - 3_000 -> { aimAt = -1L; if (c != null) goLive() else p?.seekToDefaultPosition() }
-            p != null && c != null && t - c.from * 1000 >= 0 && (p.duration == C.TIME_UNSET || t - c.from * 1000 < p.duration - 2_000) ->
-                p.seekTo(t - c.from * 1000)
+            p != null && c != null && inCatchUp(p, t) -> p.seekTo(relPosition(p, t))
             p != null && c == null && (sources[index].arch.isBlank() || nowMs - t <= liveWindowMs() - 4_000) ->
                 p.seekTo((p.currentPosition + (t - posEpochMs())).coerceAtLeast(0))
             else -> playAt(t)
@@ -2110,12 +2125,10 @@ class PlayerActivity : AppCompatActivity() {
         }
         val window = liveWindowMs()
         val loaded = if (c != null) {
-            val rel = target - c.from * 1000
-            val dur = p.duration
-            rel >= 0 && (dur == C.TIME_UNSET || rel < dur - 2_000)
+            inCatchUp(p, target)
         } else sources[index].arch.isBlank() || (nowMs - target) <= window - 4_000      // no archive: what the player keeps is all there is
         if (loaded && pendingAt <= 0) {
-            p.seekTo((if (c != null) target - c.from * 1000 else p.currentPosition + direction * step).coerceAtLeast(0))
+            p.seekTo((if (c != null) relPosition(p, target) else p.currentPosition + direction * step).coerceAtLeast(0))
         } else {                                                              // beyond what is loaded: from that minute, after the last press
             pendingAt = target
             handler.removeCallbacks(applyPending); handler.postDelayed(applyPending, 450)
