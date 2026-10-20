@@ -1451,7 +1451,8 @@ class PlayerActivity : AppCompatActivity() {
         val paused = player?.playWhenReady == false
         // one button, two jobs: on the live edge it starts the programme now showing from its beginning; back in the
         // past it returns to the live edge
-        val restart = if (catchUp != null) "●  לשידור חי" else "⏮  מהתחלה"
+        // the "to the start" mark points the way the bar runs back: right, on a right-to-left screen
+        val restart = if (catchUp != null) "●  לשידור חי" else if (skin.rtl) "⏭  מהתחלה" else "⏮  מהתחלה"
         val labels = listOf(R.id.actPause to (if (paused) "▶  המשך" else "❚❚  השהה"), R.id.actRestart to restart,
             R.id.actPrev to "הקודם", R.id.actNext to "הבא", R.id.actChannels to "ערוצים", R.id.actMore to "עוד")
         val lit = if (actFocus) actIdx else -1
@@ -2077,8 +2078,8 @@ class PlayerActivity : AppCompatActivity() {
             val up = android.os.SystemClock.uptimeMillis()
             if (up - liveScrubKeyAt > 500) { liveScrubCommit(); return }      // the key's release was not seen
             val held = (up - liveScrubBegan) / 1000.0
-            // seconds of broadcast per second held: 3 at first, then quicker and quicker, up to ten minutes a second
-            val rate = (3.0 + held * held * 6.0).coerceAtMost(600.0)
+            // seconds of broadcast per second held: 5 at first, then quicker and quicker, up to fifteen minutes a second
+            val rate = (5.0 + held * held * 10.0).coerceAtMost(900.0)
             val nowMs = System.currentTimeMillis()
             val edge = nowMs - liveEdgeMs()
             val rec = sources[index].rec
