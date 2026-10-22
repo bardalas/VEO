@@ -93,7 +93,6 @@ html[data-device="tv"] .chlogo img{max-height:40px}
 html[data-device="tv"] .chnum{font-size:13px;top:4px;inset-inline-start:8px}
 html[data-device="tv"] .chtag{top:2px}
 
-.chmain.last{border-color:var(--tungsten)}
 .chtop{position:relative;display:block}
 .chlogo{height:66px;border-radius:10px;background:#ffffff0d;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .chlogo img{max-width:70%;max-height:46px;object-fit:contain}
