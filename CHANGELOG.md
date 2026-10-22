@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.73 — 2026-10-22
+- **Ad skip no longer stalls the picture.** It used to read the archive ahead all the time, on the TV's own video decoder; now it only looks at the
+  picture already on screen, and searches the archive for the end of a break only once one has begun - on the software decoder, reading only the start
+  of each piece. It lands about at the end of the break. (#423)
+- **Live TV: the last-watched channel keeps its badge, without the frame.** (#424)
+
 ## 0.45.72 — 2026-10-22
 - **Ad breaks are skipped when watching Keshet 12 or Reshet 13 from the past.** Both channels show the same mark through every break ("מיד חוזרים" in the
   top corner); the app reads the archive a little ahead in the background, finds the breaks by that mark, and jumps over each one when the picture reaches
