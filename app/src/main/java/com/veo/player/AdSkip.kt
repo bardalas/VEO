@@ -1,6 +1,7 @@
 package com.veo.player
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
@@ -13,17 +14,20 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * The end of an ad break, looked for only once the picture is in one (#420, #423).
+ * The end of an ad break, looked for only once the picture is in one (#420, #423, #427).
  *
  * Neither the playlists nor the video say where a break is. But Keshet 12 and Reshet 13 both put the same mark on the
  * picture through every break: the swirl of their ad house with "מיד חוזרים" under it, where the channel's logo stands
- * otherwise. The player checks the picture it is already showing for that mark ([AdMark], from a copy of the screen - no
- * download, no decoding). Only when it sees a break does this read the archive ahead - the first frame of the piece that
- * starts at a given second - in growing leaps until the programme is back, then halves the gap to about half a minute.
- * Reading ahead all the time cost the stream its bandwidth, and on a TV box its decoder: the picture stalled.
+ * otherwise - and for the last minutes of a break, a countdown to the programme ([Countdown]). The player checks the
+ * picture it is already showing (a copy of the screen - no download, no decoding). A countdown there says where the break
+ * ends at once. Otherwise, once the mark is seen, this reads the archive ahead - the first frame of the piece that starts
+ * at a given second, several at once, in growing leaps - until a countdown or the programme turns up, then narrows the gap
+ * to about half a minute. Reading ahead all the time cost the stream its bandwidth, and on a TV box its decoder.
  */
 class AdSearch(
     private val ctx: Context,
+    /** The channel, as [Countdown.key] names it. */
+    private val key: String,
     private val ua: String,
     private val referer: String,
     /** The archive's address for the minute starting at an epoch second (the template the player is using). */
@@ -35,9 +39,8 @@ class AdSearch(
     val busy get() = job?.isAlive == true
 
     /**
-     * The break the picture is in at epoch second [from]: where it ends, to about half a minute - the second given is
-     * about a quarter-minute before the end, so a few seconds of ads may still play rather than any of the programme - or
-     * null when it could not be found. [done] runs through [post].
+     * The break the picture is in at epoch second [from]: where it ends - from a countdown, to within ten seconds (and
+     * never after it); without one, to about half a minute - or null when it could not be found. [done] runs through [post].
      */
     fun findEnd(from: Long, latest: Long, post: (Runnable) -> Unit, done: (Long?) -> Unit) {
         cancel()
@@ -48,37 +51,63 @@ class AdSearch(
     }
 
     private fun search(from: Long, latest: Long): Long? {
-        var lastAd = from
-        var step = FIRST_LEAP
-        var back = -1L                                  // the first frame found back in the programme
-        while (back < 0) {
-            val t = lastAd + step
-            if (t > minOf(latest, from + LONGEST)) return null
-            when (probeTwice(t)) {
-                true -> { lastAd = t; step = minOf(step * 2, MAX_LEAP) }
-                false -> {
-                    // an ad without the mark inside the break looks like the programme: the programme is two frames without it
-                    val again = t + CONFIRM
-                    if (again <= latest && probeTwice(again) == true) { lastAd = again; step = FIRST_LEAP } else back = t
+        // several frames read at once: the time a search takes is a few round trips, not one per frame
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        try {
+            val limit = minOf(latest, from + LONGEST)
+            fun all(ts: List<Long>): List<AdMark.Look?> = ts.map { t -> pool.submit<AdMark.Look?> { probeTwice(t) } }.map { it.get() }
+            // a countdown among the frames read is the end itself; the last one read wins (a channel sometimes resets it)
+            // (a piece read for second t may start a few seconds before it: the end is set that much earlier, so that it lands
+            // in the last seconds of the ads rather than the first of the programme)
+            fun counted(ts: List<Long>, rs: List<AdMark.Look?>): Long? =
+                ts.zip(rs).mapNotNull { (t, r) -> r?.left?.let { t + it - PIECE_SLACK } }.maxOrNull()
+            var lastAd = from
+            var back = -1L                              // the first frame found back in the programme
+            var leaps = FIRST_LEAPS
+            while (back < 0) {
+                val ts = leaps.map { lastAd + it }.filter { it <= limit }
+                if (ts.isEmpty()) return null
+                val rs = all(ts)
+                counted(ts, rs)?.let { Log.i(TAG, "break from $from: countdown says $it"); return it }
+                var i = 0
+                while (i < ts.size && rs[i]?.ad == true) { lastAd = ts[i]; i++ }
+                if (i == ts.size) { leaps = ON_LEAPS; continue }          // still in the break at the furthest: on from there
+                val t = ts[i]
+                if (rs[i] == null) return null
+                // an ad without the mark inside the break looks like the programme: the programme is two frames without it
+                val again = t + CONFIRM
+                if (again <= latest) {
+                    val r = all(listOf(again))
+                    counted(listOf(again), r)?.let { return it }
+                    if (r[0]?.ad == true) { lastAd = again; leaps = FIRST_LEAPS; continue }
                 }
-                null -> return null
+                back = t
             }
-        }
-        while (back - lastAd > CLOSE) {
-            val mid = (lastAd + back) / 2
-            when (probeTwice(mid)) { true -> lastAd = mid; false -> back = mid; null -> return null }
-        }
-        Log.i(TAG, "break from $from ends between $lastAd and $back")
-        return (lastAd + back) / 2
+            while (back - lastAd > CLOSE) {
+                val a = lastAd + (back - lastAd) / 3
+                val b = lastAd + 2 * (back - lastAd) / 3
+                val rs = all(listOf(a, b))
+                counted(listOf(a, b), rs)?.let { return it }
+                val (ra, rb) = rs
+                when {
+                    ra == null || rb == null -> return null
+                    !ra.ad -> back = a
+                    !rb.ad -> { lastAd = a; back = b }
+                    else -> lastAd = b
+                }
+            }
+            Log.i(TAG, "break from $from ends between $lastAd and $back")
+            return (lastAd + back) / 2
+        } finally { pool.shutdownNow() }
     }
 
-    private fun probeTwice(t: Long): Boolean? {
+    private fun probeTwice(t: Long): AdMark.Look? {
         if (Thread.currentThread().isInterrupted) throw InterruptedException()
         return probe(t) ?: run { Thread.sleep(1_000); probe(t) }
     }
 
-    /** Whether the frame at epoch second [t] carries the mark; null when it could not be read. */
-    fun probe(t: Long): Boolean? {
+    /** What the frame at epoch second [t] shows; null when it could not be read. */
+    fun probe(t: Long): AdMark.Look? {
         val list = fetchText(urlAt(t)) ?: return null.also { Log.w(TAG, "no playlist for $t") }
         var base = list.first; var text = list.second
         if (text.contains("#EXT-X-STREAM-INF")) {
@@ -89,7 +118,7 @@ class AdSearch(
         val seg = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: return null.also { Log.w(TAG, "no segment") }
         val file = File(ctx.cacheDir, "adscan-${Thread.currentThread().id}.ts")
         if (!fetchTo(URL(URL(base), seg).toString(), file)) return null.also { Log.w(TAG, "segment download failed") }
-        return try { AdMark.isAd(ctx, file).also { Log.i(TAG, "probe $t ad=$it") } } finally { file.delete() }
+        return try { AdMark.look(ctx, file, key).also { Log.i(TAG, "probe $t $it") } } finally { file.delete() }
     }
 
     private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -117,15 +146,111 @@ class AdSearch(
 
     companion object {
         const val TAG = "VEO-ads"
-        private const val FIRST_LEAP = 60L       // the first look ahead, in seconds; doubled while still in the break
-        private const val MAX_LEAP = 240L
+        private val FIRST_LEAPS = listOf(60L, 120L, 240L, 480L)   // the first looks ahead, read together
+        private val ON_LEAPS = listOf(120L, 240L, 360L, 480L)     // and on from the furthest, while still in the break
         private const val CONFIRM = 45L          // the second frame that says the programme is back
         private const val CLOSE = 30L            // the end is known when its two sides are this close
         private const val LONGEST = 20 * 60L     // no break is longer
         private const val HEAD_BYTES = 900 * 1024  // how much of a piece is read: the first frame and a little more
+        private const val PIECE_SLACK = 6L       // how far before the second asked for a piece's first frame may be
+    }
+}
 
-        /** The channels whose breaks carry the mark. */
-        fun supports(name: String) = Regex("(keshet|קשת)\\s*12|(reshet|רשת)\\s*13", RegexOption.IGNORE_CASE).containsMatchIn(name)
+/**
+ * The countdown both channels show over the last minutes of a break - "חוזרים בעוד 03:47" on 12, "מיד נשוב 03:55" on 13 -
+ * read off the picture (#427). Its minutes and tens of seconds put the end of the break within ten seconds, and never
+ * after it: the units are not read. The digits are dark on a light box in a fixed place; each of the first three is cut
+ * out, scaled to 12x20 and matched against the channel's 0 to 5 (the first is always 0, which is what says it is the
+ * countdown at all). Studied on four breaks: every reading of a break gave the same end, within ten seconds.
+ */
+object Countdown {
+    /** Where the digits stand, in a 1920x1080 picture. */
+    class Layout(val x0: Int, val y0: Int, val x1: Int, val y1: Int) { val w get() = x1 - x0; val h get() = y1 - y0 }
+    private val LAYOUTS = mapOf("k12" to Layout(128, 110, 285, 162), "r13" to Layout(328, 110, 500, 164))
+    private const val GW = 12
+    private const val GH = 20
+
+    /** The channel a name belongs to, among those whose breaks are marked: "k12", "r13", or null. */
+    fun key(name: String): String? = when {
+        Regex("(keshet|קשת)\\s*12", RegexOption.IGNORE_CASE).containsMatchIn(name) -> "k12"
+        Regex("(reshet|רשת)\\s*13", RegexOption.IGNORE_CASE).containsMatchIn(name) -> "r13"
+        else -> null
+    }
+    fun layout(key: String): Layout? = LAYOUTS[key]
+
+    private val templates = HashMap<String, List<FloatArray>>()
+    private fun templates(ctx: Context, key: String): List<FloatArray> = synchronized(templates) {
+        templates.getOrPut(key) {
+            val b = ctx.assets.open("ads/digits_$key.bin").use { it.readBytes() }
+            val fb = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+            List(6) { d -> FloatArray(GW * GH).also { fb.position(d * GW * GH); fb.get(it) }.let { z(it) } }
+        }
+    }
+
+    private fun z(a: FloatArray): FloatArray {
+        val m = a.average().toFloat()
+        val sd = kotlin.math.sqrt(a.fold(0.0) { s, v -> s + (v - m) * (v - m) } / a.size).toFloat() + 1e-6f
+        return FloatArray(a.size) { (a[it] - m) / sd }
+    }
+
+    /** The countdown in a copy of its corner of the screen, at full size. */
+    fun read(ctx: Context, key: String, bmp: Bitmap): Int? {
+        val w = bmp.width; val h = bmp.height
+        val px = IntArray(w * h); bmp.getPixels(px, 0, w, 0, 0, w, h)
+        val g = FloatArray(w * h) { val c = px[it]; 0.299f * ((c shr 16) and 0xff) + 0.587f * ((c shr 8) and 0xff) + 0.114f * (c and 0xff) }
+        return read(ctx, key, g, w, h)
+    }
+
+    /** The seconds left - at least, and up to nine more - when the band [g] ([w]x[h], at 1920x1080 scale) shows a
+     *  countdown; null when it does not. */
+    fun read(ctx: Context, key: String, g: FloatArray, w: Int, h: Int): Int? {
+        val sorted = g.copyOf().also { it.sort() }
+        val light = sorted[(sorted.size * 0.9).toInt().coerceAtMost(sorted.size - 1)]
+        if (light < 140f) return null                                   // no light box behind the digits
+        val thr = light * 0.45f
+        val dark = BooleanArray(w * h) { g[it] < thr }
+        // the dark shapes, left to right
+        val runs = ArrayList<IntArray>()
+        var x = 0
+        while (x < w) {
+            var n = 0; for (y in 0 until h) if (dark[y * w + x]) n++
+            if (n > 2) {
+                val s = x
+                while (x < w) { var m = 0; for (y in 0 until h) if (dark[y * w + x]) m++; if (m <= 2) break; x++ }
+                if (runs.isNotEmpty() && s - runs.last()[1] <= 1) runs.last()[1] = x else runs.add(intArrayOf(s, x))
+            } else x++
+        }
+        val shapes = runs.filter { it[1] - it[0] >= 4 }.toMutableList()
+        if (shapes.size == 5) {                                         // a thick colon: the shape with the least ink
+            val ink = shapes.map { r -> var s = 0; for (y in 0 until h) for (xx in r[0] until r[1]) if (dark[y * w + xx]) s++; s }
+            shapes.removeAt(ink.indexOf(ink.min()))
+        }
+        if (shapes.size != 4) return null
+        val tm = templates(ctx, key)
+        val digits = IntArray(3)
+        for (k in 0 until 3) {
+            val (a, b) = shapes[k].let { it[0] to it[1] }
+            var top = -1; var bottom = -1
+            for (y in 0 until h) { var any = false; for (xx in a until b) if (dark[y * w + xx]) { any = true; break }; if (any) { if (top < 0) top = y; bottom = y } }
+            if (top < 0 || bottom - top + 1 < 15) return null
+            // the shape at 12x20, each value the mean of its block
+            val cw = b - a; val chh = bottom - top + 1
+            val c = FloatArray(GW * GH)
+            for (j in 0 until GH) for (i in 0 until GW) {
+                val x0 = a + i * cw / GW; val x1 = maxOf(x0 + 1, a + (i + 1) * cw / GW)
+                val y0 = top + j * chh / GH; val y1 = maxOf(y0 + 1, top + (j + 1) * chh / GH)
+                var s = 0f; var n = 0
+                for (yy in y0 until y1) for (xx in x0 until x1) { s += g[yy * w + xx]; n++ }
+                c[j * GW + i] = s / n
+            }
+            val cz = z(c)
+            var best = -1; var bestScore = -2.0
+            for (d in 0 until 6) { var acc = 0.0; val t = tm[d]; for (q in cz.indices) acc += cz[q] * t[q]; val v = acc / cz.size; if (v > bestScore) { bestScore = v; best = d } }
+            if (bestScore < 0.85) return null
+            digits[k] = best
+        }
+        if (digits[0] != 0) return null
+        return digits[1] * 60 + digits[2] * 10
     }
 }
 
@@ -156,23 +281,31 @@ object AdMark {
         FloatArray(t.size) { (t[it] - mean) / sd }
     }.also { templates = it }
 
-    fun isAd(ctx: Context, ts: File): Boolean? {
-        val luma = firstFrameLuma(ts) ?: return null.also { Log.w(AdSearch.TAG, "no frame decoded from ${ts.length()} bytes") }
-        return isAd(ctx, luma)
+    /** What a frame shows: the break's mark, and - in the last minutes of a break - the seconds its countdown has left. */
+    data class Look(val mark: Boolean, val left: Int?) {
+        val ad get() = mark || left != null
+        override fun toString() = "mark=$mark" + (left?.let { " left>=${it}s" } ?: "")
     }
 
-    /** The same, for a picture the player is showing: a copy of the screen at [FRAME_W]x[FRAME_H]. */
-    fun isAd(ctx: Context, bmp: android.graphics.Bitmap): Boolean {
+    /** The first frame of an archive piece, for channel [key]; null when it could not be read. */
+    fun look(ctx: Context, ts: File, key: String): Look? {
+        val f = firstFrame(ts, Countdown.layout(key)) ?: return null.also { Log.w(AdSearch.TAG, "no frame decoded from ${ts.length()} bytes") }
+        val L = Countdown.layout(key)
+        return Look(isMark(ctx, f.first), if (L != null && f.second != null) Countdown.read(ctx, key, f.second!!, L.w, L.h) else null)
+    }
+
+    /** The mark in a picture the player is showing: a copy of the screen at [FRAME_W]x[FRAME_H]. */
+    fun mark(ctx: Context, bmp: android.graphics.Bitmap): Boolean {
         val g = FloatArray(W * H)
         val px = IntArray(W)
         for (y in 0..minOf(H - 1, SY1 + 2)) {
             bmp.getPixels(px, 0, W, 0, y, W, 1)
             for (x in SX0 - 2 until W) { val c = px[x]; g[y * W + x] = 0.299f * ((c shr 16) and 0xff) + 0.587f * ((c shr 8) and 0xff) + 0.114f * (c and 0xff) }
         }
-        return isAd(ctx, g)
+        return isMark(ctx, g)
     }
 
-    private fun isAd(ctx: Context, luma: FloatArray): Boolean {
+    private fun isMark(ctx: Context, luma: FloatArray): Boolean {
         val e = edges(luma)
         val score = templates(ctx).maxOf { best(e, it) }
         Log.i(AdSearch.TAG, "score %.2f".format(score))
@@ -261,8 +394,9 @@ object AdMark {
         return if (vpid < 0 || frames.isEmpty()) null else mime to frames
     }
 
-    /** The first picture of a piece of video, as brightness at 480x270 (each value the mean of its block). */
-    private fun firstFrameLuma(ts: File): FloatArray? {
+    /** The first picture of a piece of video: its brightness at 480x270 (each value the mean of its block) for the mark, and
+     *  at full size where the countdown stands ([band], in 1920x1080 terms). */
+    private fun firstFrame(ts: File, band: Countdown.Layout?): Pair<FloatArray, FloatArray?>? {
         var codec: MediaCodec? = null
         try {
             val (mime, frames) = videoFrames(ts.readBytes(), 40) ?: return null.also { Log.w(AdSearch.TAG, "no video stream in the piece") }
@@ -307,7 +441,16 @@ object AdMark {
                                     g[y * W + x] = s.toFloat() / c
                                 }
                             }
-                            g
+                            // the countdown's band, one picture pixel for each 1920x1080 one
+                            val bandLuma = band?.let { L ->
+                                FloatArray(L.w * L.h).also { bl ->
+                                    for (y in 0 until L.h) for (x in 0 until L.w) {
+                                        val sx = crop.left + (L.x0 + x) * cw / 1920; val sy = crop.top + (L.y0 + y) * ch / 1080
+                                        bl[y * L.w + x] = (buf.get(sy * rs + sx * ps).toInt() and 0xFF).toFloat()
+                                    }
+                                }
+                            }
+                            g to bandLuma
                         }
                         img?.close()
                         codec.releaseOutputBuffer(o, false)

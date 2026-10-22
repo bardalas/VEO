@@ -2129,7 +2129,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /* ---------- live TV: skipping the ad breaks (#420, #423) ----------
-       Watching from the past on a channel whose breaks carry the ad mark (AdSearch.supports), the picture being shown is
+       Watching from the past on a channel whose breaks carry the ad mark (Countdown.key), the picture being shown is
        checked for the mark every few seconds - a copy of the screen, nothing downloaded or decoded while the programme
        plays. Two checks in a row with the mark, and the end of the break is looked for in the archive ahead; the picture
        then jumps there. */
@@ -2149,53 +2149,97 @@ class PlayerActivity : AppCompatActivity() {
             handler.postDelayed(this, 1_000)
             val src = sources.getOrNull(index)
             val p = player
-            val on = started && live && catchUp != null && adSkipOn && src != null && src.arch.isNotBlank() && AdSearch.supports(src.name)
+            val key = src?.let { Countdown.key(it.name) }
+            val on = started && live && catchUp != null && adSkipOn && src != null && src.arch.isNotBlank() && key != null
             if (!on) { adSearch?.cancel(); adSearch = null; adChannel = -1; adStreak = 0; return }
             if (adSearch == null || adChannel != index) {
                 adSearch?.cancel(); adChannel = index; adStreak = 0; adCopyFails = 0
-                adSearch = AdSearch(applicationContext, src!!.ua.ifBlank { LIVE_UA }, src.referer) { t -> archiveUrl(src, Prog(t, t + 600, "")) }
+                adSearch = AdSearch(applicationContext, key!!, src!!.ua.ifBlank { LIVE_UA }, src.referer) { t -> archiveUrl(src, Prog(t, t + 600, "")) }
             }
             val search = adSearch ?: return
             val now = android.os.SystemClock.uptimeMillis()
-            if (search.busy || now < adQuietUntil || p == null || p.playbackState != Player.STATE_READY || !p.playWhenReady || liveScrubAt > 0) return
-            if (now - adLastLook < (if (adCopyFails >= 3) 6_000 else 3_000)) return
+            if (now < adQuietUntil || p == null || p.playbackState != Player.STATE_READY || !p.playWhenReady || liveScrubAt > 0) return
+            if (now - adLastLook < (if (adCopyFails >= 3) 6_000 else 2_000)) return
             adLastLook = now
             val pos = posEpochMs() / 1000
-            lookForMark(search, pos) { ad ->
-                if (ad == null || adSearch !== search || catchUp == null) return@lookForMark
-                adStreak = if (ad) adStreak + 1 else 0
-                if (adStreak < 2) return@lookForMark
-                adStreak = 0
-                showMessage("פרסומות · מחפש את הסוף…", 4_000)
-                search.findEnd(pos, System.currentTimeMillis() / 1000 - 60, { handler.post(it) }) { end ->
-                    val cur = posEpochMs() / 1000
-                    if (end == null || end <= cur + 10 || catchUp == null || adSearch !== search) {
-                        adQuietUntil = android.os.SystemClock.uptimeMillis() + 60_000; return@findEnd
+            lookForMark(search, key!!, pos) { look ->
+                if (look == null || adSearch !== search || catchUp == null) return@lookForMark
+                // a countdown on the screen says where the break ends: no search, and no second look needed (#427)
+                val left = look.left
+                if (left != null && left > 10) {
+                    search.cancel()
+                    adPendingEnd = pos + left
+                    adJump()
+                    return@lookForMark
+                }
+                if (!look.ad) {
+                    // the mark is gone: a search started on one sighting was a false alarm
+                    if (adStreak > 0 && search.busy) search.cancel()
+                    adStreak = 0; adPendingEnd = -1L; return@lookForMark
+                }
+                adStreak++
+                // the search starts on the first sighting, so the archive is being read while the second check is made; the
+                // jump waits for that second check
+                if (adStreak == 1) {
+                    adPendingEnd = -1L
+                    search.findEnd(pos, System.currentTimeMillis() / 1000 - 60, { handler.post(it) }) { end ->
+                        if (adSearch !== search) return@findEnd
+                        if (end == null) { adStreak = 0; adQuietUntil = android.os.SystemClock.uptimeMillis() + 60_000; return@findEnd }
+                        adPendingEnd = end
+                        if (adStreak >= 2) adJump()
                     }
-                    adQuietUntil = android.os.SystemClock.uptimeMillis() + 30_000
-                    android.util.Log.i(AdSearch.TAG, "skip $cur -> $end")
-                    showMessage("דילוג על פרסומות · ${fmtClock((end - cur) * 1000)}", 3_000)
-                    liveScrubAt = end * 1000
-                    liveScrubCommit()
+                } else if (adStreak == 2) {
+                    showMessage("פרסומות · מחפש את הסוף…", 3_000)
+                    if (adPendingEnd > 0) adJump()
                 }
             }
         }
     }
 
-    /** Whether the picture shown now carries the ad mark: a copy of the screen - or, where the screen cannot be copied (some
-     *  boxes put the video on a layer the app cannot read), the start of the archive piece at [pos]. On the main thread. */
-    private fun lookForMark(search: AdSearch, pos: Long, then: (Boolean?) -> Unit) {
+    private var adPendingEnd = -1L
+    /** The break's end is known and a second check has seen the mark: the picture goes there. */
+    private fun adJump() {
+        val end = adPendingEnd
+        adPendingEnd = -1L; adStreak = 0
+        val cur = posEpochMs() / 1000
+        if (end <= cur + 10 || catchUp == null) { adQuietUntil = android.os.SystemClock.uptimeMillis() + 30_000; return }
+        adQuietUntil = android.os.SystemClock.uptimeMillis() + 30_000
+        android.util.Log.i(AdSearch.TAG, "skip $cur -> $end")
+        showMessage("דילוג על פרסומות · ${fmtClock((end - cur) * 1000)}", 3_000)
+        liveScrubAt = end * 1000
+        liveScrubCommit()
+    }
+
+    /** What the picture shown now carries - the ad mark, a countdown: a copy of the screen (the countdown's corner copied
+     *  again at full size, so its digits can be read) - or, where the screen cannot be copied (some boxes put the video on a
+     *  layer the app cannot read), the start of the archive piece at [pos]. On the main thread. */
+    private fun lookForMark(search: AdSearch, key: String, pos: Long, then: (AdMark.Look?) -> Unit) {
         val sv = findViewById<PlayerView>(R.id.playerView).videoSurfaceView as? android.view.SurfaceView
         if (adCopyFails < 3 && sv != null && sv.holder.surface?.isValid == true) {
             val bmp = android.graphics.Bitmap.createBitmap(AdMark.FRAME_W, AdMark.FRAME_H, android.graphics.Bitmap.Config.ARGB_8888)
             android.view.PixelCopy.request(sv, bmp, { r ->
                 if (r != android.view.PixelCopy.SUCCESS || blankCorner(bmp)) { adCopyFails++; bmp.recycle(); then(null); return@request }
                 adCopyFails = 0
-                adWork.execute { val ad = AdMark.isAd(applicationContext, bmp); bmp.recycle(); handler.post { then(ad) } }
+                val L = Countdown.layout(key)
+                if (L == null || android.os.Build.VERSION.SDK_INT < 26 || sv.width <= 0) {
+                    adWork.execute { val m = AdMark.mark(applicationContext, bmp); bmp.recycle(); handler.post { then(AdMark.Look(m, null)) } }
+                    return@request
+                }
+                val sx = sv.width / 1920f; val sy = sv.height / 1080f
+                val rect = android.graphics.Rect((L.x0 * sx).toInt(), (L.y0 * sy).toInt(), (L.x1 * sx).toInt(), (L.y1 * sy).toInt())
+                val band = android.graphics.Bitmap.createBitmap(L.w, L.h, android.graphics.Bitmap.Config.ARGB_8888)
+                android.view.PixelCopy.request(sv, rect, band, { r2 ->
+                    adWork.execute {
+                        val m = AdMark.mark(applicationContext, bmp)
+                        val left = if (r2 == android.view.PixelCopy.SUCCESS) Countdown.read(applicationContext, key, band) else null
+                        bmp.recycle(); band.recycle()
+                        handler.post { then(AdMark.Look(m, left)) }
+                    }
+                }, handler)
             }, handler)
             return
         }
-        adWork.execute { val ad = search.probe(pos); handler.post { then(ad) } }
+        adWork.execute { val look = search.probe(pos); handler.post { then(look) } }
     }
 
     /** A copy that came back black where the mark would stand: the video is on a layer the copy does not reach. */
