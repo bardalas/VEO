@@ -1,5 +1,11 @@
 # VEO Android changelog
 
+## 0.45.74 — 2026-10-22
+- **Ad skip reads the break's countdown.** Over the last minutes of a break both channels show "חוזרים בעוד" / "מיד נשוב" with the time left; the app
+  reads it and jumps straight to the end (within ten seconds, never past it) - including the last minute, when the ads go on without the usual mark and
+  the skip used to land a minute early. (#427)
+- **Ad skip is faster:** the search starts on the first sighting and reads several frames at once - a couple of seconds instead of about ten. (#427)
+
 ## 0.45.73 — 2026-10-22
 - **Ad skip no longer stalls the picture.** It used to read the archive ahead all the time, on the TV's own video decoder; now it only looks at the
   picture already on screen, and searches the archive for the end of a break only once one has begun - on the software decoder, reading only the start
