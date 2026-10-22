@@ -209,6 +209,11 @@ class PlayerActivity : AppCompatActivity() {
         if (sources.isEmpty()) { finish(); return }
         index = (savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)).coerceIn(0, sources.size - 1)
         resumePosition = savedInstanceState?.getLong("pos") ?: intent.getLongExtra("pos", 0L)
+        // test builds only: a file holding an epoch second opens the channel's archive there (for trying the ad skip on a known break)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            val f = java.io.File(filesDir, "debug_at")
+            f.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull()?.let { at -> f.delete(); handler.postDelayed({ playAt(at * 1000) }, 3_000) }
+        }
 
         applySkin()
 
@@ -701,7 +706,17 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /** Live TV (and a film with no subtitles): the panel is only the sound's sync. */
-    private fun openSyncPanel() { hideChannelBar(); showRowsPanel(audioSyncRows()) }
+    private fun openSyncPanel() {
+        hideChannelBar()
+        val rows = ArrayList(audioSyncRows())
+        if (live) {
+            // only where it can work: watching the past, on a channel whose breaks carry the mark
+            rows.add(SubsRow.Head("פרסומות"))
+            rows.add(SubsRow.Pick("דילוג על פרסומות", { adSkipOn }, { adSkipOn = !adSkipOn },
+                { if (adSkipOn) "פעיל" else "כבוי" }, sub = "בצפייה מהעבר · קשת 12 ורשת 13"))
+        }
+        showRowsPanel(rows)
+    }
 
     private fun showRowsPanel(rows: List<SubsRow>) {
         val adapter = SubsAdapter(rows)
@@ -894,6 +909,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onStart()
         started = true
         buildPlayer()
+        if (live) { handler.removeCallbacks(adTick); handler.post(adTick) }
         // The drawing of the translation stops itself when the player is released - it is a loop that
         // asks the player where it is - so coming back from the home screen has to start it again, or
         // the film plays on with no subtitles until the viewer picks them a second time.
@@ -2112,6 +2128,48 @@ class PlayerActivity : AppCompatActivity() {
         if (!walking) showBanner() else if (bannerOpen) paintNow()
     }
 
+    /* ---------- live TV: skipping the ad breaks (#420) ----------
+       Watching from the past on a channel whose breaks carry the ad mark (AdScan.supports), the archive is read a little ahead
+       in the background, and a break the picture reaches is skipped, once - a viewer who goes back into it watches it. */
+    private var adScan: AdScan? = null
+    private var adScanChannel = -1
+    private val adsSkipped = HashSet<Long>()
+    private var adHintAt = 0L
+    private var adSkipOn: Boolean
+        get() = getSharedPreferences("veo", MODE_PRIVATE).getBoolean("adSkip", true)
+        set(v) { getSharedPreferences("veo", MODE_PRIVATE).edit().putBoolean("adSkip", v).apply() }
+
+    private val adTick: Runnable = object : Runnable {
+        override fun run() {
+            handler.postDelayed(this, 1_000)
+            val src = sources.getOrNull(index)
+            val p = player
+            val on = started && live && catchUp != null && adSkipOn && src != null && src.arch.isNotBlank() && AdScan.supports(src.name)
+            if (!on) { adScan?.stop(); adScan = null; adScanChannel = -1; return }
+            if (adScan == null || adScanChannel != index) {
+                adScan?.stop(); adsSkipped.clear()
+                adScanChannel = index
+                adScan = AdScan(applicationContext, src!!.ua.ifBlank { LIVE_UA }, src.referer) { t -> archiveUrl(src, Prog(t, t + 600, "")) }
+            }
+            if (p == null || p.playbackState != androidx.media3.common.Player.STATE_READY || liveScrubAt > 0) return
+            val pos = posEpochMs() / 1000
+            val scan = adScan ?: return
+            scan.position = pos
+            val b = scan.breakAt(pos)
+            if (b == null) {
+                // in a break whose end is still being looked for: say so, once, so the ads are not taken for a failure to skip
+                if (scan.inOpenBreak(pos) && pos - adHintAt > 120) { adHintAt = pos; showMessage("פרסומות · מחפש את הסוף…", 4_000) }
+                return
+            }
+            if (b.to in adsSkipped || pos >= b.to - 3) return       // by its end: a break found longer is skipped on to its end
+            adsSkipped.add(b.to)
+            android.util.Log.i(AdScan.TAG, "skip ${b.from}..${b.to} at $pos")
+            showMessage("דילוג על פרסומות · ${fmtClock((b.to - pos) * 1000)}", 3_000)
+            liveScrubAt = b.to * 1000 + 1_000
+            liveScrubCommit()
+        }
+    }
+
     private fun seekBy(direction: Int, held: Boolean, stepMs: Long = if (held) 30_000L else 10_000L) {
         val p = player ?: return
         val step = stepMs
@@ -2183,6 +2241,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun onError(error: PlaybackException) {
+        android.util.Log.w("VEO-player", "error ${error.errorCodeName}: ${generateSequence<Throwable>(error) { it.cause }.mapNotNull { it.message }.joinToString(" / ").take(200)}")
         handler.removeCallbacks(liveStartTimeout)
         handler.removeCallbacks(vodStallTimeout)
         if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
@@ -2523,6 +2582,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         started = false
+        handler.removeCallbacks(adTick); adScan?.stop(); adScan = null
         autoOn = false
         liveSpeech = null
         handler.removeCallbacks(liveSyncTick)
