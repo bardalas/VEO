@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.72 — 2026-10-22
+- **Ad breaks are skipped when watching Keshet 12 or Reshet 13 from the past.** Both channels show the same mark through every break ("מיד חוזרים" in the
+  top corner); the app reads the archive a little ahead in the background, finds the breaks by that mark, and jumps over each one when the picture reaches
+  it. On/off under "עוד". Not for the live broadcast (its ads have not aired yet), and only on those two channels for now. (#420)
+
 ## 0.45.71 — 2026-10-20
 - **Live TV: the bar's pointer keeps up after a run back.** In catch-up it stood still where the run had ended, and the next run started from there; it now
   follows the picture. (#417)
