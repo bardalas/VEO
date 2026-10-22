@@ -11,127 +11,74 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.TreeMap
 
 /**
- * The ad breaks of a channel's archive, found ahead of what is playing (#420).
+ * The end of an ad break, looked for only once the picture is in one (#420, #423).
  *
- * Neither the playlists nor the video say where a break is - no markers of any kind. But Keshet 12 and Reshet 13 both
- * put the same mark on the picture through every break: the swirl of their ad house with "מיד חוזרים" under it, in the
- * corner where the channel's own logo stands the rest of the time. So the archive is read a little ahead of the viewer -
- * one frame every half minute, a frame being the first picture of the piece of video that starts there - and that corner
- * is compared with the mark ([AdMark]). Where two neighbouring frames disagree, the half way between them is read too,
- * until the edge of the break is known to a few seconds. A break the viewer reaches is then skipped, once.
+ * Neither the playlists nor the video say where a break is. But Keshet 12 and Reshet 13 both put the same mark on the
+ * picture through every break: the swirl of their ad house with "מיד חוזרים" under it, where the channel's logo stands
+ * otherwise. The player checks the picture it is already showing for that mark ([AdMark], from a copy of the screen - no
+ * download, no decoding). Only when it sees a break does this read the archive ahead - the first frame of the piece that
+ * starts at a given second - in growing leaps until the programme is back, then halves the gap to about half a minute.
+ * Reading ahead all the time cost the stream its bandwidth, and on a TV box its decoder: the picture stalled.
  */
-class AdScan(
+class AdSearch(
     private val ctx: Context,
     private val ua: String,
     private val referer: String,
     /** The archive's address for the minute starting at an epoch second (the template the player is using). */
     private val urlAt: (Long) -> String,
 ) {
-    data class Break(val from: Long, val to: Long)
+    @Volatile private var job: Thread? = null
 
-    /** Where the picture is, in epoch seconds - set by the player every second. */
-    @Volatile var position = 0L
-    @Volatile private var running = true
-    private val samples = TreeMap<Long, Boolean>()          // epoch second -> the mark is there
-    private val failed = HashMap<Long, Int>()                // a second that could not be read, and how often
-    private val thread = Thread({ loop() }, "veo-adscan").apply { isDaemon = true; priority = Thread.MIN_PRIORITY; start() }
+    fun cancel() { job?.interrupt(); job = null }
+    val busy get() = job?.isAlive == true
 
-    fun stop() { running = false; thread.interrupt() }
+    /**
+     * The break the picture is in at epoch second [from]: where it ends, to about half a minute - the second given is
+     * about a quarter-minute before the end, so a few seconds of ads may still play rather than any of the programme - or
+     * null when it could not be found. [done] runs through [post].
+     */
+    fun findEnd(from: Long, latest: Long, post: (Runnable) -> Unit, done: (Long?) -> Unit) {
+        cancel()
+        job = Thread({
+            val end = try { search(from, latest) } catch (_: InterruptedException) { return@Thread } catch (e: Throwable) { Log.w(TAG, "search: ${e.message}"); null }
+            post(Runnable { done(end) })
+        }, "veo-adsearch").apply { isDaemon = true; priority = Thread.MIN_PRIORITY; start() }
+    }
 
-    private fun loop() {
-        while (running) {
-            try {
-                val p = position
-                val t = if (p > 0) nextProbe(p) else null
-                if (t == null) { Thread.sleep(1_000); continue }
-                val ad = probe(t)
-                synchronized(samples) {
-                    if (ad != null) samples[t] = ad
-                    else failed[t] = (failed[t] ?: 0) + 1
+    private fun search(from: Long, latest: Long): Long? {
+        var lastAd = from
+        var step = FIRST_LEAP
+        var back = -1L                                  // the first frame found back in the programme
+        while (back < 0) {
+            val t = lastAd + step
+            if (t > minOf(latest, from + LONGEST)) return null
+            when (probeTwice(t)) {
+                true -> { lastAd = t; step = minOf(step * 2, MAX_LEAP) }
+                false -> {
+                    // an ad without the mark inside the break looks like the programme: the programme is two frames without it
+                    val again = t + CONFIRM
+                    if (again <= latest && probeTwice(again) == true) { lastAd = again; step = FIRST_LEAP } else back = t
                 }
-                Log.i(TAG, "sample ${t} ad=${ad}")
-                if (ad == null) Thread.sleep(2_000)
-            } catch (_: InterruptedException) { return }
-            catch (e: Throwable) { Log.w(TAG, "scan: ${e.message}"); try { Thread.sleep(3_000) } catch (_: InterruptedException) { return } }
-        }
-    }
-
-    /** The next second to read: the nearest of the half-minute points not yet read, or the middle of an edge not yet sharp enough. */
-    private fun nextProbe(p: Long): Long? = synchronized(samples) {
-        val known = samples.subMap(p - 30, p + MAX_AHEAD)
-        // how far to look: a few minutes - and while an ad ahead belongs to no break whose end is known, as far as it takes
-        // to find that end, without waiting for the picture to get there
-        var horizon = p + AHEAD
-        val lastAd = known.entries.lastOrNull { it.value }?.key
-        if (lastAd != null && breaks().none { lastAd >= it.from && lastAd < it.to }) horizon = p + MAX_AHEAD
-        val wanted = ArrayList<Long>()
-        var t = ((p + 5 + STEP - 1) / STEP) * STEP        // the half-minute marks themselves, so a mark that failed stays failed
-        while (t <= horizon) {
-            if (samples.subMap(t - STEP / 3, t + STEP / 3).isEmpty() && (failed[t] ?: 0) < 2) wanted.add(t)
-            t += STEP
-        }
-        // the edges: two neighbours that disagree, further apart than the sharpness asked for
-        var prev: Map.Entry<Long, Boolean>? = null
-        for (e in samples.subMap(p - STEP, horizon + 1).entries) {
-            val a = prev
-            // a frame without the mark between frames with it, closer than a break's own gap, is a dip inside the break (an ad
-            // without the mark): its edges do not matter - the runs are joined anyway - and reading them only delays the end
-            if (a != null && a.value != e.value && e.key - a.key > SHARP && !innerDip(if (a.value) e.key else a.key)) {
-                val mid = (a.key + e.key) / 2
-                if ((failed[mid] ?: 0) < 2) wanted.add(mid)
+                null -> return null
             }
-            prev = e
         }
-        // inside a break whose end is not seen yet, run ahead in bigger steps to find it (the halving then sharpens it):
-        // read half-minute by half-minute, a six-minute break was only crossed after the viewer had reached it
-        val last = samples.floorEntry(horizon)
-        if (last != null && last.value && last.key >= p - STEP) {
-            val leap = ((last.key + LEAP) / STEP) * STEP
-            if (leap <= p + MAX_AHEAD && samples.subMap(last.key + 1, leap + STEP / 3).isEmpty() && (failed[leap] ?: 0) < 2) return@synchronized leap
+        while (back - lastAd > CLOSE) {
+            val mid = (lastAd + back) / 2
+            when (probeTwice(mid)) { true -> lastAd = mid; false -> back = mid; null -> return null }
         }
-        wanted.minOrNull()
+        Log.i(TAG, "break from $from ends between $lastAd and $back")
+        return (lastAd + back) / 2
     }
 
-    private fun innerDip(t: Long) =
-        samples.subMap(t - JOIN, t).values.any { it } && samples.subMap(t + 1, t + JOIN + 1).values.any { it }
-
-    /** The breaks known so far: runs of the mark, joined across the short gaps a promo makes inside a break, whose
-     *  end has been seen; anything under a minute is not a break (a channel trailer, a single false sighting). */
-    fun breaks(): List<Break> = synchronized(samples) {
-        // runs of the mark: [to] is the first programme frame after the run once that edge is sharp, -1 while it is not known
-        class Run(val from: Long, val lastAd: Long, val to: Long)
-        val runs = ArrayList<Run>()
-        var start = -1L; var lastAd = -1L
-        for ((t, ad) in samples) {
-            if (ad) { if (start < 0) start = t; lastAd = t }
-            else if (start >= 0) { runs.add(Run(start, lastAd, if (t - lastAd <= SHARP) t else -1)); start = -1 }
-        }
-        if (start >= 0) runs.add(Run(start, lastAd, -1))                // still in the mark at the last frame read
-        // one break: runs this close together (a promo without the mark, or a frame that missed it, splits a break). A break
-        // whose end - or whose last part's end - is not known yet is not offered: skipping it now would land in its middle.
-        val merged = ArrayList<Run>()
-        for (r in runs) {
-            val last = merged.lastOrNull()
-            if (last != null && r.from - (if (last.to >= 0) last.to else last.lastAd) <= JOIN) merged[merged.size - 1] = Run(last.from, r.lastAd, r.to)
-            else merged.add(r)
-        }
-        merged.filter { it.to >= 0 && it.to - it.from >= MIN_BREAK }.map { Break(it.from, it.to) }
-    }
-
-    /** The break the second [p] is in, if one is known. */
-    fun breakAt(p: Long): Break? = breaks().firstOrNull { p >= it.from - 2 && p < it.to }
-
-    /** The picture is in a break whose end is not known yet: the frame read last at or before it carried the mark. */
-    fun inOpenBreak(p: Long): Boolean = synchronized(samples) {
-        val e = samples.floorEntry(p) ?: return@synchronized false
-        e.value && p - e.key <= STEP && breakAt(p) == null
+    private fun probeTwice(t: Long): Boolean? {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException()
+        return probe(t) ?: run { Thread.sleep(1_000); probe(t) }
     }
 
     /** Whether the frame at epoch second [t] carries the mark; null when it could not be read. */
-    private fun probe(t: Long): Boolean? {
+    fun probe(t: Long): Boolean? {
         val list = fetchText(urlAt(t)) ?: return null.also { Log.w(TAG, "no playlist for $t") }
         var base = list.first; var text = list.second
         if (text.contains("#EXT-X-STREAM-INF")) {
@@ -140,9 +87,9 @@ class AdScan(
             base = m.first; text = m.second
         }
         val seg = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: return null.also { Log.w(TAG, "no segment") }
-        val file = File(ctx.cacheDir, "adscan.ts")
+        val file = File(ctx.cacheDir, "adscan-${Thread.currentThread().id}.ts")
         if (!fetchTo(URL(URL(base), seg).toString(), file)) return null.also { Log.w(TAG, "segment download failed") }
-        return try { AdMark.isAd(ctx, file) } finally { file.delete() }
+        return try { AdMark.isAd(ctx, file).also { Log.i(TAG, "probe $t ad=$it") } } finally { file.delete() }
     }
 
     private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -157,20 +104,25 @@ class AdScan(
         c.inputStream.bufferedReader().use { c.url.toString() to it.readText() }
     }.onFailure { Log.w(TAG, "fetch: ${it.javaClass.simpleName} ${it.message?.take(80)}") }.getOrNull()
 
+    /** The start of a piece only - its first frame is all that is wanted, and the rest is bandwidth the picture needs. */
     private fun fetchTo(url: String, f: File): Boolean = runCatching {
-        open(url).inputStream.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+        open(url).inputStream.use { inp ->
+            f.outputStream().use { out ->
+                val buf = ByteArray(32 * 1024); var total = 0
+                while (total < HEAD_BYTES) { val n = inp.read(buf); if (n < 0) break; out.write(buf, 0, n); total += n }
+            }
+        }
         f.length() > 0
     }.onFailure { Log.w(TAG, "download: ${it.javaClass.simpleName} ${it.message?.take(80)}") }.getOrDefault(false)
 
     companion object {
         const val TAG = "VEO-ads"
-        private const val STEP = 30L            // seconds between the frames read ahead
-        private const val SHARP = 8L            // an edge is known when its two sides are this close
-        private const val AHEAD = 6 * 60L       // how far ahead to read, in the ordinary way
-        private const val MAX_AHEAD = 20 * 60L  // and through a long break
-        private const val JOIN = 90L            // two runs this close are one break with a promo in it
-        private const val MIN_BREAK = 60L
-        private const val LEAP = 90L           // the step ahead inside a break, until its end is seen
+        private const val FIRST_LEAP = 60L       // the first look ahead, in seconds; doubled while still in the break
+        private const val MAX_LEAP = 240L
+        private const val CONFIRM = 45L          // the second frame that says the programme is back
+        private const val CLOSE = 30L            // the end is known when its two sides are this close
+        private const val LONGEST = 20 * 60L     // no break is longer
+        private const val HEAD_BYTES = 900 * 1024  // how much of a piece is read: the first frame and a little more
 
         /** The channels whose breaks carry the mark. */
         fun supports(name: String) = Regex("(keshet|קשת)\\s*12|(reshet|רשת)\\s*13", RegexOption.IGNORE_CASE).containsMatchIn(name)
@@ -205,12 +157,30 @@ object AdMark {
     }.also { templates = it }
 
     fun isAd(ctx: Context, ts: File): Boolean? {
-        val luma = firstFrameLuma(ts) ?: return null.also { Log.w(AdScan.TAG, "no frame decoded from ${ts.length()} bytes") }
+        val luma = firstFrameLuma(ts) ?: return null.also { Log.w(AdSearch.TAG, "no frame decoded from ${ts.length()} bytes") }
+        return isAd(ctx, luma)
+    }
+
+    /** The same, for a picture the player is showing: a copy of the screen at [FRAME_W]x[FRAME_H]. */
+    fun isAd(ctx: Context, bmp: android.graphics.Bitmap): Boolean {
+        val g = FloatArray(W * H)
+        val px = IntArray(W)
+        for (y in 0..minOf(H - 1, SY1 + 2)) {
+            bmp.getPixels(px, 0, W, 0, y, W, 1)
+            for (x in SX0 - 2 until W) { val c = px[x]; g[y * W + x] = 0.299f * ((c shr 16) and 0xff) + 0.587f * ((c shr 8) and 0xff) + 0.114f * (c and 0xff) }
+        }
+        return isAd(ctx, g)
+    }
+
+    private fun isAd(ctx: Context, luma: FloatArray): Boolean {
         val e = edges(luma)
         val score = templates(ctx).maxOf { best(e, it) }
-        Log.i(AdScan.TAG, "score %.2f".format(score))
+        Log.i(AdSearch.TAG, "score %.2f".format(score))
         return score > THRESHOLD
     }
+
+    const val FRAME_W = W
+    const val FRAME_H = H
 
     /** The edge strength of the corner's rows: central differences, as the study measured them. */
     private fun edges(g: FloatArray): FloatArray {
@@ -295,11 +265,11 @@ object AdMark {
     private fun firstFrameLuma(ts: File): FloatArray? {
         var codec: MediaCodec? = null
         try {
-            val (mime, frames) = videoFrames(ts.readBytes(), 40) ?: return null.also { Log.w(AdScan.TAG, "no video stream in the piece") }
+            val (mime, frames) = videoFrames(ts.readBytes(), 40) ?: return null.also { Log.w(AdSearch.TAG, "no video stream in the piece") }
             val fmt = MediaFormat.createVideoFormat(mime, 1920, 1080)
             fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, frames.maxOf { it.size } + 1024)
             fmt.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
-            codec = openDecoder(mime, fmt) ?: return null.also { Log.w(AdScan.TAG, "no decoder opened for $mime") }
+            codec = openDecoder(mime, fmt) ?: return null.also { Log.w(AdSearch.TAG, "no decoder opened for $mime") }
             codec.start()
             var next = 0
             val info = MediaCodec.BufferInfo()
@@ -343,25 +313,26 @@ object AdMark {
                         codec.releaseOutputBuffer(o, false)
                         if (out != null) return out
                     }
-                    if (eos) { Log.w(AdScan.TAG, "decode eos: ins=$ins outs=$outs noImg=$noImg codes=$codes"); return null }
+                    if (eos) { Log.w(AdSearch.TAG, "decode eos: ins=$ins outs=$outs noImg=$noImg codes=$codes"); return null }
                 }
             }
-            Log.w(AdScan.TAG, "decode timeout: ${codec.name} $mime ins=$ins outs=$outs noImg=$noImg codes=$codes")
+            Log.w(AdSearch.TAG, "decode timeout: ${codec.name} $mime ins=$ins outs=$outs noImg=$noImg codes=$codes")
             return null
         } catch (e: Throwable) {
-            Log.w(AdScan.TAG, "decode: ${e.message}")
+            Log.w(AdSearch.TAG, "decode: ${e.message}")
             return null
         } finally {
             runCatching { codec?.stop() }; runCatching { codec?.release() }
         }
     }
 
-    /** A decoder for [mime]: the device's own first, and the software one if that will not open (the player may hold the
-     *  only hardware decoder a small box has). */
+    /** A software decoder for [mime], or null. */
     private fun openDecoder(mime: String, fmt: MediaFormat): MediaCodec? {
+        // the software decoder only: the hardware one is the player's, and on a TV box taking it - or even asking for it -
+        // stalls the picture (#423)
         val names = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
             .filter { !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, true) } }
-            .sortedBy { if (it.name.startsWith("c2.android") || it.name.startsWith("OMX.google")) 1 else 0 }
+            .filter { it.name.startsWith("c2.android") || it.name.startsWith("OMX.google") }
             .map { it.name }
         for (n in names) {
             val c = runCatching { MediaCodec.createByCodecName(n) }.getOrNull() ?: continue
