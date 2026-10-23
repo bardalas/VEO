@@ -66,7 +66,10 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .epcard .ebar{grid-column:2;height:3px;border-radius:2px;background:var(--line);margin-top:6px}
 .epcard .ebar i{display:block;height:100%;border-radius:2px;background:var(--tungsten)}
 .epcard.seen .t b{color:var(--muted)}
-.epcard.on .t b,.epcard:focus-visible .t b{color:var(--tungsten)}   /* after .seen: the one chosen is lit even when seen */
+/* after .seen: the one chosen is lit even when seen. Two rules, not one list: a WebView older than Chrome 86 (and
+   webOS) does not know :focus-visible and would drop a list that names it - .on with it */
+.epcard.on .t b{color:var(--tungsten)}
+.epcard:focus-visible .t b{color:var(--tungsten)}
 .epcard.seen .n::after{content:' ✓'}
 .epcard:focus,.epcard:hover{border-color:var(--tungsten);outline:none}
 [data-layout="tv"] .seasonbar button{font-size:18px}
