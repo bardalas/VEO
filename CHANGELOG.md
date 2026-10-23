@@ -1,5 +1,14 @@
 # VEO Android changelog
 
+## 0.45.75 — 2026-10-23
+- **Lighter to move around.** A step along a row of titles lays the row out once instead of twice (about 40% less layout work a press), the
+  screen no longer re-checks itself for the row's own movement, and remembering what was seen is written in small pieces instead of one
+  long pause. Up/Down through a channel grid measures only the few items on the way. (#433, #435)
+- **Ad skip on the TV:** fewer rounds to find a break's end (one round of several frames at once), a countdown that cannot be fully read still
+  counts as ads, the picture is looked at again a few seconds after a jump, and a countdown about to end is simply waited out. (#431, #435)
+- **A title with no sources says so** ("אין מקורות זמינים כרגע") - it said "לא בשירותים". (#435)
+- Old code, styles and words nothing used any more are gone (about a thousand lines). (#435)
+
 ## 0.45.74 — 2026-10-22
 - **Ad skip reads the break's countdown.** Over the last minutes of a break both channels show "חוזרים בעוד" / "מיד נשוב" with the time left; the app
   reads it and jumps straight to the end (within ten seconds, never past it) - including the last minute, when the ads go on without the usual mark and
