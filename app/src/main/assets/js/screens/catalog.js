@@ -37,7 +37,7 @@ const TASTE_AFTER_MS = 1200;
 
 /** The pills of a library: its "service" is every source the type has - the broadcasters and the archive too. */
 const groupsFor = type => SORT_GROUPS.map(g => g.key !== 'svc' ? g
-  : {...g, opts: [g.opts[0], ...originsFor(type).map(o => [o.id, o.svc ? '' : 'origin.' + o.id]), [NONE, 'src.none']]});
+  : {...g, opts: [g.opts[0], ...originsFor(type).map(o => [o.id, o.svc ? '' : 'origin.' + o.id]), [NONE, 'src.noService']]});
 /** The choice of titles on none of the streaming services. */
 const NONE = 'none';
 const onService = it => [...it.from].some(o => SERVICES[o]) || svcOf(it.id).length > 0;
