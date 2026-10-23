@@ -72,16 +72,21 @@ class AdSearch(
                 var i = 0
                 while (i < ts.size && rs[i]?.ad == true) { lastAd = ts[i]; i++ }
                 if (i == ts.size) { leaps = ON_LEAPS; continue }          // still in the break at the furthest: on from there
-                val t = ts[i]
                 if (rs[i] == null) return null
-                // an ad without the mark inside the break looks like the programme: the programme is two frames without it
-                val again = t + CONFIRM
-                if (again <= latest) {
-                    val r = all(listOf(again))
-                    counted(listOf(again), r)?.let { return it }
-                    if (r[0]?.ad == true) { lastAd = again; leaps = FIRST_LEAPS; continue }
+                val found = ts[i]
+                // one round, all at once (#430): three points across the gap, and the frame that confirms the programme is
+                // back (an ad without the mark inside the break looks like the programme: the programme is two frames without it)
+                val gap = found - lastAd
+                val pts = listOf(lastAd + gap / 4, lastAd + gap / 2, lastAd + 3 * gap / 4)
+                val again = found + CONFIRM
+                val probes = if (again <= latest) pts + again else pts
+                val rr = all(probes)
+                counted(probes, rr)?.let { Log.i(TAG, "break from $from: countdown says $it"); return it }
+                if (again <= latest && rr.last()?.ad == true) { lastAd = again; leaps = FIRST_LEAPS; continue }
+                back = found
+                for (j in pts.indices) {
+                    when (rr[j]?.ad) { true -> lastAd = pts[j]; false -> { back = pts[j]; break }; null -> return null }
                 }
-                back = t
             }
             while (back - lastAd > CLOSE) {
                 val a = lastAd + (back - lastAd) / 3
@@ -193,17 +198,20 @@ object Countdown {
         return FloatArray(a.size) { (a[it] - m) / sd }
     }
 
+    /** A countdown seen: [left] is the seconds it has left - at least, up to nine more - or null when only its leading 0
+     *  could be read. A countdown is there either way: the break is not over (#430). */
+    class Reading(val left: Int?)
+
     /** The countdown in a copy of its corner of the screen, at full size. */
-    fun read(ctx: Context, key: String, bmp: Bitmap): Int? {
+    fun read(ctx: Context, key: String, bmp: Bitmap): Reading? {
         val w = bmp.width; val h = bmp.height
         val px = IntArray(w * h); bmp.getPixels(px, 0, w, 0, 0, w, h)
         val g = FloatArray(w * h) { val c = px[it]; 0.299f * ((c shr 16) and 0xff) + 0.587f * ((c shr 8) and 0xff) + 0.114f * (c and 0xff) }
         return read(ctx, key, g, w, h)
     }
 
-    /** The seconds left - at least, and up to nine more - when the band [g] ([w]x[h], at 1920x1080 scale) shows a
-     *  countdown; null when it does not. */
-    fun read(ctx: Context, key: String, g: FloatArray, w: Int, h: Int): Int? {
+    /** The countdown in the band [g] ([w]x[h], at 1920x1080 scale), or null when there is none. */
+    fun read(ctx: Context, key: String, g: FloatArray, w: Int, h: Int): Reading? {
         val sorted = g.copyOf().also { it.sort() }
         val light = sorted[(sorted.size * 0.9).toInt().coerceAtMost(sorted.size - 1)]
         if (light < 140f) return null                                   // no light box behind the digits
@@ -228,6 +236,7 @@ object Countdown {
         if (shapes.size != 4) return null
         val tm = templates(ctx, key)
         val digits = IntArray(3)
+        var readable = true
         for (k in 0 until 3) {
             val (a, b) = shapes[k].let { it[0] to it[1] }
             var top = -1; var bottom = -1
@@ -246,11 +255,13 @@ object Countdown {
             val cz = z(c)
             var best = -1; var bestScore = -2.0
             for (d in 0 until 6) { var acc = 0.0; val t = tm[d]; for (q in cz.indices) acc += cz[q] * t[q]; val v = acc / cz.size; if (v > bestScore) { bestScore = v; best = d } }
-            if (bestScore < 0.85) return null
+            // the first digit of the countdown is always a 0: a good match for it is what says the countdown is there;
+            // the minutes and tens must match better still to be taken as the time left
+            if (k == 0 && (best != 0 || bestScore < 0.7)) return null
+            if (bestScore < 0.85) readable = false
             digits[k] = best
         }
-        if (digits[0] != 0) return null
-        return digits[1] * 60 + digits[2] * 10
+        return Reading(if (readable) digits[1] * 60 + digits[2] * 10 else null)
     }
 }
 
@@ -282,16 +293,17 @@ object AdMark {
     }.also { templates = it }
 
     /** What a frame shows: the break's mark, and - in the last minutes of a break - the seconds its countdown has left. */
-    data class Look(val mark: Boolean, val left: Int?) {
-        val ad get() = mark || left != null
-        override fun toString() = "mark=$mark" + (left?.let { " left>=${it}s" } ?: "")
+    data class Look(val mark: Boolean, val countdown: Boolean, val left: Int?) {
+        val ad get() = mark || countdown
+        override fun toString() = "mark=$mark" + (if (countdown) " countdown" else "") + (left?.let { " left>=${it}s" } ?: "")
+        companion object { fun of(mark: Boolean, c: Countdown.Reading?) = Look(mark, c != null, c?.left) }
     }
 
     /** The first frame of an archive piece, for channel [key]; null when it could not be read. */
     fun look(ctx: Context, ts: File, key: String): Look? {
         val f = firstFrame(ts, Countdown.layout(key)) ?: return null.also { Log.w(AdSearch.TAG, "no frame decoded from ${ts.length()} bytes") }
         val L = Countdown.layout(key)
-        return Look(isMark(ctx, f.first), if (L != null && f.second != null) Countdown.read(ctx, key, f.second!!, L.w, L.h) else null)
+        return Look.of(isMark(ctx, f.first), if (L != null && f.second != null) Countdown.read(ctx, key, f.second!!, L.w, L.h) else null)
     }
 
     /** The mark in a picture the player is showing: a copy of the screen at [FRAME_W]x[FRAME_H]. */
