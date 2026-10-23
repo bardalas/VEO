@@ -4,7 +4,7 @@
     {
       "name": "booth",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["C:/bardalasRepo/VEO/tools/serve.py", "8767"],
+      "runtimeArgs": ["tools/serve.py", "8767"],
       "port": 8767
     }
   ]
