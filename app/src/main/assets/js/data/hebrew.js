@@ -135,7 +135,9 @@ new MutationObserver(muts => {
       if(el.dataset.heid in heCache) continue;
       // the first posters of a row are on screen right away; the rest wait until scrolled to
       const card = el.closest('.poster');
-      if(!card || [...card.parentNode.children].indexOf(card) < 10) now.push(el.dataset.heid);
+      let i = 0;
+      if(card) for(let s = card.previousElementSibling; s && i < 10; s = s.previousElementSibling) i++;
+      if(i < 10) now.push(el.dataset.heid);
       else heObserver.observe(el);
     }
     if(now.length) hebrewize(now);

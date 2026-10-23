@@ -303,6 +303,8 @@ document.addEventListener('focusin', e => {
   const poster = e.target.closest?.('.poster');
   const strip = poster?.closest('.strip');
   if(!strip || !endless.has(strip)) return;
-  const all = [...strip.querySelectorAll('.poster')];
-  if(all.indexOf(poster) >= all.length - ENDLESS_NEAR) extend(strip);
+  // fewer than ENDLESS_NEAR titles left after this one (counted forwards, not by copying a row of hundreds)
+  let left = 0;
+  for(let s = poster.nextElementSibling; s && left < ENDLESS_NEAR; s = s.nextElementSibling) if(s.classList.contains('poster')) left++;
+  if(left < ENDLESS_NEAR) extend(strip);
 });

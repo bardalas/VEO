@@ -74,9 +74,17 @@ export const store = {
     const pre = `booth:p/${pid}/`;
     try{ for(const k of Object.keys(localStorage)) if(k.startsWith(pre)) localStorage.removeItem(k); }catch(e){}
   },
-  // big caches are written at most once a second, off the scrolling path
+  // big caches are written at most once a second, off the scrolling path - and one at a time, each in its own task:
+  // together they are thousands of entries to stringify, a pause long enough to swallow a press
   dirty: {},
-  lazy(k, v){ store.dirty[k] = v; clearTimeout(store.timer); store.timer = setTimeout(store.flush, 1000); },
+  lazy(k, v){ store.dirty[k] = v; clearTimeout(store.timer); store.timer = setTimeout(store.drain, 1000); },
+  drain(){
+    const k = Object.keys(store.dirty)[0];
+    if(k === undefined) return;
+    const v = store.dirty[k]; delete store.dirty[k];
+    store.set(k, v);
+    store.timer = setTimeout(store.drain, 0);
+  },
   flush(){ const d = store.dirty; store.dirty = {}; for(const k in d) store.set(k, d[k]); },
   /** Storage is full: drop the rebuildable caches, never the library/progress/settings. */
   prune: pruneCaches,

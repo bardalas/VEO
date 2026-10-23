@@ -1,7 +1,7 @@
 /* Which titles can actually be watched, so the rest can be dimmed. */
 import {capMap, store} from '../core/store.js';
 import {addons, fetchStreams, supports} from './addons.js';
-import {parseStream, rank} from '../ui/sources.js';
+import {canPlay, parseStream} from '../ui/sources.js';
 
 /* ---------- which titles have sources (greys out / hides the rest) ---------- */
 export let avail = store.get('avail', {});                 // "type:tt…" -> [ok, checkedAt, emptyAnswers]
@@ -35,8 +35,10 @@ export async function hasSources(key){
   const vid = type === 'series' ? `${id}:1:1` : id;          // a series counts as available if S1E1 is
   for(const a of addons.filter(a => supports(a.manifest, 'stream', type, vid))){
     try{
-      const found = (await fetchStreams(a, type, vid)).map((s, i) => parseStream(s, a.manifest.name, i));
-      if(found.some(x => !x.external && x.q !== 'CAM' && rank(x) > 0)) return true;
+      // parsed one at a time, up to the first that plays: a list is often hundreds of torrents
+      const streams = await fetchStreams(a, type, vid);
+      if(streams.some(s => s == null)) return null;          // what parsing a broken list used to end in
+      if(streams.some((s, i) => canPlay(parseStream(s, a.manifest.name, i)))) return true;
     }catch(e){ return null; }                                 // unknown: don't grey out on a network error
   }
   return false;
@@ -77,7 +79,11 @@ new MutationObserver(muts => {
     if(n.nodeType !== 1) continue;
     for(const el of n.matches('[data-avail]') ? [n] : n.querySelectorAll('[data-avail]')){
       if(availKnown(el.dataset.avail)) continue;
-      if([...el.parentNode.children].indexOf(el) < 6) now.push(el.dataset.avail); else availObserver.observe(el);
+      if(!el.parentNode) continue;
+      // among the first six of its row (counted backwards, not by copying the row - rows hold hundreds)
+      let i = 0;
+      for(let s = el.previousElementSibling; s && i < 6; s = s.previousElementSibling) i++;
+      if(i < 6) now.push(el.dataset.avail); else availObserver.observe(el);
     }
   }
   if(now.length) queueAvail(now);

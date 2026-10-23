@@ -67,6 +67,11 @@ export function parseStream(s, addon, i){
   };
 }
 
+/** A source the player can start on its own: a stream, not a service's page, not a camera copy, and worth playing. */
+export const canPlay = x => !x.external && x.q !== 'CAM' && rank(x) > 0;
+/** The source to start: the best of those, in the quality the viewer prefers. */
+const bestOf = all => pickQ(all.filter(canPlay).sort((a, b) => rank(b) - rank(a)));
+
 /** How good a source is to stream on a phone/TV: direct links first, then well-seeded 1080p. */
 export function rank(x){
   if(x.external) return -1;                      // a program page is never a playable stream
@@ -165,7 +170,7 @@ window.boothNextEpisode = async (vid, raw) => {
       });
   });
   if(!live()) return;
-  const best = pickQ(all.filter(x => !x.external && x.q !== 'CAM' && rank(x) > 0).sort((a, b) => rank(b) - rank(a)));
+  const best = bestOf(all);
   if(!best) return fail();
   playStream(best.s, episodeLabel(meta, ep), {videoId: vid, type, meta});
 };
@@ -302,7 +307,7 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
     renderStreams(box, all, pendingAddons + pendingBroadcasters > 0, label, ctx, errors, retry, current);
     // Broadcaster pages must not delay a playable source from an add-on.
     if(autoplay && !played){
-      const ready = pickQ(all.filter(x => !x.external && x.q !== 'CAM' && rank(x) > 0).sort((a, b) => rank(b) - rank(a)));
+      const ready = bestOf(all);
       if(ready && (!pendingAddons || impatient || ready.direct || ready.q === prefQ)){
         played = true;
         clearTimeout(graceTimer);
@@ -338,7 +343,7 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
   }));
   await Promise.all([addonWork, broadcasterWork]);
   if(current() && type === 'movie' && meta?.id && src.length){
-    const playable = all.some(x => !x.external && x.q !== 'CAM' && rank(x) > 0);
+    const playable = all.some(canPlay);
     // An error, no add-ons, or a service page is not evidence of unavailability.
     if(playable) setAvail(`${type}:${meta.id}`, true);
     else if(!errors.length && !all.some(x => x.external)) setAvail(`${type}:${meta.id}`, false, true);   // every add-on said so: sure

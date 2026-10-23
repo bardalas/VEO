@@ -166,6 +166,7 @@ function upInto(cand, dir){
    easing in and out from rest and only out when it takes over from a move still going (so a run of presses is
    one long smooth travel, not a series of starts). It costs a scrollTo a frame, which a television box can pay. */
 const GLIDE_MIN_MS = 240, GLIDE_MAX_MS = 400;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const GLIDE_HELD_MS = 110;                            // a key held down repeats faster than this: that is a run, and a run jumps
 let gliding = 0, glideOn = false;
 /** How long before this move the last one was: a run of presses, or a considered one. */
@@ -175,7 +176,7 @@ export function glide(y){
   const far = Math.abs(scrollY - to) > innerHeight * 3;      // only a leap across the whole page is a jump
   if(!isTvLayout()) return scrollTo({top: to, behavior: far ? 'auto' : 'smooth'});
   cancelAnimationFrame(gliding);
-  if(far || moveGap < GLIDE_HELD_MS || matchMedia('(prefers-reduced-motion: reduce)').matches){ glideOn = false; return scrollTo(0, to); }
+  if(far || moveGap < GLIDE_HELD_MS || REDUCED.matches){ glideOn = false; return scrollTo(0, to); }
   const from = scrollY, start = performance.now(), takeOver = glideOn;
   const ms = Math.min(GLIDE_MAX_MS, GLIDE_MIN_MS + Math.abs(to - from) * .12);
   const ease = takeOver ? t => 1 - Math.pow(1 - t, 3)                                    // out: carries the movement on

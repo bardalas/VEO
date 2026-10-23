@@ -593,12 +593,16 @@ class PlayerActivity : AppCompatActivity() {
         showMessage("סונכרן %+.1f שנ׳".format(subShift / 1000.0) + if (fit != null) " · קצב %.3f×".format(manualStretch) else "", 2_500)
     }
 
+    private val cuesView by lazy { findViewById<TextView>(R.id.cues) }
+
     // explicit type: it schedules itself
     private val tickCaptions: Runnable = object : Runnable {
         override fun run() {
             val c = captions ?: return
             val p = player ?: return
-            findViewById<TextView>(R.id.cues).text = c.at(p.currentPosition)
+            // set only when the words change: setting a TextView lays it out again, eight times a second while a film plays
+            val words = c.at(p.currentPosition)
+            if (!android.text.TextUtils.equals(cuesView.text, words)) cuesView.text = words
             handler.postDelayed(this, 120)
         }
     }
