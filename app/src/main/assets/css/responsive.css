@@ -7,8 +7,8 @@
   .epanel .eps{display:flex;flex-direction:column;gap:2px;overflow-x:hidden;overflow-y:visible;max-height:none;padding:0}
   .epanel .epcard{flex:0 0 auto;width:100%;min-height:0;padding:10px 8px;border-radius:8px;background:none}
   .epanel .epcard .t{display:block;width:100%}
-  .epanel .epcard .t b{font-size:15px!important;line-height:1.35;white-space:normal;overflow:visible;text-overflow:clip}
-  .epanel .epcard .t small{font-size:12px!important;margin-top:2px}
+  .epanel .epcard .t b{font-size:15px;line-height:1.35;white-space:normal;overflow:visible;text-overflow:clip}
+  .epanel .epcard .t small{font-size:12px;margin-top:2px}
   .epanel .seasonbar{flex-direction:row;gap:6px;overflow-x:auto;overflow-y:hidden;max-width:100%;margin-bottom:10px;padding-bottom:2px;border:0}
   .epanel .seasonbar button{flex:0 0 auto;padding:7px 10px}
 
@@ -17,7 +17,6 @@
      own children take their places in the same grid, without a second markup for phones. */
   .backdrop{height:34vh}
   .detail{grid-template-columns:104px minmax(0,1fr);column-gap:14px;row-gap:0;margin-top:14px;align-items:start}
-  .detail .poster-lg{width:104px;grid-column:1;grid-row:1 / span 2}
   .detail .dinfo{display:contents}
   .detail h1{grid-column:2;grid-row:1;margin-bottom:6px;font-size:clamp(22px,6vw,30px)}
   .detail .facts{grid-column:2;grid-row:2;margin:0}
@@ -36,5 +35,5 @@
   .sortbar{gap:6px}
   .sortpill{font-size:13px;padding:6px 12px}
   .detail{gap:18px}
-  .cols,.epwrap{gap:12px}
+  .epwrap{gap:12px}
 }

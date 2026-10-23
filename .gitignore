@@ -19,3 +19,7 @@ webos/*.ipk
 webos/service/node_modules/
 webos/dist-service/
 webos/dist-test/
+.kotlin/
+__pycache__/
+*.pyc
+tools/navqa-report.md

@@ -5,7 +5,6 @@ import {store} from '../core/store.js';
 import {hasSources} from './availability.js';
 import {heTitle} from './hebrew.js';
 import {tr} from '../i18n.js';
-import {card} from '../ui/cards.js';
 import {tvFocus} from '../ui/tvnav.js';
 
 /* ---------- waiting for a source ----------

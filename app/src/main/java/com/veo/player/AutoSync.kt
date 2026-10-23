@@ -51,7 +51,7 @@ object AutoSync {
 /**
  * When there is speech in what the player decodes, in steps of 50 ms along the film's own clock.
  *
- * The player's audio renderer hands each decoded buffer here ([TappingAudioRenderer]) before it plays it. The dialogue is
+ * The player's audio renderer hands each decoded buffer here ([AudioDelayProcessor]) before it plays it. The dialogue is
  * taken out of it as well as a few lines of arithmetic can: the centre channel of a 5.1 mix (where the dialogue lives),
  * or the middle of a stereo one, filtered to the band speech occupies, its loudness over each step set against the
  * quietest it has been lately, and - because speech comes in syllables and a held chord or an engine does not - how much
@@ -70,7 +70,7 @@ class SpeechTimeline {
     @Volatile var debug = false
     /** What the audio renderer last said about the sound it was given (format), for the panel when nothing is heard. */
     @Volatile var note = ""
-    private var logged = 0; private var logSpeech = 0; private var logN = 0; private var logE = 0f
+    private var logSpeech = 0; private var logN = 0; private var logE = 0f
 
     // ---- the audio's side: filters and the step being built ----
     private var streamUs = Double.NaN                  // film time of the next sample to come
@@ -502,7 +502,6 @@ class FastOffsetAligner(
 
     companion object {
         const val MIN_WINDOW_MS = 12_000L
-        const val TARGET_WINDOW_MS = 20_000L
         const val MAX_ATTEMPT_MS = 30_000L
         const val MIN_SPEECH_S = 4.0
         const val MIN_EVENTS = 3

@@ -8,7 +8,7 @@ import {store} from '../core/store.js';
 import {tr} from '../i18n.js';
 import {approvePairing, joinWithNumber, otpSend, otpVerify, pairStart, pairWait, signedIn} from '../data/account.js';
 import {firstSync} from '../data/sync.js';
-import {loadQr} from '../ui/report.js';
+import {qrSvg} from '../ui/report.js';
 
 let gate = null;
 
@@ -63,11 +63,8 @@ export async function showSignIn({approve = ''} = {}){
     const stop = () => !alive || !gate;
     try{
       const pair = await pairStart();
-      const qr = await loadQr();
-      if(qr && gate){
-        const code = qr(0, 'M'); code.addData(pair.url); code.make();
-        const box = $('#gqr'); box.innerHTML = code.createSvgTag({cellSize: 6, margin: 2}); box.hidden = false;
-      }
+      const svg = await qrSvg(pair.url, 2);
+      if(svg && gate){ const box = $('#gqr'); box.innerHTML = svg; box.hidden = false; }
       say("");
       if(await pairWait(pair, stop)) return joined();
       if(gate) say(tr('acct.expired'));
@@ -95,14 +92,20 @@ export async function showSignIn({approve = ''} = {}){
   };
 }
 
+/** A word over everything at the foot of the screen, for what a link that opened the app is doing. */
+function notice(text, z){
+  const note = document.createElement('div');
+  note.style.cssText = `position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:${z};padding:14px 22px;border-radius:14px;background:#0d1526;color:#e9f0ff;border:1px solid #25304d;font-size:18px`;
+  note.textContent = text;
+  document.body.appendChild(note);
+  return note;
+}
+
 /** A signed-in television's QR opened this app (veo://join?c=CODE): this device joins the account, with a login of its own. */
 window.boothJoin = async code => {
   code = String(code || '').toUpperCase();
   if(signedIn() || !/^[A-Z2-9]{8}$/.test(code)) return;
-  const note = document.createElement('div');
-  note.style.cssText = 'position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:10000;padding:14px 22px;border-radius:14px;background:#0d1526;color:#e9f0ff;border:1px solid #25304d;font-size:18px';
-  note.textContent = tr('acct.syncing');
-  document.body.appendChild(note);
+  const note = notice(tr('acct.syncing'), 10000);
   try{ await joinWithNumber(code); await joined(); }
   catch(e){ note.textContent = tr('gate.badNumber'); setTimeout(() => note.remove(), 4000); }
 };
@@ -112,10 +115,7 @@ window.boothLink = async code => {
   code = String(code || '').toUpperCase();
   if(!/^[A-Z2-9]{8}$/.test(code)) return;
   if(!signedIn()){ showSignIn({approve: code}); return; }
-  const note = document.createElement('div');
-  note.style.cssText = 'position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:9999;padding:14px 22px;border-radius:14px;background:#0d1526;color:#e9f0ff;border:1px solid #25304d;font-size:18px';
-  note.textContent = tr('gate.approving');
-  document.body.appendChild(note);
+  const note = notice(tr('gate.approving'), 9999);
   try{ await approvePairing(code); note.textContent = tr('gate.approved'); }
   catch(e){ note.textContent = tr('gate.approveFail'); }
   setTimeout(() => note.remove(), 4000);

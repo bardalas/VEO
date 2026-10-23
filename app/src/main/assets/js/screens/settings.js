@@ -14,7 +14,7 @@ import {clearProgress} from '../data/watch.js';
 import {UI_LANGS, tr} from '../i18n.js';
 import {LINK_PAGE, accountEmail, offerNumber, pairStart, pairWait, signOut, signedIn} from '../data/account.js';
 import {firstSync, sync} from '../data/sync.js';
-import {loadQr} from '../ui/report.js';
+import {qrSvg} from '../ui/report.js';
 import {parseM3U, playlistCache, playlists, setPlaylists} from '../providers/live.js';
 import {forgetRtv} from '../providers/rtv.js';
 import {askPin, choosePin} from '../ui/pin.js';
@@ -287,7 +287,7 @@ export function paintSettings(keep){
 }
 
 /** An action that cannot be undone asks for a second press, within a few seconds. */
-function confirmed(b){
+export function confirmed(b){
   if(b.classList.contains('arm')) return true;
   b.classList.add('arm');
   const say = b.querySelector('.sv span'), was = say.textContent;
@@ -304,10 +304,9 @@ const ACTS = {
     const box = $('#acctbox');
     try{
       const n = await offerNumber();
-      const qr = await loadQr();
-      if(!qr) throw new Error('qr');
-      const code = qr(0, 'M'); code.addData(`${LINK_PAGE}?j=${n}`); code.make();
-      box.innerHTML = `<div class="repqr">${code.createSvgTag({cellSize: 6, margin: 2})}</div><p class="snote">${esc(tr('acct.addNum'))}</p>`;
+      const svg = await qrSvg(`${LINK_PAGE}?j=${n}`, 2);
+      if(!svg) throw new Error('qr');
+      box.innerHTML = `<div class="repqr">${svg}</div><p class="snote">${esc(tr('acct.addNum'))}</p>`;
     }catch(e){ box.innerHTML = `<p class="snote">${esc(tr('acct.fail'))}</p>`; }
   },
   acctLink: async () => {
@@ -316,11 +315,8 @@ const ACTS = {
     say.textContent = tr('acct.wait');
     let pair;
     try{ pair = await pairStart(); }catch(e){ say.textContent = tr('acct.fail'); return; }
-    const qr = await loadQr();
-    if(qr && box.isConnected){
-      const code = qr(0, 'M'); code.addData(pair.url); code.make();
-      box.innerHTML = `${code.createSvgTag({cellSize: 6, margin: 4})}`;
-    }
+    const svg = await qrSvg(pair.url, 4);
+    if(svg && box.isConnected) box.innerHTML = svg;
     say.innerHTML = `${esc(tr('acct.scan'))}<br><b dir="ltr">${esc(pair.url.replace(/^https?:\/\//, ''))}</b>`;
     const ok = await pairWait(pair, () => !box.isConnected);
     if(!box.isConnected) return;

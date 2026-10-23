@@ -7,6 +7,7 @@
    The library keeps its own choices (data/sort.js Filters): a filter chosen here does not turn Home
    into a grid. (Not to be confused with screens/library.js: the viewer's own favourites and history.) */
 import {$, esc, showErr} from '../core/dom.js';
+import {guardView} from '../core/requests.js';
 import {screenMem} from '../core/screenmem.js';
 import {addons, catalogFetch, fetchMeta, yearOf} from '../data/addons.js';
 import {CINEMETA_ID} from '../data/catalogs.js';
@@ -37,7 +38,7 @@ const TASTE_AFTER_MS = 1200;
 
 /** The pills of a library: its "service" is every source the type has - the broadcasters and the archive too. */
 const groupsFor = type => SORT_GROUPS.map(g => g.key !== 'svc' ? g
-  : {...g, opts: [g.opts[0], ...originsFor(type).map(o => [o.id, o.svc ? '' : 'origin.' + o.id]), [NONE, 'src.none']]});
+  : {...g, opts: [g.opts[0], ...originsFor(type).map(o => [o.id, o.svc ? '' : 'origin.' + o.id]), [NONE, 'src.noService']]});
 /** The choice of titles on none of the streaming services. */
 const NONE = 'none';
 const onService = it => [...it.from].some(o => SERVICES[o]) || svcOf(it.id).length > 0;
@@ -95,12 +96,10 @@ const asFacts = it => ({id: it.id, name: it.meta?.name || it.name || '', imdbRat
   year: it.meta?.year, releaseInfo: it.meta?.releaseInfo, it});
 
 /* ---------- the screen ---------- */
-let view = 0;                                          // which drawing of the library is the current one
 let ahead = null;                                      // what draws more as the end of the grid comes near
 
 export async function viewAll(type){
   if(!TYPES.includes(type)) return viewHome();
-  const me = ++view;
   const f = filters[type], groups = groupsFor(type);
   const redraw = () => viewAll(type);
   endTaste();
@@ -119,6 +118,7 @@ export async function viewAll(type){
   const titles = Titles();
   let out = [], shown = new Set();
   const grid = $('#libgrid'), note = $('#libnote'), end = $('#libmore');
+  const live = guardView(grid);                         // still the drawing on the screen
   const by = groups.find(g => g.key === 'by');
   // a source chosen where this profile has none of it (the grown-ups' library, in the kids profile) is not asked for
   const offered = new Set(groups.find(g => g.key === 'svc').opts.map(([v]) => v));
@@ -138,7 +138,7 @@ export async function viewAll(type){
   };
   /** Keep drawing while the end of the grid is near the screen. */
   const fill = () => {
-    if(me !== view || !grid.isConnected || shown.size >= out.length) return;
+    if(!live() || shown.size >= out.length) return;
     if(end.getBoundingClientRect().top > innerHeight + AHEAD_PX) return;
     more(PAGE);
     requestAnimationFrame(fill);
@@ -165,7 +165,7 @@ export async function viewAll(type){
   // the sources that answer in time make the first drawing; each later one joins it when it answers
   let first = true;
   const arrive = list => {
-    if(me !== view || !grid.isConnected) return;
+    if(!live()) return;
     if(list.length){ titles.deal([list]); choose(); }
     // Until the viewer has gone into the grid (with the remote, or by scrolling it), what came is drawn
     // in its place in the order; after that it waits at the end, so nothing moves under the viewer.
@@ -177,7 +177,7 @@ export async function viewAll(type){
   lists.forEach((p, k) => p.then(l => { pending--; if(first) inTime[k] = l; else arrive(l); }));
   grid.addEventListener('focusin', () => { entered = true; });
   await Promise.race([Promise.all(lists), new Promise(r => setTimeout(r, LATE_MS))]);
-  if(me !== view || !grid.isConnected) return;
+  if(!live()) return;
   first = false;
   titles.deal(inTime.map(l => l || []));
   choose();

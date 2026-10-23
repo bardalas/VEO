@@ -37,7 +37,6 @@ export let streamsToken = 0;
 /** Draw the sources row again (the quality pills change what it says, not what it plays from). */
 export let lastStreams = null;
 export const fmtSize = b => b >= GB ? (b / GB).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB';
-export const isCam = s => /\b(hd)?cam(rip)?\b|\b(hd)?ts\b|telesync|\bscr\b|screener|\btc\b|telecine/i.test(`${s.name || ''}\n${s.title || s.description || ''}`);
 
 /** Pull quality, seeders, size, provider and tags out of a Stremio stream (Torrentio format, with fallbacks). */
 export function parseStream(s, addon, i){
@@ -66,6 +65,11 @@ export function parseStream(s, addon, i){
     direct: !!(s.url || s.ytId),
   };
 }
+
+/** A source the player can start on its own: a stream, not a service's page, not a camera copy, and worth playing. */
+export const canPlay = x => !x.external && x.q !== 'CAM' && rank(x) > 0;
+/** The source to start: the best of those, in the quality the viewer prefers. */
+const bestOf = all => pickQ(all.filter(canPlay).sort((a, b) => rank(b) - rank(a)));
 
 /** How good a source is to stream on a phone/TV: direct links first, then well-seeded 1080p. */
 export function rank(x){
@@ -165,7 +169,7 @@ window.boothNextEpisode = async (vid, raw) => {
       });
   });
   if(!live()) return;
-  const best = pickQ(all.filter(x => !x.external && x.q !== 'CAM' && rank(x) > 0).sort((a, b) => rank(b) - rank(a)));
+  const best = bestOf(all);
   if(!best) return fail();
   playStream(best.s, episodeLabel(meta, ep), {videoId: vid, type, meta});
 };
@@ -211,7 +215,6 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
     // This row chooses; the list below it is what starts. The quality in use wears the accent, and what
     // it will play - its size, and whether anything is still answering - is said beside it.
     const byQuality = QUALITIES.filter(q => playable.some(x => x.q === q));
-    const detail = x => [x.q === 'Other' ? '' : x.q, x.size && fmtSize(x.size)].filter(Boolean).join(' · ');
     // One row for the quality, not one per quality: pressing it takes the next one there is - and after
     // the last, automatic again ('').
     const cycle = [...byQuality, ''];
@@ -302,7 +305,7 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
     renderStreams(box, all, pendingAddons + pendingBroadcasters > 0, label, ctx, errors, retry, current);
     // Broadcaster pages must not delay a playable source from an add-on.
     if(autoplay && !played){
-      const ready = pickQ(all.filter(x => !x.external && x.q !== 'CAM' && rank(x) > 0).sort((a, b) => rank(b) - rank(a)));
+      const ready = bestOf(all);
       if(ready && (!pendingAddons || impatient || ready.direct || ready.q === prefQ)){
         played = true;
         clearTimeout(graceTimer);
@@ -338,7 +341,7 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
   }));
   await Promise.all([addonWork, broadcasterWork]);
   if(current() && type === 'movie' && meta?.id && src.length){
-    const playable = all.some(x => !x.external && x.q !== 'CAM' && rank(x) > 0);
+    const playable = all.some(canPlay);
     // An error, no add-ons, or a service page is not evidence of unavailability.
     if(playable) setAvail(`${type}:${meta.id}`, true);
     else if(!errors.length && !all.some(x => x.external)) setAvail(`${type}:${meta.id}`, false, true);   // every add-on said so: sure

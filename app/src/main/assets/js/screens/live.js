@@ -118,9 +118,10 @@ export async function viewLive(){
     nowIo = new IntersectionObserver(entries => {
       for(const en of entries) if(en.isIntersecting){ nowIo.unobserve(en.target); showNow(en.target); }
     }, {rootMargin: '200px'});
-    list.forEach((c, i) => {
-      if(!c.epg) return;
-      const el = $('#chs').querySelector(`[data-now="${i}"]`);
+    // one pass over the list's slots, not a search of the list per channel - playlists hold thousands
+    $('#chs').querySelectorAll('[data-now]').forEach(el => {
+      const i = +el.dataset.now;
+      if(!list[i]?.epg) return;
       if(i < 16) showNow(el); else nowIo.observe(el);
     });
   };

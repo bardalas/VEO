@@ -13,8 +13,8 @@ export const FOCUSABLE = 'a[href], button:not([disabled]), input:not([type="hidd
    of them is safe. Grouped by the screen that renders them. */
 export const ROWS_SEL = [
   '#rail', '.stabs', '.spane', '.sset', '.slines', '.themes',             // chrome: the side menu, the settings menu and its lists
-  '.bctabs', '.srctabs', '.strip', '.grid', '.sortbar',                    // browsing rows and pickers
-  '.ltabs', '.mkbar', '.oops',                                             // archive/mako tabs, error boxes
+  '.srctabs', '.strip', '.grid', '.sortbar',                               // browsing rows and pickers
+  '.oops',                                                                 // error boxes
   '#desc', '.seasonbar', '.seasons', '.eps', '.eplist',                    // a title: text, episodes
   '.tacts', '#palt', '.src',                                               // a title: what can be done with it
   '.playrow', '.altlist',                                                  // the sources of a title
@@ -33,11 +33,10 @@ export const visible = el => { const r = el.getBoundingClientRect(); return r.wi
 export function openCard(){
   const sheet = document.querySelector('.sheet, .update');
   if(sheet) return sheet;
-  // The status card's display is set inline by the page itself, so its own style attribute is the
-  // answer - and reading that, unlike asking for a computed style, does not make the browser lay the
-  // whole page out again. This is asked on every change of the screen, so it must cost nothing.
+  // the status card comes and goes with `hidden`: reading the attribute, unlike asking for a computed style, does
+  // not make the browser lay the whole page out again - this is asked on every change of the screen
   const st = document.getElementById('tstatus');
-  return st && st.style.display && st.style.display !== 'none' ? st : null;
+  return st && !st.hidden ? st : null;
 }
 export const tvScope = () => openCard() || document;
 /**
@@ -93,8 +92,8 @@ const lookAgain = () => {
    off and puts it back, writes its position and the row's turn as inline styles (js/ui/reel.js), and a
    poster's picture arrives as an inline style too (js/core/dom.js) - none of which changes what the
    arrows can reach. Treating all of that as a new screen threw the cache above away on every single
-   press, which is the cost it exists to avoid. Only the status card hides itself with an inline
-   style; everything else that comes and goes does so as an element, or with `hidden`. */
+   press, which is the cost it exists to avoid. Everything that comes and goes does so as an element, or with
+   `hidden` - so inline styles are not watched at all. */
 // Remote control (Android TV): text fields stay locked while focus passes over them, so the on-screen
 // keyboard doesn't pop up; OK (Enter) unlocks the field and opens the keyboard.
 export function armInput(i){
@@ -127,12 +126,11 @@ new MutationObserver(muts => {
   for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) armInputs(n.matches('input') ? n.parentNode : n);
   if(pendingLook) return;
   for(const m of muts){
-    const changed = m.type === 'childList'
-      ? !inTrim(m.target) && [...m.addedNodes, ...m.removedNodes].some(n => !cosmetic(n))
-      : m.attributeName === 'hidden' || m.target.id === 'tstatus';
+    // an attribute change is a `hidden` one - the only attribute watched
+    const changed = m.type !== 'childList' || (!inTrim(m.target) && [...m.addedNodes, ...m.removedNodes].some(n => !cosmetic(n)));
     if(changed){ pendingLook = requestAnimationFrame(lookAgain); return; }
   }
-}).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style']});
+}).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['hidden']});
 addEventListener('hashchange', forgetRows);
 export const centerX = el => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
 /** Where to land in [row] when arriving from [from]: a season menu's chosen season, else the item nearest across. */
@@ -166,6 +164,7 @@ function upInto(cand, dir){
    easing in and out from rest and only out when it takes over from a move still going (so a run of presses is
    one long smooth travel, not a series of starts). It costs a scrollTo a frame, which a television box can pay. */
 const GLIDE_MIN_MS = 240, GLIDE_MAX_MS = 400;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const GLIDE_HELD_MS = 110;                            // a key held down repeats faster than this: that is a run, and a run jumps
 let gliding = 0, glideOn = false;
 /** How long before this move the last one was: a run of presses, or a considered one. */
@@ -175,7 +174,7 @@ export function glide(y){
   const far = Math.abs(scrollY - to) > innerHeight * 3;      // only a leap across the whole page is a jump
   if(!isTvLayout()) return scrollTo({top: to, behavior: far ? 'auto' : 'smooth'});
   cancelAnimationFrame(gliding);
-  if(far || moveGap < GLIDE_HELD_MS || matchMedia('(prefers-reduced-motion: reduce)').matches){ glideOn = false; return scrollTo(0, to); }
+  if(far || moveGap < GLIDE_HELD_MS || REDUCED.matches){ glideOn = false; return scrollTo(0, to); }
   const from = scrollY, start = performance.now(), takeOver = glideOn;
   const ms = Math.min(GLIDE_MAX_MS, GLIDE_MIN_MS + Math.abs(to - from) * .12);
   const ease = takeOver ? t => 1 - Math.pow(1 - t, 3)                                    // out: carries the movement on
@@ -278,20 +277,9 @@ export function tvMove(dir){
   if(!row){ focusItem(itemsOf(rows[0])[0]); return true; }
   const items = itemsOf(row);
   const i = items.indexOf(active);
-  /* The title in the middle of a wheel carries its own two buttons. They are not part of the row -
-     along the row you pass titles, not buttons - so they are a step down from the title and a step
-     back up, and below them is whatever the row leads to. */
-  const act = row.querySelector?.('.spotact');
-  if(act && dir === 'down' && active?.classList.contains('spot')){
-    // With no extra buttons under the title, going down jumps to the row below directly
-    const below = rows[rows.indexOf(row) + 1];
-    if(below) focusItem(bestIn(below, active));
-    return true;
-  }
   // A side menu is a column: up/down pick an entry, left steps into what it controls - #rail drives
-  // the page, .stabs the settings pane, .seasonbar the episode list.
+  // the page, .stabs the settings pane.
   const pane = row.classList.contains('stabs') ? '#spane'
-             : row.classList.contains('seasonbar') ? row.dataset.pane
              : (row.id === 'rail' && document.body.classList.contains('railed')) ? '#app' : null;
   if(pane){
     if(dir === 'up' || dir === 'down'){
@@ -359,10 +347,6 @@ export function tvMove(dir){
         focusItem($('#rail a.on') || $('#rail a'));
         return true;
       }
-    } else if(isCol && row.classList.contains('seasonbar')){
-      const target = $('#eps');
-      const first = target?.querySelector('.epcard.on') || target?.querySelector('.epcard');
-      if(first){ focusItem(first); return true; }
     }
     return true;                                    // stay put at the row's edge
   }
@@ -383,24 +367,27 @@ export function tvMove(dir){
   // Another line = an item whose middle lies beyond this one's edge. (Comparing tops made the search box,
   // a little taller than the menu links beside it, look like the line below them.)
   const beyond = el => dir === 'down' ? mid(el) > ar.bottom : mid(el) < ar.top;
-  let same = [];
+  let line = [];
   // a strip of titles is one line, always: there is no other line in it to look for - on to the next row unmeasured
-  if(row.classList.contains('strip')){}
-  else if(i >= 0){
+  const strip = row.classList.contains('strip');
+  if(!strip && i >= 0){
+    // gather the first line beyond this item: everything up to where the line after it begins (an item wholly past
+    // the far edge of what was gathered). Items of one line may differ in height - the band is chosen below.
     const step = dir === 'down' ? 1 : -1;
+    let edge = null;
     for(let j = i + step; j >= 0 && j < items.length; j += step){
       const el = items[j];
       if(!beyond(el)) continue;                     // still on this line
-      if(same.length && Math.abs(mid(el) - mid(same[0])) >= 6) break;   // past the line found: done
-      same.push(el);
+      const r = rectOf(el);
+      if(edge !== null && (dir === 'down' ? r.top >= edge : r.bottom <= edge)) break;   // the line after it: done
+      line.push(el);
+      edge = edge === null ? (dir === 'down' ? r.bottom : r.top)
+        : dir === 'down' ? Math.max(edge, r.bottom) : Math.min(edge, r.top);
     }
-  }else{                                            // not on an item of the row (an edge case): the whole row, as before
-    const line = items.filter(beyond);
-    if(line.length){
-      const band = dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid));
-      same = line.filter(el => Math.abs(mid(el) - band) < 6);
-    }
-  }
+  }else if(!strip) line = items.filter(beyond);     // not on an item of the row (an edge case): the whole row, as before
+  // the nearest band of what lies beyond, as it always was
+  const band = line.length && (dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid)));
+  const same = line.filter(el => Math.abs(mid(el) - band) < 6);
   if(same.length){
     focusItem(same.reduce((best, el) => Math.abs(cx(el) - x) < Math.abs(cx(best) - x) ? el : best));
     return true;

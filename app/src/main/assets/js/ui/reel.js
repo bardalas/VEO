@@ -30,8 +30,9 @@ let settling = 0;             // what the middle will say, once the viewer has s
 let restingSince = 0;         // when the moving stopped: the taste is measured from there
 let act = null;               // its buttons, under the picture
 
-/** Let the middle go: the picture narrows back into a poster and the taste stops. */
-export function clearSpot(){
+/** Let the middle go: the picture narrows back into a poster and the taste stops. [next] is the row the middle moves
+ *  to: within the same row place() turns it again at once, so turning it here too would only cost a layout. */
+export function clearSpot(next){
   clearTimeout(settling);
   clearTimeout(widening);
   endTaste();
@@ -47,7 +48,7 @@ export function clearSpot(){
     }
     // the row stays where the viewer left it - the title they were on, now a poster, keeps the middle
     const strip = spot.closest('.strip');
-    if(strip?.classList.contains('reel') && turning()) strip.style.transform = `translateX(${Math.round(turn(strip, spot))}px)`;
+    if(strip !== next && strip?.classList.contains('reel') && turning()) strip.style.transform = `translateX(${Math.round(turn(strip, spot))}px)`;
   }
   act?.remove();
   spot = null; act = null;
@@ -64,7 +65,7 @@ export function spotlight(el){
   if(!el || el === spot || !el.isConnected || !reelable()) return;
   const strip = el.closest('.strip');
   if(!strip) return;
-  clearSpot();
+  clearSpot(strip);
   spot = el;
   strip.querySelectorAll('[data-was-spot]').forEach(x => delete x.dataset.wasSpot);
   el.classList.add('spot');
@@ -100,13 +101,15 @@ export function place(){
   if(!spot?.isConnected || !act) return;
   const strip = spot.closest('.strip');
   if(!strip) return;
-  const art = spot.querySelector('.art');
-  act.style.left = spot.offsetLeft + 'px';
+  // every position is read before anything is written: reads after a write would lay the row out again
+  const left = spot.offsetLeft, top = spot.offsetTop + spot.offsetHeight + 4, width = spot.offsetWidth;
+  const turns = turning() && strip.classList.contains('reel');
+  const by = turns ? Math.round(turn(strip, spot)) : 0;
+  act.style.left = left + 'px';
   // under the whole title - its picture and the name beneath it - not over the name
-  act.style.top = spot.offsetTop + spot.offsetHeight + 4 + 'px';
-  act.style.width = spot.offsetWidth + 'px';
-  if(!turning() || !strip.classList.contains('reel')){ strip.style.transform = ''; return; }
-  strip.style.transform = `translateX(${Math.round(turn(strip, spot))}px)`;
+  act.style.top = top + 'px';
+  act.style.width = width + 'px';
+  strip.style.transform = turns ? `translateX(${by}px)` : '';
 }
 /**
  * How far the row has to turn to bring the title to the still point - and no further: a wheel that

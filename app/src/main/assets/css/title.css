@@ -3,7 +3,6 @@
 /* detail */
 /* The banner is the banner: nothing is written over it, and the words begin under it. */
 .detail{display:grid;grid-template-columns:1fr;gap:16px;position:relative;z-index:2;margin-top:18px;padding-top:0}
-.detail .poster-lg{display:none}
 .detail h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,48px);line-height:1.05;letter-spacing:-.02em;margin:0 0 12px}
 .facts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 /* under the synopsis, the facts are labels rather than a headline of their own */
@@ -66,8 +65,11 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .epcard .t small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 .epcard .ebar{grid-column:2;height:3px;border-radius:2px;background:var(--line);margin-top:6px}
 .epcard .ebar i{display:block;height:100%;border-radius:2px;background:var(--tungsten)}
-.epcard.on .t b{color:var(--tungsten)}
 .epcard.seen .t b{color:var(--muted)}
+/* after .seen: the one chosen is lit even when seen. Two rules, not one list: a WebView older than Chrome 86 (and
+   webOS) does not know :focus-visible and would drop a list that names it - .on with it */
+.epcard.on .t b{color:var(--tungsten)}
+.epcard:focus-visible .t b{color:var(--tungsten)}
 .epcard.seen .n::after{content:' ✓'}
 .epcard:focus,.epcard:hover{border-color:var(--tungsten);outline:none}
 [data-layout="tv"] .seasonbar button{font-size:18px}
@@ -85,8 +87,6 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .ep:hover{background:var(--raise)} .ep.on{background:var(--raise);box-shadow:none}
 .ep .n{font-family:var(--display);font-weight:700;color:var(--tungsten)}
 .ep .d{font-size:12px;color:var(--muted)}
-.epcard:focus, .epcard:focus-visible, .epcard.on{box-shadow: none !important; outline: none !important}
-.epcard:focus-visible b, .epcard.on b{color: var(--tungsten) !important}
 
 
 /* sources: Play, the quality shortcuts and the rest of the list share one row */
@@ -140,11 +140,3 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .orig{display:block;font-family:var(--body);font-size:15px;font-weight:500;letter-spacing:0;color:var(--muted);margin-top:6px}
 
 
-/* The title card: banner, synopsis, actions. */
-/* the title card: banner on top, synopsis, actions - a modest sheet, never a full page */
-.titleSheet>div{max-height:92vh}
-.tc-banner{height:min(30vh,220px);background:var(--surface) center 20%/cover;position:relative;overflow:hidden}
-.titleSheet .facts{display:flex;flex-wrap:wrap;gap:8px}
-.titleSheet .qvdesc{max-height:24vh;overflow:auto;margin:0;color:var(--text2)}
-.titleSheet .qvdesc[dir="rtl"]{font-size:15px;line-height:1.7}
-.qvact{display:flex;flex-wrap:wrap;gap:10px}

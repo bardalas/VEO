@@ -1,18 +1,5 @@
 /* ---------- Live TV and the broadcasters ---------- */
-/* Live TV: the older channel list and the playlist rows. */
-/* live tv */
-.ltabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
-.ltools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 18px}
-.ltools .field{min-width:220px}
-.channels{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.chan{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--light);cursor:pointer;text-align:center}
-.chan:hover,.chan:focus-visible{background:var(--raise);border-color:var(--tungsten)}
-.chan .logo{width:100%;height:64px;display:flex;align-items:center;justify-content:center}
-.chan .logo img{max-height:64px;max-width:90%;object-fit:contain}
-.chan .logo span{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--raise);font-family:var(--display);font-weight:700;font-size:20px;color:var(--tungsten)}
-.chan b{font-size:14px;line-height:1.25}
-.chan small{font-size:12px;color:var(--muted)}
-[data-layout="tv"] .channels{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+/* Live TV: the playlist rows. */
 .addpl{display:grid;grid-template-columns:1fr 2fr auto;gap:10px;max-width:900px;margin:8px 0 6px}
 .hint{font-size:13px;color:var(--muted);max-width:900px;margin:0 0 24px}
 .hint code{background:var(--raise);padding:1px 6px;border-radius:4px;font-size:12px}
@@ -38,7 +25,6 @@
 /* RaspberryTV: access key form and catch-up sheet */
 .keyform{display:flex;gap:10px;flex-wrap:wrap;align-items:center;max-width:560px;margin:4px 0 8px}
 .keyform input{width:160px;letter-spacing:.15em;text-align:center;font-variant-numeric:tabular-nums}
-.chan .rec{font-size:11px;color:var(--tungsten)}
 .sheet{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
 .sheet>div{background:var(--night);border:1px solid var(--line);border-radius:14px 14px 0 0;width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column}
 .sheet header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -139,20 +125,10 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 @media (max-width:760px){.eprow img{width:120px}.showhead img{width:90px}}
 
 
-/* One broadcaster at a time, and the Keshet tab. */
-/* channels area: one broadcaster at a time */
-.bctabs{display:flex;gap:6px;margin:0 0 16px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
-.bctabs a{flex:none;padding:10px 18px;text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;border-bottom:3px solid transparent;margin-bottom:-1px}
-.bctabs a.on{color:var(--light);border-bottom-color:var(--bc, var(--tungsten))}
+/* One broadcaster at a time. */
 .bchead{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:0 0 18px}
 .bchead .livebtn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:9px 18px;background:var(--bc, var(--tungsten));color:#fff;font-weight:700;cursor:pointer}
 .bchead .note{margin:0}
-[data-layout="tv"] .bctabs a{font-size:20px;padding:12px 24px}
 
-/* quick view: first tap on a poster */
-
-
-/* Keshet 12 (mako) tab */
-.mkbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
-.mkbar input{flex:1;min-width:160px;max-width:320px;padding:7px 12px}
+/* a broadcaster's own site, opened in the app */
 .openbtn{display:inline-flex;align-items:center;gap:8px}

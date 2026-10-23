@@ -21,48 +21,60 @@ it needs no build step: edit a file and reload.
 ```
 app/src/main/assets/
   booth.html            the shell: the markup, the stylesheets, and one <script type="module">
+  export.html           read once by the file:// -> https migration (APK only)
+  ads/                  the broadcasters' ad marks and countdown digits, read natively by AdSkip.kt
+  svc/                  streaming services' logos (svc/g/: one-colour glyphs, tools/svc_glyphs.py)
   css/                  one stylesheet per layer, linked in this order - the cascade is the order
-    tokens base chrome content title live settings player layouts motion responsive
+    tokens base chrome content title hero live profiles settings player layouts reel focus motion responsive
   js/
     app.js              the composition root: the router, and the list of what the app is made of
-    i18n.js             every string, in every language, and tr()
+    i18n.js             every string, in every language, and tr() (sits on core/store.js, under the rest of core)
     core/               things with no opinion about the app
-      store.js          what is kept on the device
+      store.js          what is kept on the device (per profile: PROFILE_KEYS)
       dom.js            $, esc, getJSON, the lazy-image observer
       bridge.js         the way to the Android app (native fetch, the site reader, the migration)
       settings.js       the viewer's choices: `DEFAULTS`, `setSetting`, `resetSettings` (`pinned()` re-pins layout/poster)
       screenmem.js      where the viewer was, so Back puts them back
+      requests.js       guardView/invalidateView: async work belongs to the view that started it
     data/               what the app knows
       addons.js         manifests, catalogues, details, streams
       catalogs.js       the categories and the rows behind them
       hebrew.js         Hebrew titles, plots and search (Wikidata, Wikipedia)
+      translate.js      machine translation into Hebrew, the last resort
       names.js          Hebrew names for genres and catalogue titles
       services.js       which streaming service a title is on
       sort.js           sorting, filtering, and the grid they produce
       watch.js          the library, and how far everything was watched
       availability.js   which titles can actually be played
       reminders.js      titles waiting for a source
+      known.js          the titles the app already knows by name (what search offers first)
       kids.js           the kids profile: what is for children (`isKidSafe`), and the code that leaves it
+      ratings.js        age ratings (IMDb's IL/US certificates, then Wikidata)
+      profiles.js       who is watching: the household's profiles
+      taste.js          what a profile likes, learnt from what it does
+      account.js sync.js  the household's account (Supabase) and keeping profiles the same on every device
     providers/          other people's catalogues
-      kan.js reshet.js mako.js jfc.js       broadcasters
+      kan.js reshet.js mako.js              broadcasters
+      web.js                                the Magazine: internet programmes, read as YouTube feeds
       live.js rtv.js                        live channels, playlists, RaspberryTV and its archive
     ui/                 pieces of interface, each owning its own DOM
-      cards.js rows.js rail.js hero.js quickview.js sources.js
-      player.js update.js torrent.js tvnav.js sheets.js (a code typed on screen, a choice from a list)
+      cards.js rows.js reel.js (the wheel) rail.js origins.js (source tabs) sources.js suggest.js (search as typed)
+      taste.js (a trailer playing in a picture) ytplayer.js (YouTube in the page) player.js update.js torrent.js
+      tvnav.js sheets.js (a code typed on screen, a choice from a list) pin.js (the parent code) report.js (a problem, reported; QR)
     screens/            one file per screen, each exporting its view function
-      home.js detail.js search.js library.js live.js broadcasters.js settings.js addons.js
+      home.js catalog.js (the library of a type) detail.js search.js library.js (favourites) live.js
+      broadcasters.js web.js settings.js addons.js profiles.js signin.js
 ```
 
 A module may use anything from a layer below it (core → data → providers → ui → screens → app.js);
-`app.js` is the only place that knows the whole. Nothing is global: what one module needs from
-another it imports, and **the import lines are derived, never hand-kept** —
-
-```
-python tools/rewire.py            rewrite every import line from what each module actually uses
-python tools/rewire.py --check    fail if any of them is out of date
-```
-
-Move a function from one file to another and run it; the graph is correct again. State that one
+`app.js` is the only place that knows the whole. (Some modules still reach up - core/screenmem and data/reminders
+into ui/tvnav, data/availability into ui/sources, data/sort and providers/mako into ui/cards, ui/tvnav and two
+screens into app.js; do not add more.) Nothing is global: what one module needs from
+another it imports. The import lines are kept by hand. **Do not run `tools/rewire.py`** (it was meant to derive
+them): it keeps only the first line of a multi-line header comment, counts locals and object keys as uses, ignores
+destructured exports and resolves duplicate export names (`known`, `rank`, `lines`) to whichever file it read last -
+a run breaks the app. A name imported but only shadowed by a local of the same name is an upward import for nothing;
+check with `grep -w` before adding one. State that one
 module keeps and another changes is never assigned across a module boundary (an ES import is
 read-only, which is the point): the owner exports a small setter instead — `setSettings`,
 `setPlaylists`, `setAddonUrls`, `forgetRtv`, `noteOpened`.
@@ -79,10 +91,20 @@ read-only, which is the point): the owner exports a small setter instead — `se
   - `StreamServer.kt` — a local `http://127.0.0.1` server that serves the partially-downloaded file
     to ExoPlayer, and asks the swarm for the pieces a jump landed on.
   - `Subtitles.kt` — Hebrew subtitle lookup (Wizdom, OpenSubtitles), matched against the release.
-- `.github/workflows/build-apk.yml` — the only build path that produces a signed APK (see
-  Building). Also builds an unsigned debug APK with x86_64 torrent natives for PC emulator testing.
-- `tools/setup-tv-emulator.ps1` — one-shot Windows setup for a local Android TV emulator (SDK
-  command-line tools + an Android TV x86_64 image), so the app can be tested without a real box.
+  - `Captions.kt` — a subtitle file held as timed lines, drawn by the player itself.
+  - `AutoSync.kt`, `SubSync.kt` — automatic subtitle sync (speech found in the sound, matched to the cues),
+    fed by `AudioDelayProcessor.kt`, which also moves the sound earlier or later.
+  - `AdaptiveLoadControl.kt` — read-ahead sized from the connection. `SeekBarView.kt` — the banner's bar.
+  - `AdSkip.kt` — ad breaks on Keshet 12 / Reshet 13 catch-up: the channel's mark and countdown read off the
+    screen (`AdMark`, `Countdown`), and the break's end found in the archive (`AdSearch`).
+  - `WebBundle.kt` — signed over-the-air updates of the web layer (served instead of the APK's assets).
+  - `YouTube.kt` — a YouTube video's captions (the video itself plays in the page, ui/ytplayer.js).
+  - `CarApp.kt`, `CarHub.kt`, `CarDiag.kt` — Android Auto.
+  - `InstallResultReceiver.kt` — the package installer's answer to the self-update.
+- `.github/workflows/` — `build-apk.yml` builds and releases the APK (see Building), `web-release.yml` the
+  signed OTA web bundle (`web-v*`), `webos-release.yml` the LG webOS `.ipk` (`webos-v*`).
+- `webos/` — the LG webOS build of the same page (`tools/build_webos.mjs`, bundled with esbuild; `webos/shim.js`
+  stands in for the Android bridge). `supabase/` — the account's backend. `docs/link` — the pairing page.
 
 ## Architecture
 
@@ -100,8 +122,7 @@ genuinely cannot do:
 - `openSite` / `openExternal` / `openYouTube` / `showKeyboard` / `cancelTorrent`.
 
 ### Interface language and direction (`js/i18n.js`)
-The app's own text is `STRINGS.he` / `STRINGS.en` (one flat table per language, in the `<script>` that
-follows the static markup) read through `tr(key, vars)`; static markup uses `data-i18n`,
+The app's own text is `STRINGS.he` / `STRINGS.en` (one flat table per language, in `js/i18n.js`) read through `tr(key, vars)`; static markup uses `data-i18n`,
 `data-i18n-ph` and `data-i18n-aria`. `settings.uiLang` picks the language; it also sets `<html lang dir>`,
 so layout follows (`dirOf`). `missingStrings()` in the console lists keys one language lacks. Adding a
 language = one table + one row in `UI_LANGS`. **Never name anything `t`** in new code that also calls
@@ -126,8 +147,8 @@ a tick, because one finished episode is not a watched series. `pruneProgress()` 
 
 ### Starting and moving in a torrent (`TorrentEngine`, `StreamServer`, `PlayerActivity`)
 The magnet is added to the session **once** (`session.download(magnet, dir, SEQUENTIAL_DOWNLOAD)`) and the
-details are waited for on that same handle: `fetchMagnet` used a session of its own and threw its peers
-away, so the download began by finding them all over again. Playback waits only for the piece under the
+details are waited for on that same handle (a separate metadata fetch used to use a session of its own and
+threw its peers away, so the download began by finding them all over again). Playback waits only for the piece under the
 opening (`START_BUFFER_BYTES` is half a megabyte, i.e. one piece) plus the last piece, which usually holds
 the index; everything else arrives while it plays. A jump cancels the stale piece deadlines and raises the
 priority of the pieces where the reader landed (`StreamServer.awaitPiece`), and the player asks for the
@@ -145,10 +166,9 @@ from `boot()`, not at the top of the script: what it uses is declared further do
 ### Motion (`css/motion.css`, `js/ui/tvnav.js`)
 One ease and three durations (`--ease`, `--quick/--travel/--settle`) drive everything. Only transform and
 opacity are animated - a television's GPU carries those and nothing else - which is why the blanket
-"no animation on TV" rule is gone. The focus marker is a single fixed `#halo` that is moved (and resized)
-to the focused element on `focusin`; while the page scrolls it is moved without its transition, so it
-sticks to its element instead of chasing it. Posters are excluded: they grow when chosen, and a rectangle
-measured before the growth would always land behind them.
+"no animation on TV" rule is gone. The focus mark is plain CSS (`css/focus.css`: a filled background for
+buttons, a ring on a poster's picture); the browser's own ring is removed under `body.motion`. The page's
+scroll to a focused row is `glide()` in `tvnav.js`; a key held down jumps instead of gliding.
 
 ### A broadcaster's own site (`js/core/bridge.js` + `SiteReader.kt`)
 Kan puts its whole catalogue in its HTML but answers a plain request with a bot check. `siteExtract(url,
@@ -158,15 +178,15 @@ back, never the markup. The window stays for five minutes, so every further page
 same-origin `fetch` inside it. `sitePull()` calls it inside the app and runs the very same reader over a
 directly fetched page outside it, so there is one implementation of every extractor.
 
-### The featured title and its taste (`js/ui/hero.js`)
-`pickFeatured()` chooses the title that takes the top of a listing: it wants artwork, a description and
-(when any row offers one) a trailer, remembers the last twelve in `heroSeen` so the same one does not come
-back, and returns null rather than letting a row of bare Wikidata entries claim the spot - a plain title
-takes it after six seconds if nothing better arrived. `renderHero()` then starts the taste: a muted
-YouTube embed behind the words, `pointer-events:none` and `tabindex="-1"` so the remote never lands in it.
-It is only faded in once the player reports itself playing (`enablejsapi` + a `listening` handshake);
-if nothing answers within eight seconds the frame is removed and the artwork stays. `endTaste()` clears it
-on every navigation and whenever the app goes to the background.
+### The wheel and the taste (`js/ui/reel.js`, `js/ui/taste.js`)
+A row of titles is a wheel: the title the remote is on stands still where the row begins, wide, and the row turns
+to bring the next one to it (`spotlight`, `place`, `turn`). Once the remote rests on it the title's own story is
+asked for (`paint`), and after a moment more a taste of its trailer plays inside the picture (`startTaste`): a muted
+YouTube embed, `pointer-events:none` and `tabindex="-1"` so the remote never lands in it, faded in only once the
+player says it is playing. Thirty seconds of it, on TV devices only, off when `settings.preview` is off; the
+quality steps down from 720p when frames stall (remembered per device in `tasteQ`), and previews are switched off
+for a week (`tasteOff`) on a device that cannot carry them. `endTaste()` clears it on every move, navigation and
+when the app goes to the background. The wheel replaced the old featured-title hero and the quick-view card.
 
 ### Sources that are not streams
 WatchHub answers with the subscription service a title is on, as a stream carrying only an `externalUrl`.
@@ -189,11 +209,11 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   genre, each a programme with its latest *full* episodes (the channel's long-form list, `UULF…`, read as a feed -
   never shorts or lives); nothing on screen names the source. Add a programme to `WEB_GENRES` only after checking its
   feed. Episode titles and first description lines are translated to Hebrew (`webLocal`, Google's gtx endpoint through
-  native `fetchText`, cached in store `webTr`). A YouTube id (episode or trailer) plays in the page:
-  `openPlayer({ytId})` -> `BoothAndroid.playYouTube` -> `YouTube.kt` (innertube `player` call, ANDROID then IOS client,
-  with a visitor id; avc1 <=1080p + audio merged by `MergingMediaSource`; captions fetched as srv1 and translated by
-  the app itself - YouTube answers its own `tlang` with 429). On failure the page's iframe player is the fallback
-  (`boothYtFailed`). `#/tv/jfc` is the film archive's page.
+  native `fetchText`, cached in store `webTr`). A YouTube id (episode or trailer) plays in the page, in YouTube's
+  embedded player dressed as the app's own (`ui/ytplayer.js`, controls off) - the app's player cannot play YouTube.
+  Only the captions come from native code: `BoothAndroid.ytCaptions` -> `YouTube.captions` (innertube `player` call,
+  ANDROID then IOS client, with a visitor id; translated by the app itself - YouTube answers its own `tlang` with
+  429) -> `window.boothYtCaptions`. When the embed fails the page offers to open the YouTube app (`openYouTube`).
 - **Profiles** (`data/profiles.js`, `screens/profiles.js`, `#/who`, `#/profile/<id|new>`, Settings -> Profiles): each
   household member's own settings, progress, favourites, reminders, tab/filter choices and learnt taste. `core/store.js`
   keeps the keys in `PROFILE_KEYS` under `booth:p/<id>/<key>` (callers still say `store.get('progress')`); every other key
@@ -237,8 +257,9 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   live in `GLYPH_RATIO` in `data/services.js` - re-run the script and update them when a logo changes.
 
 ### Settings and the kids profile (`js/screens/settings.js`, `js/data/kids.js`)
-Settings is a menu of pages (general, playback, home, look, live, kids, about) written into the hash
-(`#/settings/<tab>`). Every setting is one `.sline`: name, a few words, and its value; a choice of two
+Settings is a menu of pages (`SETTINGS_TABS`: general, profiles, account, watch, services, home, look, live - live for
+the owner only; a kids profile has general, watch, services, home, look, kids) written into the hash
+(`#/settings/<tab>`; old addresses `start`/`about` go to general, `addons` to services). Every setting is one `.sline`: name, a few words, and its value; a choice of two
 toggles, a longer one opens `pickFrom` (`ui/sheets.js`). The choices are one table, `PREFS` - most live in
 `settings` (`setSetting`); the quality is `ui/sources.js`'s own (`setPrefQ`), the subtitles' size is the
 player's (`BoothAndroid.get/setSubScale`). Every control carries a `data-fid`, and `paintSettings(fid)`
@@ -251,10 +272,10 @@ services only (`originsFor`); `route()` keeps it to `KIDS_ROUTES`; a title page 
 judges each result by its own meta. Live TV, the broadcasters, YouTube, web pages and updates are out of
 reach (JS, and natively: `MainActivity.kidsProfile()` reads the `kids` pref `syncNativeTheme` writes).
 Leaving it needs the four-digit code (salted hash, five tries then a five-minute lock) or a grown-up's
-sum; a reset keeps the profile on. **Age ratings** (`data/ratings.js`): the ratings films were given (MPA,
-FSK, BBFC, ACB, ClassInd) are asked of Wikidata by IMDb id - QLever first, Wikidata's own query service when
-that fails - kept on the device, and a title's age is their median; the profile hides anything rated above
-`settings.kidsAge` (6 / 9 / 12, changed behind the code), a rating that arrives late takes its title off the
+sum; a reset keeps the profile on. **Age ratings** (`data/ratings.js`): the stricter of IMDb's Israeli and US
+certificates (see *Ages* above), then Wikidata's (QLever first, Wikidata's own query service when that fails, the
+median of them) - kept on the device; the profile hides anything rated above `settings.kidsAge` (6 to 18, changed
+behind the code), a rating that arrives late takes its title off the
 screen (`veo:kidsout`), and a title page shows the age for everyone. Titles with no rating (most series)
 go by genre alone - when an adult title slips through, add its IMDb id to `BLOCK`.
 The app opts out of Android 16's predictive Back (`enableOnBackInvokedCallback="false"`): the page walks
@@ -285,9 +306,9 @@ There is no native focus system in a WebView, so one is built from scratch:
   to "next row". This one check correctly handles horizontal strips, vertical lists, and grids
   without needing to special-case which kind a row is. Left/Right only move **along the visual line**:
   at a grid line's edge the back direction goes to the rail (it used to walk up into the line above).
-- A "column" row (`.stabs`, `.seasonbar`, the category rail) is handled separately: Up/Down pick
-  an entry *and open it*, Left/Right step into what the column controls (via `data-pane` on the
-  row, e.g. `data-pane="#eps"`).
+- A "column" row (`.stabs` -> `#spane`, the side menu `#rail` -> `#app` while `body.railed`) is handled
+  separately: Up/Down pick an entry *and open it*, Left/Right step into what the column controls. From the
+  episode list the back direction returns to the chosen season (`.seasonbar button.on`).
 - `isTvLayout()` gates the whole system: `IS_TV_DEVICE || settings.layout === 'tv'`. The **device**
   check must never be removed — see Gotchas. Since 0.41.0 the app has one layout (`LAYOUT = 'tv'`) and
   one poster size, both re-pinned by `pinned()` in `core/settings.js`: every other layout's rules and
@@ -296,36 +317,38 @@ There is no native focus system in a WebView, so one is built from scratch:
 ### Live TV (`PlayerActivity.kt`)
 Channel data (`Source`) carries `num`/`logo`/`epg` (a per-channel EPG endpoint URL) sent from
 `js/providers/live.js`'s `watchChannel()`. The info banner (`showBanner`/`paintBanner`/`paintNow`) shows the
-channel, current programme with a progress bar, and what's next, refreshing every 30s while up.
-Live playback sets `view.useController = false` (the controls would steal the D-pad), so every key is
-handled in `dispatchKeyEvent`:
-- **Up/Down** raise the banner and page through the channels *in the banner* (`browseBy`): the banner
-  describes the channel pointed at (`shownIndex`), the video does not change; **OK** tunes to it,
-  Back cancels, and paging left alone ends after 12s.
-- **Hold OK** opens the channel list, a floating `ListView` over the picture (`chPanel`); OK on a row
-  tunes, holding OK on a row opens that channel's catch-up. OK is decided on *release* (`okLong`) so a
-  hold never also fires the short action.
-- **CHANNEL_UP/DOWN and PAGE_UP/DOWN** switch straight away (up = the next number).
-- **Play/Pause** pauses; **Left/Right** (and REWIND/FAST_FORWARD) step 10s back/forward, held = 60s. A
-  live stream can only go back as far as its DVR window.
+channel, current programme with a progress bar, and what's next. Live (and remote) playback sets
+`view.useController = false` (the controls would steal the D-pad), so every key is handled in `dispatchKeyEvent`:
+- **Up/Down** switch channel at once (up = the next number); **CHANNEL_UP/DOWN and PAGE_UP/DOWN** too. On a film,
+  Up opens the subtitles panel and Down the audio panel.
+- **OK** raises the banner with its buttons (`okRaise`): pause, from the start / back to live, previous / next
+  programme, the channel list, sync; Left/Right choose, OK runs one, Back hides it. While walking the guide, OK
+  plays the programme pointed at (`tuneWalk`).
+- **Hold OK** opens the channel list, a floating `ListView` over the picture (`chPanel`). OK on a row is acted on at
+  *release* (`okLong`), so a hold never also fires the short action: it tunes (`chooseChannel`), and a channel that
+  keeps its past opens its guide over the picture (`openEpg`: Left/Right change the day, Up/Down the hour, OK plays,
+  Back closes).
+- **Left/Right** on live: a press walks the guide one programme (`walkGuide`; the picture changes on OK), or seeks
+  10s on a channel with no guide; held (400ms+) the pointer scrubs smoothly (`liveScrubBegin`) and the picture
+  follows on release (`liveScrubCommit`). On a film a press moves the pointer 30s and the presses become one seek
+  700ms after they stop (`scrubTo` / `commitScrub`). A live stream can only go back as far as its DVR window.
+- **REWIND/FAST_FORWARD**: 10s a press; held, live scrubs as above, a film steps 1s growing by 1s per second held,
+  up to 60s (`heldStep`). **MEDIA_NEXT/PREVIOUS** walk the guide. **CAPTIONS/MENU/YELLOW** open the sync panel on
+  live, the subtitles panel on a film. **Play/Pause** pauses.
 
-### Torrent playback
-`TorrentEngine` reports *JSON phases* (`{"p":"buffer","peers":..,"got":..,"need":..}`) and failures as
-`e:<code>`; the page words them (`torrentText` in `js/ui/torrent.js`) so the language stays the page's job.
-The status bar is shown only for waits over ~0.9s. Sources are ranked in `rank()` with a penalty for big
-files, because a stream starts when the first *piece* has arrived and pieces grow with the file.
-The metadata comes from `fetchMagnet`, which drops the magnet's trackers — they are re-added to the
-handle after `session.download`, otherwise the download finds peers through DHT alone.
+### Torrent playback (`TorrentEngine`, `StreamServer`)
+`TorrentEngine` downloads sequentially from the requested byte range; `StreamServer` exposes the partial download
+over local HTTP so ExoPlayer can play it like any other HTTP source, with range requests satisfied as data arrives.
+It reports *JSON phases* (`{"p":"buffer","peers":..,"got":..,"need":..}`) and failures as `e:<code>`; the page
+words them (`torrentText` in `js/ui/torrent.js`) so the language stays the page's job. The status bar is shown only
+for waits over ~0.9s. Sources are ranked in `rank()` with a penalty for big files, because a stream starts when the
+first *piece* has arrived and pieces grow with the file. The magnet is built by `buildMagnet(infoHash, sources)`
+with the add-on's trackers in it, so the download does not find its peers through DHT alone.
 **Start-up focus (the big one):** until the first pieces are in, `bufferStart` gives every other piece
 priority 0 (`prioritizePieces`), then restores the file priorities. Left alone, libtorrent hands each of
 dozens of slow peers a piece of its own and the *first* piece completes last: a 2 MB piece took 40-80s
 with ~10 MB already downloaded. Focused, the same titles start in 6-8s on the emulator. Timeouts
 (`request_timeout`, `piece_timeout`) made no difference; do not spend time there again.
-
-### Torrent playback path
-`TorrentEngine` downloads sequentially/prioritized starting from the requested byte range;
-`StreamServer` exposes the partial download over local HTTP so ExoPlayer can play it like any
-other HTTP source, with range requests satisfied as data arrives.
 
 ## Building and debugging locally
 Gradle 9.6.0 + Android Studio's bundled JDK build the debug APK (`gradle --no-daemon :app:assembleDebug`);
@@ -334,21 +357,15 @@ Gradle 9.6.0 + Android Studio's bundled JDK build the debug APK (`gradle --no-da
 DevTools protocol to see focus, DOM and console of the real TV screen.
 
 ## Building
-CI is the only supported build path (it holds the release signing secrets):
-```
-git push origin main          # unsigned-artifact test build
-git tag vX.Y.Z && git push origin vX.Y.Z   # signed release + GitHub Release
-```
-`versionName` in `app/build.gradle.kts` must match the pushed tag (`v$versionName`) or CI fails
-the build deliberately. `versionCode` convention: `major*10000 + minor*100 + patch`.
-
-No Gradle wrapper is committed (CI provisions Gradle 9.6.0 + JDK 17 itself via
-`gradle/actions/setup-gradle`). To build locally you need your own JDK 17, Gradle, and an Android
-SDK with `compileSdk 36` — none of that was present on this machine as of the VEO rename; nothing
-below "structural checks + the page's JS syntax via a real JS engine" was verified locally for
-that change. `tools/setup-tv-emulator.ps1` provisions an SDK (command-line tools + an Android TV
-system image) for local testing in an emulator; it does not by itself give you a build toolchain
-for `gradle assembleRelease` (no signing secrets exist outside CI anyway).
+CI (`.github/workflows/build-apk.yml`) holds the signing key and builds every release:
+- a pull request runs only the regression job (`node --check` over every module, then `tools/regressions.test.mjs`);
+- a push to main builds the signed release APK as a workflow artifact;
+- a `vX.Y.Z` tag, or a commit titled `release: vX.Y.Z` on main, also publishes the GitHub Release (with a debug APK
+  carrying x86_64 torrent natives, for emulators).
+`versionName` in `app/build.gradle.kts` must match the release (`v$versionName`) or CI fails the build
+deliberately. `versionCode` convention: `major*10000 + minor*100 + patch`. No Gradle wrapper is committed (CI
+provisions Gradle 9.6.0 + JDK 17); locally, the section above. `media3-exoplayer-dash` has no import in the code but
+must stay: `DefaultMediaSourceFactory` finds DASH by reflection (Reshet's DRM, Kan's VOD).
 
 ## Known gotchas (hard-won — re-breaking these is easy)
 

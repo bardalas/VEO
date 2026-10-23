@@ -37,14 +37,14 @@ export function startBusy(torrent, msg = tr('tor.start'), onCancel = null){
   const btn = document.getElementById('tstatusBtn');
   btn.textContent = tr('common.cancel');
   btn.onclick = () => { onCancel?.(); if(busyTorrent && window.BoothAndroid) BoothAndroid.cancelTorrent(); endBusy(); busyFrom?.isConnected ? busyFrom.focus() : tvFocus(); };
-  bar.style.display = 'flex';
+  bar.hidden = false;
   bar.dataset.held = 1;
   btn.focus();
 }
 export function endBusy(){
   const bar = document.getElementById('tstatus');
   bar.classList.remove('busy');
-  bar.style.display = 'none';
+  bar.hidden = true;
   delete bar.dataset.held;
 }
 // the player has the screen: its card has done its work (and is not there when the viewer comes back)
@@ -55,7 +55,7 @@ window.boothTorrentStatus = (raw, isError) => {
   const bar = document.getElementById('tstatus'), btn = document.getElementById('tstatusBtn');
   const {msg, sub = '', frac} = torrentText(raw, isError);
   clearTimeout(tstatTimer);
-  if(!msg){ bar.classList.remove('busy'); bar.style.display = 'none'; delete bar.dataset.held; return; }
+  if(!msg){ bar.classList.remove('busy'); bar.hidden = true; delete bar.dataset.held; return; }
   if(isError){
     bar.classList.remove('busy');                     // a failure is said as a note, with the way to close it
     dispatchEvent(new CustomEvent('veo:error', {detail: `source: ${raw}`}));   // and kept for a problem report
@@ -70,11 +70,11 @@ window.boothTorrentStatus = (raw, isError) => {
     btn.textContent = isError ? tr('common.close') : tr('common.cancel');
     btn.onclick = () => {
       if (!isError && window.BoothAndroid) BoothAndroid.cancelTorrent();
-      bar.classList.remove('busy'); bar.style.display = 'none'; delete bar.dataset.held;
+      bar.classList.remove('busy'); bar.hidden = true; delete bar.dataset.held;
       busyFrom?.isConnected ? busyFrom.focus() : tvFocus();
     };
   };
-  const show = () => { paint(); bar.style.display = 'flex'; if(!bar.dataset.held || isError){ btn.focus(); bar.dataset.held = 1; } };
+  const show = () => { paint(); bar.hidden = false; if(!bar.dataset.held || isError){ btn.focus(); bar.dataset.held = 1; } };
   // a wait shorter than a second needs no announcement; a failure always does
-  if(bar.style.display === 'flex' || isError) show(); else tstatTimer = setTimeout(show, 900);
+  if(!bar.hidden || isError) show(); else tstatTimer = setTimeout(show, 900);
 };

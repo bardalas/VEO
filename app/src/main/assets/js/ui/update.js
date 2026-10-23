@@ -3,7 +3,6 @@ import {$, esc, getJSON} from '../core/dom.js';
 import {isTvLayout} from '../core/settings.js';
 import {store} from '../core/store.js';
 import {tr} from '../i18n.js';
-import {card} from './cards.js';
 
 /* ---------- new version ----------
    On every start the app asks GitHub for the latest release. If it is newer than this build, a card

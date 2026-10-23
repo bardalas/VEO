@@ -157,8 +157,6 @@ class PlayerActivity : AppCompatActivity() {
     private var autoLocked = false
     private var autoOffset = 0L
     private var autoScale = 1.0
-    private var autoLevel = 0
-    private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
     /** Why the last automatic sync found nothing, kept for the side menu (the pill over the picture goes in seconds). */
@@ -280,7 +278,7 @@ class PlayerActivity : AppCompatActivity() {
         // another translation is another file: what was learnt of the last one - or done to it - says nothing of this one
         offsetAligner = captions?.takeIf { it.any }?.let { FastOffsetAligner(it.activity(), it.starts(), syncZ) }
         liveSpeech = null; autoOn = false
-        autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoLevel = 0; autoNote = ""
+        autoOffset = 0L; autoScale = 1.0; autoLocked = false
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
@@ -375,7 +373,7 @@ class PlayerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
             autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
-            autoLocked = true; autoLevel = 2; autoNote = "נשמר"
+            autoLocked = true
             return
         }
         val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
@@ -424,7 +422,6 @@ class PlayerActivity : AppCompatActivity() {
         autoOffset = best.offsetMs
         autoScale = 1.0
         autoLocked = true
-        autoLevel = when { best.z >= 8.0 -> 3; best.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
         lastFail = ""
@@ -494,13 +491,6 @@ class PlayerActivity : AppCompatActivity() {
         autoLocked -> "%+.1f שנ׳".format(autoOffset / 1000.0)
         lastFail.isNotEmpty() -> "לא הצליח"
         else -> "לא בוצע"
-    }
-
-    private fun autoStatus(): String = when {
-        autoOn -> "$scanNote · OK לעצירה"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s · OK לחישוב מחדש"
-        scanNote.isNotEmpty() -> "$scanNote · OK לניסיון נוסף"
-        else -> "OK לסנכרון אוטומטי"
     }
 
     private fun setSyncZ(value: Double) {
@@ -593,31 +583,18 @@ class PlayerActivity : AppCompatActivity() {
         showMessage("סונכרן %+.1f שנ׳".format(subShift / 1000.0) + if (fit != null) " · קצב %.3f×".format(manualStretch) else "", 2_500)
     }
 
+    private val cuesView by lazy { findViewById<TextView>(R.id.cues) }
+
     // explicit type: it schedules itself
     private val tickCaptions: Runnable = object : Runnable {
         override fun run() {
             val c = captions ?: return
             val p = player ?: return
-            findViewById<TextView>(R.id.cues).text = c.at(p.currentPosition)
+            // set only when the words change: setting a TextView lays it out again, eight times a second while a film plays
+            val words = c.at(p.currentPosition)
+            if (!android.text.TextUtils.equals(cuesView.text, words)) cuesView.text = words
             handler.postDelayed(this, 120)
         }
-    }
-
-    /** Unused since the words became the app's own; kept out of the way. */
-    private fun shiftedSub(sub: Subtitles.Sub, shiftMs: Long): java.io.File {
-        if (shiftMs == 0L) return sub.file
-        val out = java.io.File(cacheDir, "shift_${shiftMs}_${sub.file.name}")
-        if (out.exists() && out.length() > 0) return out
-        val stamp = Regex("\\d{2}:\\d{2}:\\d{2},\\d{3}")
-        runCatching {
-            out.writeText(sub.file.readText().replace(stamp) { m ->
-                val p = m.value.split(':', ',')
-                val t = (p[0].toLong() * 3600_000 + p[1].toLong() * 60_000 + p[2].toLong() * 1000 + p[3].toLong() + shiftMs)
-                    .coerceAtLeast(0)
-                "%02d:%02d:%02d,%03d".format(t / 3600_000, t / 60_000 % 60, t / 1000 % 60, t % 1000)
-            })
-        }.onFailure { return sub.file }
-        return out
     }
 
     /** The sound moved later or earlier than the picture: it takes effect as it is pressed, and is remembered. Up to three
@@ -909,12 +886,12 @@ class PlayerActivity : AppCompatActivity() {
         super.onStart()
         started = true
         buildPlayer()
-        if (live) { handler.removeCallbacks(adTick); handler.post(adTick) }
+        if (live) repost(adTick, 0)
         // The drawing of the translation stops itself when the player is released - it is a loop that
         // asks the player where it is - so coming back from the home screen has to start it again, or
         // the film plays on with no subtitles until the viewer picks them a second time.
-        if (captions != null) { handler.removeCallbacks(tickCaptions); handler.post(tickCaptions) }
-        if (nextVid.isNotEmpty() && !live) { handler.removeCallbacks(watchEnd); handler.postDelayed(watchEnd, 1_000) }
+        if (captions != null) repost(tickCaptions, 0)
+        if (nextVid.isNotEmpty() && !live) repost(watchEnd, 1_000)
     }
 
     /* ---------- a series: the next episode ---------- */
@@ -1148,16 +1125,14 @@ class PlayerActivity : AppCompatActivity() {
                         // a stretch of the archive ran out: on from where it ended (the live edge, if that is the present)
                         if (state == Player.STATE_ENDED && live) catchUp?.let { c -> handler.post { playAt(c.to * 1000) } }
                         if (live && state == Player.STATE_BUFFERING && !liveReady) {
-                            handler.removeCallbacks(liveStartTimeout)
-                            handler.postDelayed(liveStartTimeout, 15_000)
+                            repost(liveStartTimeout, 15_000)
                         }
                         // Once ordinary HTTP/DRM VOD has played successfully, a long rebuffer is a source/network
                         // problem, not a reason to flicker forever. Give short stalls room to recover, then make the
                         // state explicit and let the viewer decide whether to retry or choose another source.
                         if (!live && liveReady && state == Player.STATE_BUFFERING &&
                             !intent.getBooleanExtra("torrent", false)) {
-                            handler.removeCallbacks(vodStallTimeout)
-                            handler.postDelayed(vodStallTimeout, 25_000)
+                            repost(vodStallTimeout, 25_000)
                         }
                         if (state == Player.STATE_READY && live && catchUp == null && pendingAt <= 0) {
                             val o = player?.currentLiveOffset ?: C.TIME_UNSET
@@ -1190,7 +1165,7 @@ class PlayerActivity : AppCompatActivity() {
                     it.setMediaSource(hls.createMediaSource(item))
                 } else it.setMediaItem(item)
                 // the tick died with the player that was released; it lives again with this one
-                if (captions != null) { handler.removeCallbacks(tickCaptions); handler.post(tickCaptions) }
+                if (captions != null) repost(tickCaptions, 0)
                 if (!live) it.seekTo(resumePosition)
                 else if (catchUp != null && catchSeekMs > 0) { it.seekTo(catchSeekMs); catchSeekMs = 0 }
                 it.prepare()
@@ -1367,8 +1342,7 @@ class PlayerActivity : AppCompatActivity() {
         sign.animate().cancel()
         sign.alpha = 1f
         sign.visibility = View.VISIBLE
-        handler.removeCallbacks(hideSeekSign)
-        handler.postDelayed(hideSeekSign, 1_300)
+        repost(hideSeekSign, 1_300)
     }
 
     /** Times always on the 24-hour clock (20:30, 00:00), whatever the device is set to: no AM/PM. */
@@ -1441,16 +1415,14 @@ class PlayerActivity : AppCompatActivity() {
         if (!live) {
             paintFilm()
             handler.removeCallbacks(hideBanner)
-            handler.removeCallbacks(tickBanner)
-            handler.postDelayed(tickBanner, if (scrubTo >= 0) 200 else 1_000)
+            repost(tickBanner, if (scrubTo >= 0) 200 else 1_000)
             handler.postDelayed(hideBanner, if (scrubTo >= 0) 9_000 else 5_000)
             return
         }
         paintBanner()
         paintActions()
         handler.removeCallbacks(hideBanner)
-        handler.removeCallbacks(tickBanner)
-        handler.postDelayed(tickBanner, if (walking) 30_000 else 1_000)
+        repost(tickBanner, if (walking) 30_000 else 1_000)
         handler.postDelayed(hideBanner, if (walking) 12_000L else 8_000L)
     }
 
@@ -1587,11 +1559,6 @@ class PlayerActivity : AppCompatActivity() {
         val bar = findViewById<View>(R.id.infobar)
         findViewById<View>(R.id.nextbox).translationY =
             if (bar.visibility == View.VISIBLE) -(bar.height.takeIf { it > 0 } ?: dp(110)).toFloat() else 0f
-    }
-
-    private fun pickChannel(i: Int) {
-        hideChannelBar()
-        if (i != index) zapBy(i - index) else showBanner()
     }
 
     /** A channel chosen in the list: it starts playing, and if it keeps its past its guide opens over it (the EPG,
@@ -1919,10 +1886,8 @@ class PlayerActivity : AppCompatActivity() {
         catchUp = target
         archTry = 0
         retries = 0
-        player?.release(); player = null
+        restartPlayer(150)
         showBanner()
-        handler.removeCallbacks(rebuild)
-        handler.postDelayed(rebuild, 150)
         return true
     }
 
@@ -1956,16 +1921,14 @@ class PlayerActivity : AppCompatActivity() {
         scrubDir = direction
         scrubTicks = 0
         handler.removeCallbacks(commitScrub)
-        handler.removeCallbacks(scrubHold)
-        handler.postDelayed(scrubHold, 350)          // a short press is a step, not a run
+        repost(scrubHold, 350)          // a short press is a step, not a run
     }
 
     private fun scrubEnd(direction: Int) {
         handler.removeCallbacks(scrubHold)
         if (scrubTicks == 0) nudgeScrub(direction * 30_000L)      // one press: half a minute
         scrubTicks = 0
-        handler.removeCallbacks(commitScrub)
-        handler.postDelayed(commitScrub, 700)      // several presses in a row are one jump, not ten
+        repost(commitScrub, 700)      // several presses in a row are one jump, not ten
     }
 
     private val commitScrub = Runnable {
@@ -2033,9 +1996,8 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(applyPending); pendingAt = -1; aimAt = -1L
         walking = false; walkAt = null; catchUp = null
         archTry = 0; retries = 0
-        player?.release(); player = null
+        restartPlayer(150)
         showBanner()
-        handler.removeCallbacks(rebuild); handler.postDelayed(rebuild, 150)
     }
 
     /** Play the archive from the minute [atMs] - to the present, or three hours on, whichever is nearer. */
@@ -2050,9 +2012,8 @@ class PlayerActivity : AppCompatActivity() {
         catchSeekMs = atMs - start * 1000
         walking = false; walkAt = null; pendingAt = -1
         archTry = 0; retries = 0
-        player?.release(); player = null
+        restartPlayer(150)
         showBanner()
-        handler.removeCallbacks(rebuild); handler.postDelayed(rebuild, 150)
     }
 
     /** Step along the line of time: a press ten seconds, a held key thirty. */
@@ -2085,8 +2046,7 @@ class PlayerActivity : AppCompatActivity() {
         liveScrubBegan = android.os.SystemClock.uptimeMillis()
         liveScrubKeyAt = liveScrubBegan
         liveScrubAt = if (pendingAt > 0) pendingAt else if (aimActive()) aimAt else posEpochMs()
-        handler.removeCallbacks(liveScrubTick)
-        handler.post(liveScrubTick)
+        repost(liveScrubTick, 0)
     }
 
     private val liveScrubTick: Runnable = object : Runnable {
@@ -2170,6 +2130,15 @@ class PlayerActivity : AppCompatActivity() {
                     search.cancel()
                     adPendingEnd = pos + left
                     adJump()
+                    return@lookForMark
+                }
+                if (left != null) {
+                    // ten seconds or less: the break is ending (a jump lands up to nine seconds early - the countdown is read
+                    // to the ten). Searching the archive for an end that comes by itself would only load the box: look
+                    // again once it has passed
+                    if (search.busy) search.cancel()
+                    adStreak = 0; adPendingEnd = -1L
+                    adQuietUntil = android.os.SystemClock.uptimeMillis() + (left + 12) * 1_000L
                     return@lookForMark
                 }
                 if (!look.ad) {
@@ -2274,7 +2243,7 @@ class PlayerActivity : AppCompatActivity() {
             p.seekTo((if (c != null) relPosition(p, target) else p.currentPosition + direction * step).coerceAtLeast(0))
         } else {                                                              // beyond what is loaded: from that minute, after the last press
             pendingAt = target
-            handler.removeCallbacks(applyPending); handler.postDelayed(applyPending, 450)
+            repost(applyPending, 450)
         }
         aimAt = target; aimUntil = System.currentTimeMillis() + 8_000L
         if (!held) showSeekSign(direction * step, target)
@@ -2296,24 +2265,32 @@ class PlayerActivity : AppCompatActivity() {
         walkAt = null
         index = (index + step + sources.size) % sources.size
         retries = 0
-        player?.release()
-        player = null
+        // Give the server a moment to close the previous channel's session before opening the next.
+        restartPlayer(250)
         if (live) showBanner()
         else showOsd()
-        // Give the server a moment to close the previous channel's session before opening the next.
-        handler.removeCallbacks(rebuild)
-        handler.postDelayed(rebuild, 250)
     }
 
     private val rebuild = Runnable { if (started && player == null) buildPlayer() }
+
+    /** The player let go now and built again in [ms]: a newer restart replaces one still waiting. */
+    private fun restartPlayer(ms: Long) {
+        player?.release(); player = null
+        handler.removeCallbacks(rebuild)
+        handler.postDelayed(rebuild, ms)
+    }
+
+    /** [r] run in [ms] - once: a run still waiting is put off, not doubled. */
+    private fun repost(r: Runnable, ms: Long) {
+        handler.removeCallbacks(r)
+        handler.postDelayed(r, ms)
+    }
 
     /** A past programme that will not open: the service may spell its archive differently. */
     private fun nextArchive(): Boolean {
         if (catchUp == null || archTry + 1 >= archList(sources[index]).size) return false
         archTry++
-        player?.release(); player = null
-        handler.removeCallbacks(rebuild)
-        handler.postDelayed(rebuild, 100)
+        restartPlayer(100)
         return true
     }
 
@@ -2329,8 +2306,7 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(liveStartTimeout)
         handler.removeCallbacks(vodStallTimeout)
         if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-            player?.release(); player = null
-            handler.removeCallbacks(rebuild); handler.post(rebuild)   // rejoin the live edge now
+            restartPlayer(0)   // rejoin the live edge now
             return
         }
         // A past programme that would not open: the same archive spelled another way may be the one
@@ -2361,10 +2337,7 @@ class PlayerActivity : AppCompatActivity() {
         if (retryable && retries < (if (decoderTrouble) 1 else 2)) {
             retries++
             showMessage("מנסה שוב… ($retries/2)", 3_500)
-            player?.release()
-            player = null
-            handler.removeCallbacks(rebuild)
-            handler.postDelayed(rebuild, 3_000)
+            restartPlayer(3_000)
             return
         }
         // Say it in plain Hebrew, and put the next step on screen instead of leaving a black picture.
@@ -2443,8 +2416,7 @@ class PlayerActivity : AppCompatActivity() {
         val osd = findViewById<TextView>(R.id.osd)
         osd.text = if (sources.size > 1) "${index + 1} · ${sources[index].name}" else sources[index].name
         osd.visibility = if (osd.text.isNullOrBlank()) View.GONE else View.VISIBLE
-        handler.removeCallbacks(hideOsd)
-        handler.postDelayed(hideOsd, 3_000)
+        repost(hideOsd, 3_000)
     }
 
     // Remote (live TV): Up/Down change the channel at once (up = the next one), holding OK opens the channel

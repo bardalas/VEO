@@ -2,7 +2,7 @@
 import {sitePull} from '../core/bridge.js';
 import {$, esc, showErr} from '../core/dom.js';
 import {tr} from '../i18n.js';
-import {hls, openPlayer} from '../ui/player.js';
+import {openPlayer} from '../ui/player.js';
 
 /* ---------- Kan (kan.org.il) — the broadcaster's own catalogue, inside VEO ----------
    Kan's pages carry the whole of Kan BOX in their HTML, but the site answers a plain request with a

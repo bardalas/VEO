@@ -21,7 +21,6 @@ function nativeAsk(kind, ms, start){
 }
 
 export const siteDoc = async url => new DOMParser().parseFromString(await fetchText(url), 'text/html');
-export const kanDoc = siteDoc;
 
 /** Read [url] with [reader] (the body of a function of the document, returning JSON). */
 export async function sitePull(url, reader){
