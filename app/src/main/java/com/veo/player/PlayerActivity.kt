@@ -2203,7 +2203,9 @@ class PlayerActivity : AppCompatActivity() {
         adPendingEnd = -1L; adStreak = 0
         val cur = posEpochMs() / 1000
         if (end <= cur + 10 || catchUp == null) { adQuietUntil = android.os.SystemClock.uptimeMillis() + 30_000; return }
-        adQuietUntil = android.os.SystemClock.uptimeMillis() + 30_000
+        // looked at again a few seconds after landing: still in the ads - a countdown that could not be read, one the channel
+        // reset - and it jumps again at once (#430)
+        adQuietUntil = android.os.SystemClock.uptimeMillis() + 4_000
         android.util.Log.i(AdSearch.TAG, "skip $cur -> $end")
         showMessage("דילוג על פרסומות · ${fmtClock((end - cur) * 1000)}", 3_000)
         liveScrubAt = end * 1000
@@ -2222,7 +2224,7 @@ class PlayerActivity : AppCompatActivity() {
                 adCopyFails = 0
                 val L = Countdown.layout(key)
                 if (L == null || android.os.Build.VERSION.SDK_INT < 26 || sv.width <= 0) {
-                    adWork.execute { val m = AdMark.mark(applicationContext, bmp); bmp.recycle(); handler.post { then(AdMark.Look(m, null)) } }
+                    adWork.execute { val m = AdMark.mark(applicationContext, bmp); bmp.recycle(); handler.post { then(AdMark.Look(m, false, null)) } }
                     return@request
                 }
                 val sx = sv.width / 1920f; val sy = sv.height / 1080f
@@ -2231,9 +2233,9 @@ class PlayerActivity : AppCompatActivity() {
                 android.view.PixelCopy.request(sv, rect, band, { r2 ->
                     adWork.execute {
                         val m = AdMark.mark(applicationContext, bmp)
-                        val left = if (r2 == android.view.PixelCopy.SUCCESS) Countdown.read(applicationContext, key, band) else null
+                        val c = if (r2 == android.view.PixelCopy.SUCCESS) Countdown.read(applicationContext, key, band) else null
                         bmp.recycle(); band.recycle()
-                        handler.post { then(AdMark.Look(m, left)) }
+                        handler.post { then(AdMark.Look.of(m, c)) }
                     }
                 }, handler)
             }, handler)
