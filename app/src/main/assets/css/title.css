@@ -65,8 +65,8 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .epcard .t small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 .epcard .ebar{grid-column:2;height:3px;border-radius:2px;background:var(--line);margin-top:6px}
 .epcard .ebar i{display:block;height:100%;border-radius:2px;background:var(--tungsten)}
-.epcard.on .t b{color:var(--tungsten)}
 .epcard.seen .t b{color:var(--muted)}
+.epcard.on .t b,.epcard:focus-visible .t b{color:var(--tungsten)}   /* after .seen: the one chosen is lit even when seen */
 .epcard.seen .n::after{content:' ✓'}
 .epcard:focus,.epcard:hover{border-color:var(--tungsten);outline:none}
 [data-layout="tv"] .seasonbar button{font-size:18px}
@@ -84,8 +84,6 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .ep:hover{background:var(--raise)} .ep.on{background:var(--raise);box-shadow:none}
 .ep .n{font-family:var(--display);font-weight:700;color:var(--tungsten)}
 .ep .d{font-size:12px;color:var(--muted)}
-.epcard:focus, .epcard:focus-visible, .epcard.on{box-shadow: none !important; outline: none !important}
-.epcard:focus-visible b, .epcard.on b{color: var(--tungsten) !important}
 
 
 /* sources: Play, the quality shortcuts and the rest of the list share one row */

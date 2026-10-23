@@ -70,7 +70,8 @@
 
 /* opening a source: a small note at the bottom, in the page's own surface - a dot says it is working (the
    accent) or has failed (the error colour) - with its own quiet way out */
-.tstat{display:none;position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:10000;
+.tstat[hidden]{display:none}
+.tstat{display:flex;position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:10000;
   flex-direction:row;align-items:center;gap:12px;max-width:min(520px,calc(100vw - 32px));padding-block:5px;padding-inline:16px 5px;
   border-radius:14px;background:var(--raise);border:1px solid var(--line);color:var(--light);
   font:14px/1.35 var(--body);box-shadow:0 10px 26px #0009}

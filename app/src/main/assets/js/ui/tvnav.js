@@ -33,11 +33,10 @@ export const visible = el => { const r = el.getBoundingClientRect(); return r.wi
 export function openCard(){
   const sheet = document.querySelector('.sheet, .update');
   if(sheet) return sheet;
-  // The status card's display is set inline by the page itself, so its own style attribute is the
-  // answer - and reading that, unlike asking for a computed style, does not make the browser lay the
-  // whole page out again. This is asked on every change of the screen, so it must cost nothing.
+  // the status card comes and goes with `hidden`: reading the attribute, unlike asking for a computed style, does
+  // not make the browser lay the whole page out again - this is asked on every change of the screen
   const st = document.getElementById('tstatus');
-  return st && st.style.display && st.style.display !== 'none' ? st : null;
+  return st && !st.hidden ? st : null;
 }
 export const tvScope = () => openCard() || document;
 /**
@@ -93,8 +92,8 @@ const lookAgain = () => {
    off and puts it back, writes its position and the row's turn as inline styles (js/ui/reel.js), and a
    poster's picture arrives as an inline style too (js/core/dom.js) - none of which changes what the
    arrows can reach. Treating all of that as a new screen threw the cache above away on every single
-   press, which is the cost it exists to avoid. Only the status card hides itself with an inline
-   style; everything else that comes and goes does so as an element, or with `hidden`. */
+   press, which is the cost it exists to avoid. Everything that comes and goes does so as an element, or with
+   `hidden` - so inline styles are not watched at all. */
 // Remote control (Android TV): text fields stay locked while focus passes over them, so the on-screen
 // keyboard doesn't pop up; OK (Enter) unlocks the field and opens the keyboard.
 export function armInput(i){
@@ -127,12 +126,11 @@ new MutationObserver(muts => {
   for(const m of muts) for(const n of m.addedNodes) if(n.nodeType === 1) armInputs(n.matches('input') ? n.parentNode : n);
   if(pendingLook) return;
   for(const m of muts){
-    const changed = m.type === 'childList'
-      ? !inTrim(m.target) && [...m.addedNodes, ...m.removedNodes].some(n => !cosmetic(n))
-      : m.attributeName === 'hidden' || m.target.id === 'tstatus';
+    // an attribute change is a `hidden` one - the only attribute watched
+    const changed = m.type !== 'childList' || (!inTrim(m.target) && [...m.addedNodes, ...m.removedNodes].some(n => !cosmetic(n)));
     if(changed){ pendingLook = requestAnimationFrame(lookAgain); return; }
   }
-}).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style']});
+}).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['hidden']});
 addEventListener('hashchange', forgetRows);
 export const centerX = el => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
 /** Where to land in [row] when arriving from [from]: a season menu's chosen season, else the item nearest across. */
@@ -279,20 +277,9 @@ export function tvMove(dir){
   if(!row){ focusItem(itemsOf(rows[0])[0]); return true; }
   const items = itemsOf(row);
   const i = items.indexOf(active);
-  /* The title in the middle of a wheel carries its own two buttons. They are not part of the row -
-     along the row you pass titles, not buttons - so they are a step down from the title and a step
-     back up, and below them is whatever the row leads to. */
-  const act = row.querySelector?.('.spotact');
-  if(act && dir === 'down' && active?.classList.contains('spot')){
-    // With no extra buttons under the title, going down jumps to the row below directly
-    const below = rows[rows.indexOf(row) + 1];
-    if(below) focusItem(bestIn(below, active));
-    return true;
-  }
   // A side menu is a column: up/down pick an entry, left steps into what it controls - #rail drives
-  // the page, .stabs the settings pane, .seasonbar the episode list.
+  // the page, .stabs the settings pane.
   const pane = row.classList.contains('stabs') ? '#spane'
-             : row.classList.contains('seasonbar') ? row.dataset.pane
              : (row.id === 'rail' && document.body.classList.contains('railed')) ? '#app' : null;
   if(pane){
     if(dir === 'up' || dir === 'down'){
@@ -360,10 +347,6 @@ export function tvMove(dir){
         focusItem($('#rail a.on') || $('#rail a'));
         return true;
       }
-    } else if(isCol && row.classList.contains('seasonbar')){
-      const target = $('#eps');
-      const first = target?.querySelector('.epcard.on') || target?.querySelector('.epcard');
-      if(first){ focusItem(first); return true; }
     }
     return true;                                    // stay put at the row's edge
   }

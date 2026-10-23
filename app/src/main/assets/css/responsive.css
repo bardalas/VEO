@@ -7,8 +7,8 @@
   .epanel .eps{display:flex;flex-direction:column;gap:2px;overflow-x:hidden;overflow-y:visible;max-height:none;padding:0}
   .epanel .epcard{flex:0 0 auto;width:100%;min-height:0;padding:10px 8px;border-radius:8px;background:none}
   .epanel .epcard .t{display:block;width:100%}
-  .epanel .epcard .t b{font-size:15px!important;line-height:1.35;white-space:normal;overflow:visible;text-overflow:clip}
-  .epanel .epcard .t small{font-size:12px!important;margin-top:2px}
+  .epanel .epcard .t b{font-size:15px;line-height:1.35;white-space:normal;overflow:visible;text-overflow:clip}
+  .epanel .epcard .t small{font-size:12px;margin-top:2px}
   .epanel .seasonbar{flex-direction:row;gap:6px;overflow-x:auto;overflow-y:hidden;max-width:100%;margin-bottom:10px;padding-bottom:2px;border:0}
   .epanel .seasonbar button{flex:0 0 auto;padding:7px 10px}
 
