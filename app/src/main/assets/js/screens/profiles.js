@@ -15,7 +15,7 @@ import {AVATARS, MAX_PROFILES, addProfile, avatar, currentProfile, enterProfile,
 import {tr} from '../i18n.js';
 import {askPin, choosePin, grownUp, pinFor} from '../ui/pin.js';
 import {pickFrom} from '../ui/sheets.js';
-import {line, lines, section} from './settings.js';
+import {confirmed, line, lines, section} from './settings.js';
 
 const LOCK = '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
 const PLUS = '<span class="avatar big addav" aria-hidden="true">+</span>';
@@ -227,12 +227,7 @@ async function save(p){
 }
 /** Remove [p] - with a second press, and with the code when it is a kids profile or a locked one. */
 async function remove(p, b){
-  if(!b.classList.contains('arm')){
-    b.classList.add('arm');
-    b.querySelector('.sv span').textContent = tr('set.confirm');
-    setTimeout(() => { if(b.isConnected){ b.classList.remove('arm'); b.querySelector('.sv span').textContent = ''; } }, 4000);
-    return;
-  }
+  if(!confirmed(b)) return;
   if((isKids(p) || p.lock) && !await grownUp(tr('prof.deleteAsk'))) return paintProfile(p, 'del');
   removeProfile(p.id);
   draft = null;

@@ -91,15 +91,21 @@ async function elsewhere(title, body){
     $('#rgo').focus();
     return;
   }
+  const svg = await qrSvg(url, 4);
+  if(!svg || !box.isConnected){ box.innerHTML = `<p class="snote">${esc(REPO)}/issues</p>`; return; }
+  box.innerHTML = `<p class="snote">${tr('rep.scan')}</p>${svg}`;
+}
+/** [text] as a QR code: an <svg> to put on the page, or '' when the code's library could not be loaded. */
+export async function qrSvg(text, margin){
   const qr = await loadQr();
-  if(!qr || !box.isConnected){ box.innerHTML = `<p class="snote">${esc(REPO)}/issues</p>`; return; }
+  if(!qr) return '';
   const code = qr(0, 'M');
-  code.addData(url);
+  code.addData(text);
   code.make();
-  box.innerHTML = `<p class="snote">${tr('rep.scan')}</p>${code.createSvgTag({cellSize: 6, margin: 4})}`;
+  return code.createSvgTag({cellSize: 6, margin});
 }
 let qrLib = null;
-export const loadQr = () => qrLib ||= new Promise(res => {
+const loadQr = () => qrLib ||= new Promise(res => {
   if(window.qrcode) return res(window.qrcode);
   const s = document.createElement('script');
   s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';

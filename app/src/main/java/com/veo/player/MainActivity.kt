@@ -124,17 +124,31 @@ class MainActivity : AppCompatActivity() {
         TorrentEngine.warmUp(applicationContext)
     }
 
-    /** Shows torrent progress in the page's status bar (empty = hide; error = red, with dismiss). */
-    private fun showStatus(msg: String, error: Boolean = false) = runOnUiThread {
-        web.evaluateJavascript("window.boothTorrentStatus && boothTorrentStatus(${JSONObject.quote(msg)}, $error)", null)
+    /** Calls the page's window.[fn], if it has one, with [args] written as JS: text quoted, flags and numbers as they are.
+     *  On the thread it is called from - the caller is on the UI thread. */
+    private fun callPage(fn: String, vararg args: Any) {
+        val list = args.joinToString(", ") { if (it is String) JSONObject.quote(it) else it.toString() }
+        web.evaluateJavascript("window.$fn && $fn($list)", null)
     }
+
+    /** Does [work] off the UI thread and hands the page its text - or why it failed - through boothFetchDone([callbackId]). */
+    private fun answer(callbackId: String, work: () -> String) = Thread {
+        val (ok, text) = try { true to work() } catch (t: Throwable) { false to (t.message ?: t.javaClass.simpleName) }
+        runOnUiThread { callPage("boothFetchDone", callbackId, ok, text) }
+    }.start()
+
+    /** Opens the player with what [extras] puts in its intent; with [req], for its result. */
+    private fun launchPlayer(req: Int? = null, extras: Intent.() -> Unit) {
+        val i = Intent(this, PlayerActivity::class.java).apply(extras)
+        if (req != null) startActivityForResult(i, req) else startActivity(i)
+    }
+
+    /** Shows torrent progress in the page's status bar (empty = hide; error = red, with dismiss). */
+    private fun showStatus(msg: String, error: Boolean = false) = runOnUiThread { callPage("boothTorrentStatus", msg, error) }
 
     /** The off-screen window that reads broadcasters' sites (see [SiteReader]). */
     private val siteReader by lazy {
-        SiteReader(this, web) { id, ok, body ->
-            web.evaluateJavascript(
-                "window.boothFetchDone && boothFetchDone(${JSONObject.quote(id)}, $ok, ${JSONObject.quote(body)})", null)
-        }
+        SiteReader(this, web) { id, ok, body -> callPage("boothFetchDone", id, ok, body) }
     }
 
     /** Whether the kids profile is on: the page says so with its theme (setTheme), and a door out of the
@@ -158,7 +172,7 @@ class MainActivity : AppCompatActivity() {
         val c = pendingLink ?: return
         if (!pageUp) return
         pendingLink = null
-        web.evaluateJavascript("window.booth$pendingKind && booth$pendingKind(${JSONObject.quote(c)})", null)
+        callPage("booth$pendingKind", c)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -230,9 +244,10 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun playUrl(url: String, title: String, videoId: String, release: String, meta: String, pos: Long) {
             Subtitles.prefetch(applicationContext, videoId, release)
             runOnUiThread {
-                startActivityForResult(Intent(this@MainActivity, PlayerActivity::class.java)
-                    .putExtra("url", url).putExtra("title", title)
-                    .putExtra("vid", videoId).putExtra("meta", meta).putExtra("pos", pos), REQ_PLAY)
+                launchPlayer(REQ_PLAY) {
+                    putExtra("url", url); putExtra("title", title)
+                    putExtra("vid", videoId); putExtra("meta", meta); putExtra("pos", pos)
+                }
             }
         }
 
@@ -254,9 +269,10 @@ class MainActivity : AppCompatActivity() {
                     Subtitles.prefetch(applicationContext, videoId, actualFile.ifBlank { release })
                 },
                 onReady = { url -> runOnUiThread {
-                    startActivityForResult(Intent(this@MainActivity, PlayerActivity::class.java)
-                        .putExtra("url", url).putExtra("title", title).putExtra("torrent", true)
-                        .putExtra("vid", videoId).putExtra("meta", meta).putExtra("pos", pos), REQ_PLAY)
+                    launchPlayer(REQ_PLAY) {
+                        putExtra("url", url); putExtra("title", title); putExtra("torrent", true)
+                        putExtra("vid", videoId); putExtra("meta", meta); putExtra("pos", pos)
+                    }
                 } },
                 // a failure goes as a code the page words ("e:nopeers"); one with no code of its own, as e:other
                 onError = { showStatus(if (Regex("^e:\\w+$").matches(it)) it else "e:other", error = true) }
@@ -266,9 +282,10 @@ class MainActivity : AppCompatActivity() {
         /** Live TV / IPTV channel. [userAgent]/[referer] come from the M3U entry (may be blank). */
         @JavascriptInterface fun playLive(url: String, title: String, userAgent: String, referer: String) {
             runOnUiThread {
-                startActivity(Intent(this@MainActivity, PlayerActivity::class.java)
-                    .putExtra("url", url).putExtra("title", title).putExtra("live", true)
-                    .putExtra("ua", userAgent).putExtra("referer", referer))
+                launchPlayer {
+                    putExtra("url", url); putExtra("title", title); putExtra("live", true)
+                    putExtra("ua", userAgent); putExtra("referer", referer)
+                }
             }
         }
 
@@ -280,7 +297,7 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 val srt = runCatching { YouTube.captions(videoId, lang) }.getOrDefault("")
                 if (srt.isNotEmpty()) runOnUiThread {
-                    web.evaluateJavascript("window.boothYtCaptions && boothYtCaptions(${JSONObject.quote(videoId)}, ${JSONObject.quote(srt)})", null)
+                    callPage("boothYtCaptions", videoId, srt)
                 }
             }.start()
         }
@@ -298,17 +315,17 @@ class MainActivity : AppCompatActivity() {
         /** Broadcaster VOD (e.g. Reshet 13): DASH + Widevine licence URL from the broadcaster's own API. */
         @JavascriptInterface fun playDrm(url: String, licenseUrl: String, title: String) {
             runOnUiThread {
-                startActivity(Intent(this@MainActivity, PlayerActivity::class.java)
-                    .putExtra("url", url).putExtra("drm", licenseUrl).putExtra("title", title).putExtra("nosubs", true))
+                launchPlayer { putExtra("url", url); putExtra("drm", licenseUrl); putExtra("title", title); putExtra("nosubs", true) }
             }
         }
 
         /** Broadcaster VOD with the site's referer (Kan's CDN), optional Widevine licence. */
         @JavascriptInterface fun playVod(url: String, licenseUrl: String, title: String, referer: String) {
             runOnUiThread {
-                startActivity(Intent(this@MainActivity, PlayerActivity::class.java)
-                    .putExtra("url", url).putExtra("drm", licenseUrl).putExtra("title", title)
-                    .putExtra("referer", referer).putExtra("nosubs", true))
+                launchPlayer {
+                    putExtra("url", url); putExtra("drm", licenseUrl); putExtra("title", title)
+                    putExtra("referer", referer); putExtra("nosubs", true)
+                }
             }
         }
 
@@ -351,7 +368,7 @@ class MainActivity : AppCompatActivity() {
             showStatus("מוריד את העדכון… 0%")
             Thread {
                 val status = { msg: String, err: Boolean -> runOnUiThread {
-                    web.evaluateJavascript("window.boothTorrentStatus && boothTorrentStatus(${JSONObject.quote(msg)}, $err)", null)
+                    callPage("boothTorrentStatus", msg, err)
                 } }
                 try {
                     val file = java.io.File(cacheDir, "update.apk")
@@ -434,8 +451,7 @@ class MainActivity : AppCompatActivity() {
         /** Live TV with channel zapping: [channelsJson] = [{name, url, ua, referer}], starting at [index]. */
         @JavascriptInterface fun playChannels(channelsJson: String, index: Int) {
             runOnUiThread {
-                startActivityForResult(Intent(this@MainActivity, PlayerActivity::class.java)
-                    .putExtra("channels", channelsJson).putExtra("index", index).putExtra("live", true), REQ_LIVE)
+                launchPlayer(REQ_LIVE) { putExtra("channels", channelsJson); putExtra("index", index); putExtra("live", true) }
             }
         }
 
@@ -452,55 +468,39 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface fun fetchText(url: String, callbackId: String) {
-            Thread {
-                val (ok, body) = try {
-                    val conn = URL(url).openConnection() as HttpURLConnection
-                    conn.connectTimeout = 10_000
-                    conn.readTimeout = 30_000
-                    // Browser-like headers: some broadcaster sites (Kan) turn away the default Java agent.
-                    // YouTube serves its mobile site to phone agents; ask for the desktop page the app parses.
-                    val desktop = conn.url.host.endsWith("youtube.com")
-                    conn.setRequestProperty("User-Agent",
-                        if (desktop) "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
-                        else "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36")
-                    conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    conn.setRequestProperty("Accept-Language", "he-IL,he;q=0.9,en;q=0.8")
-                    PlayerActivity.basicAuth(url)?.let { conn.setRequestProperty("Authorization", it) }
-                    if (conn.responseCode >= 400) throw IllegalStateException("HTTP ${conn.responseCode}")
-                    true to conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-                } catch (t: Throwable) {
-                    false to (t.message ?: t.javaClass.simpleName)
-                }
-                runOnUiThread {
-                    web.evaluateJavascript(
-                        "window.boothFetchDone && boothFetchDone(${JSONObject.quote(callbackId)}, $ok, ${JSONObject.quote(body)})", null)
-                }
-            }.start()
+            answer(callbackId) {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 30_000
+                // Browser-like headers: some broadcaster sites (Kan) turn away the default Java agent.
+                // YouTube serves its mobile site to phone agents; ask for the desktop page the app parses.
+                val desktop = conn.url.host.endsWith("youtube.com")
+                conn.setRequestProperty("User-Agent",
+                    if (desktop) "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
+                    else "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36")
+                conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                conn.setRequestProperty("Accept-Language", "he-IL,he;q=0.9,en;q=0.8")
+                PlayerActivity.basicAuth(url)?.let { conn.setRequestProperty("Authorization", it) }
+                if (conn.responseCode >= 400) throw IllegalStateException("HTTP ${conn.responseCode}")
+                conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+            }
         }
 
         /** A POST with the page's own headers (IMDb answers only a client that names itself - data/ratings.js). */
         @JavascriptInterface fun postText(url: String, body: String, headersJson: String, callbackId: String) {
-            Thread {
-                val (ok, text) = try {
-                    val conn = URL(url).openConnection() as HttpURLConnection
-                    conn.connectTimeout = 10_000
-                    conn.readTimeout = 20_000
-                    conn.requestMethod = "POST"
-                    conn.doOutput = true
-                    conn.setRequestProperty("User-Agent",
-                        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36")
-                    runCatching { JSONObject(headersJson) }.getOrNull()?.let { h -> h.keys().forEach { conn.setRequestProperty(it, h.optString(it)) } }
-                    conn.outputStream.use { it.write(body.toByteArray()) }
-                    if (conn.responseCode >= 400) throw IllegalStateException("HTTP ${conn.responseCode}")
-                    true to conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-                } catch (t: Throwable) {
-                    false to (t.message ?: t.javaClass.simpleName)
-                }
-                runOnUiThread {
-                    web.evaluateJavascript(
-                        "window.boothFetchDone && boothFetchDone(${JSONObject.quote(callbackId)}, $ok, ${JSONObject.quote(text)})", null)
-                }
-            }.start()
+            answer(callbackId) {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 20_000
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36")
+                runCatching { JSONObject(headersJson) }.getOrNull()?.let { h -> h.keys().forEach { conn.setRequestProperty(it, h.optString(it)) } }
+                conn.outputStream.use { it.write(body.toByteArray()) }
+                if (conn.responseCode >= 400) throw IllegalStateException("HTTP ${conn.responseCode}")
+                conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+            }
         }
 
         /* ---------- problem reports ----------
@@ -509,29 +509,22 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun canReport(): Boolean = BuildConfig.ISSUES_TOKEN.isNotEmpty()
 
         @JavascriptInterface fun reportIssue(title: String, body: String, callbackId: String) {
-            Thread {
-                val (ok, text) = try {
-                    val conn = URL("https://api.github.com/repos/bardalas/VEO/issues").openConnection() as HttpURLConnection
-                    conn.connectTimeout = 10_000
-                    conn.readTimeout = 20_000
-                    conn.requestMethod = "POST"
-                    conn.doOutput = true
-                    conn.setRequestProperty("Authorization", "Bearer ${BuildConfig.ISSUES_TOKEN}")
-                    conn.setRequestProperty("Accept", "application/vnd.github+json")
-                    conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    conn.setRequestProperty("User-Agent", "VEO/${BuildConfig.VERSION_NAME}")
-                    val issue = JSONObject().put("title", title).put("body", body).put("labels", JSONArray().put("from-app"))
-                    conn.outputStream.use { it.write(issue.toString().toByteArray()) }
-                    if (conn.responseCode >= 300) throw IllegalStateException("HTTP ${conn.responseCode}")
-                    true to JSONObject(conn.inputStream.use { String(it.readBytes()) }).optInt("number").toString()
-                } catch (t: Throwable) {
-                    false to (t.message ?: t.javaClass.simpleName)
-                }
-                runOnUiThread {
-                    web.evaluateJavascript("window.boothFetchDone && boothFetchDone(${JSONObject.quote(callbackId)}, $ok, ${JSONObject.quote(text)})", null)
-                }
-            }.start()
+            answer(callbackId) {
+                val conn = URL("https://api.github.com/repos/bardalas/VEO/issues").openConnection() as HttpURLConnection
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 20_000
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Authorization", "Bearer ${BuildConfig.ISSUES_TOKEN}")
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("User-Agent", "VEO/${BuildConfig.VERSION_NAME}")
+                val issue = JSONObject().put("title", title).put("body", body).put("labels", JSONArray().put("from-app"))
+                conn.outputStream.use { it.write(issue.toString().toByteArray()) }
+                if (conn.responseCode >= 300) throw IllegalStateException("HTTP ${conn.responseCode}")
+                JSONObject(conn.inputStream.use { String(it.readBytes()) }).optInt("number").toString()
+            }
         }
 
         /** What a report says the device is: its make and model, its Android, and the name its owner gave it. */
@@ -702,12 +695,12 @@ class MainActivity : AppCompatActivity() {
         // an episode ended, and the viewer went on to the next one: the page finds its source
         val next = data?.getStringExtra("next")
         if (requestCode == REQ_PLAY && resultCode == RESULT_OK && !next.isNullOrBlank()) {
-            web.evaluateJavascript("window.boothNextEpisode && boothNextEpisode(${JSONObject.quote(next)}, ${JSONObject.quote(data?.getStringExtra("meta") ?: "{}")})", null)
+            callPage("boothNextEpisode", next, data?.getStringExtra("meta") ?: "{}")
             return
         }
         val channel = data?.getStringExtra("catchup")
         if (requestCode == REQ_LIVE && resultCode == RESULT_OK && !channel.isNullOrBlank()) {
-            web.evaluateJavascript("window.boothCatchup && boothCatchup(${JSONObject.quote(channel)})", null)
+            callPage("boothCatchup", channel)
         }
     }
 
@@ -783,7 +776,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var holdable = false
     private var holdDown: android.view.KeyEvent? = null
     private var holdFired = false
-    private val holdRun = Runnable { holdFired = true; web.evaluateJavascript("window.boothHoldOK && boothHoldOK()", null) }
+    private val holdRun = Runnable { holdFired = true; callPage("boothHoldOK") }
 
     // Remote Search key jumps to the search field.
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
@@ -804,7 +797,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (event.keyCode == android.view.KeyEvent.KEYCODE_SEARCH && event.action == android.view.KeyEvent.ACTION_DOWN) {
-            web.evaluateJavascript("window.boothSearchKey && boothSearchKey()", null)
+            callPage("boothSearchKey")
             return true
         }
         return super.dispatchKeyEvent(event)
