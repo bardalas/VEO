@@ -367,24 +367,27 @@ export function tvMove(dir){
   // Another line = an item whose middle lies beyond this one's edge. (Comparing tops made the search box,
   // a little taller than the menu links beside it, look like the line below them.)
   const beyond = el => dir === 'down' ? mid(el) > ar.bottom : mid(el) < ar.top;
-  let same = [];
+  let line = [];
   // a strip of titles is one line, always: there is no other line in it to look for - on to the next row unmeasured
-  if(row.classList.contains('strip')){}
-  else if(i >= 0){
+  const strip = row.classList.contains('strip');
+  if(!strip && i >= 0){
+    // gather the first line beyond this item: everything up to where the line after it begins (an item wholly past
+    // the far edge of what was gathered). Items of one line may differ in height - the band is chosen below.
     const step = dir === 'down' ? 1 : -1;
+    let edge = null;
     for(let j = i + step; j >= 0 && j < items.length; j += step){
       const el = items[j];
       if(!beyond(el)) continue;                     // still on this line
-      if(same.length && Math.abs(mid(el) - mid(same[0])) >= 6) break;   // past the line found: done
-      same.push(el);
+      const r = rectOf(el);
+      if(edge !== null && (dir === 'down' ? r.top >= edge : r.bottom <= edge)) break;   // the line after it: done
+      line.push(el);
+      edge = edge === null ? (dir === 'down' ? r.bottom : r.top)
+        : dir === 'down' ? Math.max(edge, r.bottom) : Math.min(edge, r.top);
     }
-  }else{                                            // not on an item of the row (an edge case): the whole row, as before
-    const line = items.filter(beyond);
-    if(line.length){
-      const band = dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid));
-      same = line.filter(el => Math.abs(mid(el) - band) < 6);
-    }
-  }
+  }else if(!strip) line = items.filter(beyond);     // not on an item of the row (an edge case): the whole row, as before
+  // the nearest band of what lies beyond, as it always was
+  const band = line.length && (dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid)));
+  const same = line.filter(el => Math.abs(mid(el) - band) < 6);
   if(same.length){
     focusItem(same.reduce((best, el) => Math.abs(cx(el) - x) < Math.abs(cx(best) - x) ? el : best));
     return true;

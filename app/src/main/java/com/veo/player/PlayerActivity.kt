@@ -2132,6 +2132,15 @@ class PlayerActivity : AppCompatActivity() {
                     adJump()
                     return@lookForMark
                 }
+                if (left != null) {
+                    // ten seconds or less: the break is ending (a jump lands up to nine seconds early - the countdown is read
+                    // to the ten). Searching the archive for an end that comes by itself would only load the box: look
+                    // again once it has passed
+                    if (search.busy) search.cancel()
+                    adStreak = 0; adPendingEnd = -1L
+                    adQuietUntil = android.os.SystemClock.uptimeMillis() + (left + 12) * 1_000L
+                    return@lookForMark
+                }
                 if (!look.ad) {
                     // the mark is gone: a search started on one sighting was a false alarm
                     if (adStreak > 0 && search.busy) search.cancel()

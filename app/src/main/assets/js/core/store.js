@@ -75,12 +75,15 @@ export const store = {
     try{ for(const k of Object.keys(localStorage)) if(k.startsWith(pre)) localStorage.removeItem(k); }catch(e){}
   },
   // big caches are written at most once a second, off the scrolling path - and one at a time, each in its own task:
-  // together they are thousands of entries to stringify, a pause long enough to swallow a press
+  // together they are thousands of entries to stringify, a pause long enough to swallow a press. A write is never put
+  // off by the next one: cards are drawn (and the titles they show noted) all the time a viewer browses, and a wait
+  // that started again with every write never ended - the caches were kept only when the app was hidden
   dirty: {},
-  lazy(k, v){ store.dirty[k] = v; clearTimeout(store.timer); store.timer = setTimeout(store.drain, 1000); },
+  timer: 0,
+  lazy(k, v){ store.dirty[k] = v; if(!store.timer) store.timer = setTimeout(store.drain, 1000); },
   drain(){
     const k = Object.keys(store.dirty)[0];
-    if(k === undefined) return;
+    if(k === undefined){ store.timer = 0; return; }
     const v = store.dirty[k]; delete store.dirty[k];
     store.set(k, v);
     store.timer = setTimeout(store.drain, 0);
