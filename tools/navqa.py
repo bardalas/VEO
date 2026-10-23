@@ -21,9 +21,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 KEYS = {'up': 19, 'down': 20, 'left': 21, 'right': 22, 'ok': 23, 'back': 4}
 SETTLE = 0.9          # seconds for the focus/scroll to settle after a press
 
-SCREENS = ['', 'cat/movies', 'cat/series', 'all/movie', 'all/series', 'library', 'live', 'genres', 'shows',
-           'search', 'settings/general', 'settings/profiles', 'settings/watch', 'settings/look', 'settings/about',
-           'detail/movie/tt0133093', 'detail/series/tt0903747']       # route names; '#/' is put in front
+SCREENS = ['', 'cat/movies', 'cat/series', 'all/movie', 'all/series', 'library', 'live', 'shows',
+           'shows/kan', 'shows/keshet', 'shows/reshet', 'search', 'settings/general', 'settings/profiles',
+           'settings/account', 'settings/watch', 'settings/services', 'settings/home', 'settings/look',
+           'settings/live', 'detail/movie/tt0133093', 'detail/series/tt0903747']       # route names; '#/' is put in front
 
 PROBE = r"""
 (() => {

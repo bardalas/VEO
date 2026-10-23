@@ -5,9 +5,11 @@ Android / Android TV frontend for Stremio-compatible add-ons (Cinemeta, Torrenti
 - Hebrew right-to-left interface.
 - Hebrew titles, plots and search, fetched live from Wikidata and Hebrew Wikipedia.
 - One-tap Play picks the best source; titles without sources are greyed out.
-- Categories: Netflix, Apple TV+, Disney+, Prime, HBO Max, Paramount+, Documentaries, Israeli (live from Wikidata).
+- Movies and Series with a tab per streaming service; categories: Israeli, Kids, Documentaries.
+- Shows: the Israeli broadcasters' programmes (Kan, Keshet, Reshet) and a magazine of internet programmes.
 - Live TV: official Israeli channels, RaspberryTV (access key, with catch-up and programme guide), and your own M3U playlists (e.g. a Raspberry Pi running TVHeadend).
-- Settings: 5 skins, 4 layouts (Cinema, Poster wall, List, TV) and poster size.
+- Profiles for the household (with kids profiles by age and a parent code), synced through one account.
+- Settings: skins, the services you have, home rows, live TV.
 - Hebrew subtitles are added automatically (Wizdom + OpenSubtitles, matched to the release).
 - Direct HTTP/HLS sources open in the native Media3/ExoPlayer player.
 - Torrentio sources stream: playback starts after a few MB are buffered; the rest downloads ahead of the playhead.
