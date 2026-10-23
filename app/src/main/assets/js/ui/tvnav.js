@@ -265,6 +265,11 @@ setInterval(() => { if(document.querySelector('iframe.taste')) reclaim(); }, 150
    a television's is not always recent, so the class says the same thing in a way that is older
    than the app. */
 
+/** A row's text direction, asked of the browser once per row: asking for a computed style on every press is a
+    style pass on the whole page each time (#432). The language of the app is not changed under a row. */
+const dirs = new WeakMap();
+const dirOf = row => { let d = dirs.get(row); if(!d){ d = getComputedStyle(row).direction; dirs.set(row, d); } return d; };
+
 export function tvMove(dir){
   const rows = tvRows();
   if(!rows.length) return false;
@@ -330,7 +335,7 @@ export function tvMove(dir){
   }
   if(dir === 'left' || dir === 'right'){
     // ArrowLeft goes forward through a right-to-left row, ArrowRight through a left-to-right one
-    const ltr = row.classList.contains('keypad') || getComputedStyle(row).direction === 'ltr';
+    const ltr = row.classList.contains('keypad') || dirOf(row) === 'ltr';
     const fwd = ltr ? 'right' : FWD();
     // Episodes are a column; a film's two ways in are one line, and Left/Right must move between them
     // - as a column they could not, and the far one was out of reach of the remote altogether.
@@ -364,16 +369,40 @@ export function tvMove(dir){
   // up / down: move within the row if it has more than one visual line (a grid, or a vertical
   // list); a row that is genuinely one line has nothing on another line, so this falls through to
   // moving to the next row below/above it, correctly, without needing to know which kind it is.
-  const x = active ? centerX(active) : 0;
-  const ar = active.getBoundingClientRect();
-  const mid = el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+  /* Each item is measured once at most, and only those on the way: a measurement is not free on a big page, and
+     measuring every item of a 133-channel grid three or four times over was most of what a press cost on a TV
+     box (#432). The items are in screen order (document order - see tvRows), so the line below starts after this
+     item and the line above ends before it: the search walks from here in the direction of travel and stops at
+     the far edge of the first line it reaches. */
+  const rects = new Map();
+  const rectOf = el => { let r = rects.get(el); if(!r){ r = el.getBoundingClientRect(); rects.set(el, r); } return r; };
+  const mid = el => { const r = rectOf(el); return r.top + r.height / 2; };
+  const cx = el => { const r = rectOf(el); return r.left + r.width / 2; };
+  const x = active ? cx(active) : 0;
+  const ar = rectOf(active);
   // Another line = an item whose middle lies beyond this one's edge. (Comparing tops made the search box,
   // a little taller than the menu links beside it, look like the line below them.)
-  const line = items.filter(el => (dir === 'down' ? mid(el) > ar.bottom : mid(el) < ar.top));
-  if(line.length){
-    const band = dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid));
-    const same = line.filter(el => Math.abs(mid(el) - band) < 6);
-    focusItem(same.reduce((best, el) => Math.abs(centerX(el) - x) < Math.abs(centerX(best) - x) ? el : best));
+  const beyond = el => dir === 'down' ? mid(el) > ar.bottom : mid(el) < ar.top;
+  let same = [];
+  // a strip of titles is one line, always: there is no other line in it to look for - on to the next row unmeasured
+  if(row.classList.contains('strip')){}
+  else if(i >= 0){
+    const step = dir === 'down' ? 1 : -1;
+    for(let j = i + step; j >= 0 && j < items.length; j += step){
+      const el = items[j];
+      if(!beyond(el)) continue;                     // still on this line
+      if(same.length && Math.abs(mid(el) - mid(same[0])) >= 6) break;   // past the line found: done
+      same.push(el);
+    }
+  }else{                                            // not on an item of the row (an edge case): the whole row, as before
+    const line = items.filter(beyond);
+    if(line.length){
+      const band = dir === 'down' ? Math.min(...line.map(mid)) : Math.max(...line.map(mid));
+      same = line.filter(el => Math.abs(mid(el) - band) < 6);
+    }
+  }
+  if(same.length){
+    focusItem(same.reduce((best, el) => Math.abs(cx(el) - x) < Math.abs(cx(best) - x) ? el : best));
     return true;
   }
   // Down from the source tabs waits for the row they turn: while it is still being filled it cannot take
