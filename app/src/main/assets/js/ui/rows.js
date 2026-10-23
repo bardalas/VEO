@@ -32,7 +32,14 @@ export const reel = (inner, id = '') =>
 /** A long press on a Continue Watching card (touch hold, remote OK held, or right-click) asks whether to remove
     the title from the row - it stays where the viewer left it (dismissContinue keeps the resume point), the row
     simply does not name it any more. */
-const tellHoldable = () => window.BoothAndroid?.holdable?.(!!document.activeElement?.matches?.('#contRow .poster'));
+// the app is told only when the answer changes: a call across to it on every move of the focus is not free (#432)
+let holdableSaid = null;
+const tellHoldable = () => {
+  const h = !!document.activeElement?.matches?.('#contRow .poster');
+  if(h === holdableSaid) return;
+  holdableSaid = h;
+  window.BoothAndroid?.holdable?.(h);
+};
 addEventListener('focusin', tellHoldable);
 addEventListener('focusout', () => setTimeout(tellHoldable, 0));
 window.boothHoldOK = () => document.activeElement?.matches?.('#contRow .poster') && document.activeElement.dispatchEvent(new CustomEvent('holdok'));
