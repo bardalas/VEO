@@ -54,18 +54,3 @@
 .fgo:focus,.fgo:hover{border-color:var(--tungsten);outline:none}
 
 
-/* Hero section for Continue Watching */
-.hero-wrap{position:relative;height:50vh;margin:0 -28px 24px;overflow:hidden}
-.hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 20%}
-.hero-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--night) 10%,transparent 70%),
-  linear-gradient(to var(--fade-to,left),var(--night) 5%,transparent 80%)}
-.hero-info{position:absolute;bottom:0;inset-inline-start:0;padding:0 28px 4vh;z-index:2;max-width:min(50%,700px)}
-.htag{display:inline-block;background:var(--tungsten);color:var(--on-accent);padding:4px 10px;border-radius:4px;font-weight:700;font-size:12px;margin-bottom:10px}
-.hero-info h1{font-size:clamp(32px,5vw,52px);margin:0 0 16px;line-height:1.1}
-.hero-prog{margin-bottom:20px;max-width:400px;background:var(--shade-55);height:6px;border-radius:3px;overflow:hidden;position:relative}
-.hero-prog > i{display:block;height:100%;background:var(--tungsten);border-radius:3px}
-
-[data-layout="tv"] .hero-wrap{height:60vh;margin-bottom:30px}
-[data-layout="tv"] .hero-info{padding-bottom:6vh}
-[data-layout="tv"] .hero-info h1{font-size:52px}
-[data-layout="tv"] .htag{font-size:15px}

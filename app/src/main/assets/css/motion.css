@@ -36,7 +36,7 @@
 .tstat{animation:riseCenterX var(--settle) var(--ease) both}
 
 /* what a press feels like: the thing under the finger gives a little, and lets go softly */
-.btn,.qbtn,.sortpill,.sopt,.chip,.altbtn,.nav a,.bctabs a,.stabs button,.seasonbar button{
+.btn,.qbtn,.sortpill,.sopt,.chip,.altbtn,.nav a,.stabs button,.seasonbar button{
   transition:transform var(--quick) var(--ease),background-color var(--quick) linear,
     border-color var(--quick) linear,color var(--quick) linear}
 .btn:active,.qbtn:active,.sortpill:active,.sopt:active,.chip:active,.playbtn:active{transform:scale(.97)}

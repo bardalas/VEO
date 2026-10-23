@@ -9,7 +9,7 @@
 body.motion :focus,body.motion :focus-visible{outline:none}
 
 .btn:focus,.qbtn:focus,.altbtn:focus,.chip:focus,.sortpill:focus,
-.sopt:focus,.nav a:focus,.search .ic:focus,.railbtn:focus,.bctabs a:focus,
+.sopt:focus,.nav a:focus,.search .ic:focus,.railbtn:focus,
 .stabs button:focus,.days button:focus,
 .keypad button:focus,.playbtn:focus,.livebtn:focus,.readmore:focus,
 .update button:focus,.tstat button:focus,.oops button:focus,
@@ -33,7 +33,7 @@ body.motion :focus,body.motion :focus-visible{outline:none}
 .nav a:focus .ic{color:var(--on-accent)}
 
 /* rows and cards: they light up, with a mark down the side you arrived from */
-.ep:focus,.eprow:focus,.srow:focus,.prog:focus,.chan:focus,
+.ep:focus,.eprow:focus,.srow:focus,.prog:focus,
 .continue:focus,
 .addon:focus-within{
   background:var(--raise);box-shadow:inset calc(3px * var(--flip)) 0 0 var(--tungsten)}

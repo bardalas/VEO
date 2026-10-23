@@ -37,7 +37,6 @@ export let streamsToken = 0;
 /** Draw the sources row again (the quality pills change what it says, not what it plays from). */
 export let lastStreams = null;
 export const fmtSize = b => b >= GB ? (b / GB).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB';
-export const isCam = s => /\b(hd)?cam(rip)?\b|\b(hd)?ts\b|telesync|\bscr\b|screener|\btc\b|telecine/i.test(`${s.name || ''}\n${s.title || s.description || ''}`);
 
 /** Pull quality, seeders, size, provider and tags out of a Stremio stream (Torrentio format, with fallbacks). */
 export function parseStream(s, addon, i){
@@ -216,7 +215,6 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
     // This row chooses; the list below it is what starts. The quality in use wears the accent, and what
     // it will play - its size, and whether anything is still answering - is said beside it.
     const byQuality = QUALITIES.filter(q => playable.some(x => x.q === q));
-    const detail = x => [x.q === 'Other' ? '' : x.q, x.size && fmtSize(x.size)].filter(Boolean).join(' · ');
     // One row for the quality, not one per quality: pressing it takes the next one there is - and after
     // the last, automatic again ('').
     const cycle = [...byQuality, ''];

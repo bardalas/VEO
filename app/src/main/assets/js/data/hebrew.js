@@ -3,7 +3,6 @@ import {getJSON} from '../core/dom.js';
 import {isTvLayout, settings} from '../core/settings.js';
 import {capMap, store} from '../core/store.js';
 import {avail, availKnown, availObserver} from './availability.js';
-import {card} from '../ui/cards.js';
 import {known, oneLine, translatable, translateTexts} from './translate.js';
 
 /* ---------- Hebrew titles, plots & search — fetched live from Wikidata and Hebrew Wikipedia ----------

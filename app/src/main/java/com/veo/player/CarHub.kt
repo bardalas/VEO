@@ -4,7 +4,6 @@ import android.view.Surface
 import android.view.SurfaceView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import java.lang.ref.WeakReference
 
 /**

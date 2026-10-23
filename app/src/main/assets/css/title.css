@@ -3,7 +3,6 @@
 /* detail */
 /* The banner is the banner: nothing is written over it, and the words begin under it. */
 .detail{display:grid;grid-template-columns:1fr;gap:16px;position:relative;z-index:2;margin-top:18px;padding-top:0}
-.detail .poster-lg{display:none}
 .detail h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,48px);line-height:1.05;letter-spacing:-.02em;margin:0 0 12px}
 .facts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 /* under the synopsis, the facts are labels rather than a headline of their own */
@@ -140,11 +139,3 @@ html[data-device="phone"] .desc .readmore{display:inline}          /* a finger c
 .orig{display:block;font-family:var(--body);font-size:15px;font-weight:500;letter-spacing:0;color:var(--muted);margin-top:6px}
 
 
-/* The title card: banner, synopsis, actions. */
-/* the title card: banner on top, synopsis, actions - a modest sheet, never a full page */
-.titleSheet>div{max-height:92vh}
-.tc-banner{height:min(30vh,220px);background:var(--surface) center 20%/cover;position:relative;overflow:hidden}
-.titleSheet .facts{display:flex;flex-wrap:wrap;gap:8px}
-.titleSheet .qvdesc{max-height:24vh;overflow:auto;margin:0;color:var(--text2)}
-.titleSheet .qvdesc[dir="rtl"]{font-size:15px;line-height:1.7}
-.qvact{display:flex;flex-wrap:wrap;gap:10px}

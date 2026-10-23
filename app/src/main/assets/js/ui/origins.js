@@ -5,7 +5,6 @@ import {addons, catalogFetch} from '../data/addons.js';
 import {BOOTH_ID, SC_ID} from '../data/catalogs.js';
 import {kidsChild} from '../data/kids.js';
 import {PROVIDERS, SERVICES, noteServices, svcGlyph} from '../data/services.js';
-import {tr} from '../i18n.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
 import {r13card, r13row} from '../providers/reshet.js';
@@ -22,7 +21,6 @@ export const ORIGINS = [
   {id: 'r13', types: ['series'], shows: true},
   {id: 'il', types: ['movie', 'series']},                 // the Israeli catalogues (data/catalogs.js)
 ];
-export const originName = o => o.svc ? SERVICES[o.svc] : tr('origin.' + o.id);
 /** The sources that hold titles of [type] here: a service only if its catalogue of that type is installed.
     The kids profile has the services alone: nothing the others hold says whether it is for children. */
 export const originsFor = type => ORIGINS.filter(o => o.types.includes(type)

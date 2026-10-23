@@ -13,7 +13,7 @@ import {webEpisodeCard, webLatest, webShowCard, webShows} from '../providers/web
 import {card, skeletons} from './cards.js';
 import {ORIGINS, interleave, loadOrigin, moreOfOrigin} from './origins.js';
 import {pickFrom} from './sheets.js';
-import {autoSpot, clearSpot, reelable} from './reel.js';
+import {autoSpot, reelable} from './reel.js';
 
 export const rowTag = x => {
   const parts = [];
@@ -234,7 +234,6 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
     }catch(e){ showErr(el, tr('row.failedCat'), e, again); }
   };
   // the first row to answer offers the first title to the middle; whoever is already there keeps it
-  current = {rows, fillRow};
   rows.forEach((x, i) => fillRow(x, i).then(() => { autoSpot($('#app .strip')); showRow($('#row' + i), x); }));
 }
 
@@ -251,21 +250,6 @@ function showRow(el, x){
 const FIRST_PAINT_MS = 2500;
 /** What a row of one source says when that source cannot be reached. */
 const FAILED = {kan: 'row.failedKan', mako: 'row.failedMako', r13: 'row.failedR13'};
-/** The screen's rows, so that a row can be told to show something else (the source tabs). */
-let current = null;
-/** Show [origins] in row [i] - the source tabs over Movies and Series. */
-export function retune(i, origins){
-  const x = current?.rows[i];
-  if(!x) return;
-  x.origins = origins;
-  const el = $('#row' + i);
-  if(!el) return;
-  if(el.contains(document.querySelector('.poster.spot'))) clearSpot();   // the title in the middle is about to go
-  endless.delete(el);                                  // and so is how it grew: a page still coming belongs to the old source
-  el.innerHTML = skeletons(8);
-  el.style.transform = '';
-  current.fillRow(x, i).then(() => { autoSpot(el); showRow(el); });
-}
 
 /* ---------- a row that does not end ----------
    A row of the streaming services keeps growing as the remote reaches its last few titles: first

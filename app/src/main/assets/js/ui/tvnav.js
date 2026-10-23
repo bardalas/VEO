@@ -13,8 +13,8 @@ export const FOCUSABLE = 'a[href], button:not([disabled]), input:not([type="hidd
    of them is safe. Grouped by the screen that renders them. */
 export const ROWS_SEL = [
   '#rail', '.stabs', '.spane', '.sset', '.slines', '.themes',             // chrome: the side menu, the settings menu and its lists
-  '.bctabs', '.srctabs', '.strip', '.grid', '.sortbar',                    // browsing rows and pickers
-  '.ltabs', '.mkbar', '.oops',                                             // archive/mako tabs, error boxes
+  '.srctabs', '.strip', '.grid', '.sortbar',                               // browsing rows and pickers
+  '.oops',                                                                 // error boxes
   '#desc', '.seasonbar', '.seasons', '.eps', '.eplist',                    // a title: text, episodes
   '.tacts', '#palt', '.src',                                               // a title: what can be done with it
   '.playrow', '.altlist',                                                  // the sources of a title

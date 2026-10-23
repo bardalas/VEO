@@ -1,6 +1,5 @@
 /* Where the viewer was: the place in a list they left, and the title they went into. */
 import {isTvLayout} from './settings.js';
-import {card} from '../ui/cards.js';
 import {focusItem} from '../ui/tvnav.js';
 
 export const screenMem = new Map();

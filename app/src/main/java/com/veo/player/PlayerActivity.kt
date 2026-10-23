@@ -157,8 +157,6 @@ class PlayerActivity : AppCompatActivity() {
     private var autoLocked = false
     private var autoOffset = 0L
     private var autoScale = 1.0
-    private var autoLevel = 0
-    private var autoNote = ""
     private var autoStartedMs = 0L
     private var scanNote = ""
     /** Why the last automatic sync found nothing, kept for the side menu (the pill over the picture goes in seconds). */
@@ -280,7 +278,7 @@ class PlayerActivity : AppCompatActivity() {
         // another translation is another file: what was learnt of the last one - or done to it - says nothing of this one
         offsetAligner = captions?.takeIf { it.any }?.let { FastOffsetAligner(it.activity(), it.starts(), syncZ) }
         liveSpeech = null; autoOn = false
-        autoOffset = 0L; autoScale = 1.0; autoLocked = false; autoLevel = 0; autoNote = ""
+        autoOffset = 0L; autoScale = 1.0; autoLocked = false
         subShift = 0L; manualStretch = 1.0; lineAnchor = null; lineSync = -1
         restoreSync(sub)
         applySync()
@@ -375,7 +373,7 @@ class PlayerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         SubSync.decode(prefs.getString(syncKey(sub), null))?.let { s ->
             autoOffset = s.autoOffset; autoScale = s.autoScale; subShift = s.shift; manualStretch = s.stretch
-            autoLocked = true; autoLevel = 2; autoNote = "נשמר"
+            autoLocked = true
             return
         }
         val saved = seriesKey()?.let { prefs.getString(it, null) }?.split('|') ?: return
@@ -424,7 +422,6 @@ class PlayerActivity : AppCompatActivity() {
         autoOffset = best.offsetMs
         autoScale = 1.0
         autoLocked = true
-        autoLevel = when { best.z >= 8.0 -> 3; best.z >= syncZ -> 2; else -> 1 }
         applySync()
         saveSync()
         lastFail = ""
@@ -494,13 +491,6 @@ class PlayerActivity : AppCompatActivity() {
         autoLocked -> "%+.1f שנ׳".format(autoOffset / 1000.0)
         lastFail.isNotEmpty() -> "לא הצליח"
         else -> "לא בוצע"
-    }
-
-    private fun autoStatus(): String = when {
-        autoOn -> "$scanNote · OK לעצירה"
-        autoLocked -> "מסונכרן ✓ ${"%+.1f".format(autoOffset / 1000.0)}s · OK לחישוב מחדש"
-        scanNote.isNotEmpty() -> "$scanNote · OK לניסיון נוסף"
-        else -> "OK לסנכרון אוטומטי"
     }
 
     private fun setSyncZ(value: Double) {
@@ -605,23 +595,6 @@ class PlayerActivity : AppCompatActivity() {
             if (!android.text.TextUtils.equals(cuesView.text, words)) cuesView.text = words
             handler.postDelayed(this, 120)
         }
-    }
-
-    /** Unused since the words became the app's own; kept out of the way. */
-    private fun shiftedSub(sub: Subtitles.Sub, shiftMs: Long): java.io.File {
-        if (shiftMs == 0L) return sub.file
-        val out = java.io.File(cacheDir, "shift_${shiftMs}_${sub.file.name}")
-        if (out.exists() && out.length() > 0) return out
-        val stamp = Regex("\\d{2}:\\d{2}:\\d{2},\\d{3}")
-        runCatching {
-            out.writeText(sub.file.readText().replace(stamp) { m ->
-                val p = m.value.split(':', ',')
-                val t = (p[0].toLong() * 3600_000 + p[1].toLong() * 60_000 + p[2].toLong() * 1000 + p[3].toLong() + shiftMs)
-                    .coerceAtLeast(0)
-                "%02d:%02d:%02d,%03d".format(t / 3600_000, t / 60_000 % 60, t / 1000 % 60, t % 1000)
-            })
-        }.onFailure { return sub.file }
-        return out
     }
 
     /** The sound moved later or earlier than the picture: it takes effect as it is pressed, and is remembered. Up to three
@@ -1591,11 +1564,6 @@ class PlayerActivity : AppCompatActivity() {
         val bar = findViewById<View>(R.id.infobar)
         findViewById<View>(R.id.nextbox).translationY =
             if (bar.visibility == View.VISIBLE) -(bar.height.takeIf { it > 0 } ?: dp(110)).toFloat() else 0f
-    }
-
-    private fun pickChannel(i: Int) {
-        hideChannelBar()
-        if (i != index) zapBy(i - index) else showBanner()
     }
 
     /** A channel chosen in the list: it starts playing, and if it keeps its past its guide opens over it (the EPG,

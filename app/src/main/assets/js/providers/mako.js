@@ -1,9 +1,7 @@
 /* Keshet 12, from the public pages of mako. */
 import {fetchText} from '../core/bridge.js';
 import {$, esc, showErr} from '../core/dom.js';
-import {store} from '../core/store.js';
 import {kidsOn} from '../data/kids.js';
-import {skeletons} from '../ui/cards.js';
 
 /* ---------- Keshet 12 (mako.co.il): catalogue from the site's public pages; episodes play on
    mako's own page and player, in an in-app window (their player handles their protection) ---------- */
@@ -36,33 +34,6 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-site
 export function makoCard(x){
   return `<a class="poster" href="#/mako/${encodeURIComponent(x.path)}/${encodeURIComponent(x.name)}">
     <div class="art" data-bg="${esc(x.img)}"></div><div class="t" dir="auto">${esc(x.name)}</div></a>`;
-}
-
-export async function viewMakoTab(top){
-  const app = $('#app');
-  let filter = store.get('mkGenre', '');
-  app.innerHTML = `${top}<div class="page" style="padding-top:0"><div class="mkbar" id="mkg"></div>
-    <div class="mkbar"><input class="field" id="mkq" type="search" placeholder="חיפוש תוכנית" aria-label="חיפוש תוכנית"></div>
-    <div class="grid" id="mkgrid">${skeletons(12)}</div></div>`;
-  const load = async () => {
-    $('#mkg').innerHTML = MAKO_GENRES.map(([n, f]) => `<button class="chip ${f === filter ? 'on' : ''}" data-f="${esc(f)}">${n}</button>`).join('');
-    $('#mkg').querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; store.set('mkGenre', filter); load(); });
-    $('#mkgrid').innerHTML = skeletons(12);
-    try{
-      const all = await makoPrograms(filter);
-      const draw = () => {
-        const q = $('#mkq').value.trim();
-        const list = all.filter(x => !q || x.name.includes(q));
-        $('#mkgrid').innerHTML = list.map(makoCard).join('') || '<p class="note">לא נמצאו תוכניות.</p>';
-      };
-      $('#mkq').oninput = draw;
-      draw();
-    }catch(e){
-      $('#mkgrid').innerHTML = `<p class="note">לא ניתן לטעון את הקטלוג של mako כרגע (${esc(e.message)}).</p>
-        <button class="btn primary openbtn" data-site="${MAKO}/mako-vod">פתח את mako בתוך האפליקציה</button>`;
-    }
-  };
-  load();
 }
 
 export async function viewMakoProgram(path, title){
