@@ -464,7 +464,7 @@ test('the colour plane: OK goes on to the saturation, and from there to OK - Up/
 
 test('continue watching: one card per series, the newest episode, with its season and episode (#121)', async () => {
   const {store} = memStore();
-  const w = await mini('data/watch.js', {'core/store.js': {store}});
+  const w = await mini('data/watch.js', {'core/store.js': {store, profileId: 'p1'}});
   const now = 1e12;
   const prog = {
     'tt1:1:1': {t: 1, d: 9, at: now - 5, metaId: 'tt1:1:1', type: 'series', name: 'A'},                       // kept under the episode's own id
@@ -554,7 +554,28 @@ test('a programme watched in the Shows player is kept, resumed, and shown in con
   assert.match(yt, /progress\['yt:' \+ now\] = \{t, d, at: Date\.now\(\), metaId: 'yt:' \+ now, type: 'show'/);
   assert.match(yt, /resumeAt \? e\.target\.seekTo|if\(resumeAt\) e\.target\.seekTo/);
   assert.match(yt, /closeYt\(\)\{\s*keep\(true\)/);
-  assert.match(rows, /x\.type === 'show'/); assert.match(rows, /data-yt="\$\{esc\(id\)\}"/);
+  assert.match(rows, /x\.type === 'show'/); assert.match(rows, /\|\| 'data-yt'/); assert.match(rows, /\$\{by\}="\$\{esc\(id\)\}"/);
+});
+
+test('a broadcaster episode (Kan, Reshet 13) is kept for continue watching and resumed (#438)', async () => {
+  const {store} = memStore();
+  const w = await mini('data/watch.js', {'core/store.js': {store, profileId: 'p1'}});
+  w.progress['kan:u'] = {t: 600, d: 2700};
+  w.progress['r13:9'] = {t: 2690, d: 2700};                                   // within a minute of the end: from the start
+  const k = w.showProgress('kan:u', 'A · 1', 'img');
+  assert.equal(k.pos, 600000);
+  assert.deepEqual(JSON.parse(k.meta), {metaId: 'kan:u', type: 'show', name: 'A · 1', poster: 'img', pid: 'p1'});
+  assert.equal(w.showProgress('r13:9', 'B').pos, 0);
+  assert.equal(w.showProgress('kan:none', 'C').pos, 0);
+  const kan = await readFile(path.join(assets, 'js/providers/kan.js'), 'utf8');
+  const r13 = await readFile(path.join(assets, 'js/providers/reshet.js'), 'utf8');
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  const main = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/MainActivity.kt'), 'utf8');
+  assert.match(kan, /BoothAndroid\.playVod\(hls, '', title, `\$\{KAN\}\/`, vid, meta, pos\)/);
+  assert.match(r13, /BoothAndroid\.playDrm\(src\.url, src\.drm, title, vid, meta, pos\)/);
+  assert.match(rows, /\{kan: 'data-kan', r13: 'data-r13'\}\[src\]/);
+  assert.match(main, /fun playVod\(url: String, licenseUrl: String, title: String, referer: String, videoId: String, meta: String, pos: Long\)/);
+  assert.match(main, /fun playDrm\(url: String, licenseUrl: String, title: String, videoId: String, meta: String, pos: Long\)/);
 });
 
 test('series page: the resume / start-over question is asked on the episode, its name labels the sources, the list is narrow (#136)', async () => {

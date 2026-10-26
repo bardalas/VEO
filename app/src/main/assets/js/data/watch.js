@@ -1,5 +1,5 @@
 /* How far the viewer got in everything they have watched. */
-import {store} from '../core/store.js';
+import {profileId, store} from '../core/store.js';
 
 /* What the viewer keeps: the titles they saved, and how far they got in everything they played.
    Both are read from the device once, here, and everything else asks this module for them. */
@@ -10,6 +10,17 @@ export let progress = store.get('progress', {});
    resume point survives - opening the title again still continues where it was, the row just does not name it
    any more. Cleared the moment something new is played under that id (the viewer chose to watch it again). */
 export let dismissedContinue = store.get('dismissedContinue', {});
+
+/** A broadcaster's episode, as the player is handed it so that it lands in Continue Watching (#438): what the card
+    shows - a programme (type 'show') under [vid], 'kan:<page>' or 'r13:<asset>' - and where to start: where the viewer
+    stopped, unless that was within a minute of the end. */
+export function showProgress(vid, name, poster){
+  const p = progress[vid];
+  return {
+    meta: JSON.stringify({metaId: vid, type: 'show', name: name || '', poster: poster || '', pid: profileId}),
+    pos: p && p.d && p.t < p.d - 60 ? Math.floor(p.t * 1000) : 0,
+  };
+}
 export function dismissContinue(metaId){
   dismissedContinue[metaId] = Date.now();
   store.set('dismissedContinue', dismissedContinue);

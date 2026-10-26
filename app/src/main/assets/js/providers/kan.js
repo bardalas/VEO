@@ -1,6 +1,7 @@
 /* Kan, read from its own pages in the app's hidden browser window. */
 import {sitePull} from '../core/bridge.js';
 import {$, esc, showErr} from '../core/dom.js';
+import {showProgress} from '../data/watch.js';
 import {tr} from '../i18n.js';
 import {openPlayer} from '../ui/player.js';
 
@@ -83,7 +84,7 @@ export async function viewKanProgram(path, title){
     $('#kdesc').textContent = (page.desc || '').replace(/<[^>]+>/g, '');
     const seasons = page.seasons.sort((a, b) => +b.slice(1) - +a.slice(1));      // newest season first
     const draw = eps => {
-      $('#eps').innerHTML = eps.length ? eps.map(e => `<button class="eprow" data-kan="${esc(kanAbs(e.url))}" data-title="${esc(title + ' · ' + e.name)}">
+      $('#eps').innerHTML = eps.length ? eps.map(e => `<button class="eprow" data-kan="${esc(kanAbs(e.url))}" data-title="${esc(title + ' · ' + e.name)}" data-img="${esc(kanAbs(e.img))}">
           <img src="${esc(kanAbs(e.img))}" alt="" loading="lazy"><span><b dir="auto">${esc(e.name)}</b><small dir="auto">${esc(e.text)}</small></span></button>`).join('')
         : '<p class="note">אין פרקים זמינים כרגע.</p>';
     };
@@ -108,14 +109,16 @@ export const KAN_HLS_READER = `
   const m = h.match(/https?:\\/\\/[^"'\\s<>\\\\]+?\\.m3u8[^"'\\s<>\\\\]*/);
   return JSON.stringify(m ? m[0].replace(/&amp;/g, '&') : '');`;
 
-export async function kanPlay(url, title){
+export async function kanPlay(url, title, img){
   try{
     const hls = await sitePull(url, KAN_HLS_READER);
     if(!hls) throw new Error('לא נמצא וידאו בעמוד');
-    // broadcaster VOD route (no subtitle search, no licence); Kan's player sends its site as referer
-    if(window.BoothAndroid && BoothAndroid.playVod) BoothAndroid.playVod(hls, '', title, `${KAN}/`);
+    // broadcaster VOD route (no subtitle search, no licence); Kan's player sends its site as referer - and the
+    // episode goes with it, by its page, so that it is kept for Continue Watching and resumed (#438)
+    const vid = 'kan:' + url, {meta, pos} = showProgress(vid, title, img);
+    if(window.BoothAndroid && BoothAndroid.playVod) BoothAndroid.playVod(hls, '', title, `${KAN}/`, vid, meta, pos);
     else if(window.BoothAndroid && BoothAndroid.playDrm) BoothAndroid.playDrm(hls, '', title);
     else openPlayer({url: hls}, title, null);
   }catch(e){ alert(`לא ניתן לנגן את הפרק (${e.message}).`); }
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-kan]'); if(b){ e.preventDefault(); kanPlay(b.dataset.kan, b.dataset.title); } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-kan]'); if(b){ e.preventDefault(); kanPlay(b.dataset.kan, b.dataset.title, b.dataset.img); } });

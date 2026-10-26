@@ -312,6 +312,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /** A broadcaster's episode with its own [videoId] and [meta] (and where to start, [pos]): the player keeps how far
+         *  it got, for Continue Watching (#438). */
+        @JavascriptInterface fun playVod(url: String, licenseUrl: String, title: String, referer: String, videoId: String, meta: String, pos: Long) {
+            runOnUiThread {
+                launchPlayer {
+                    putExtra("url", url); putExtra("drm", licenseUrl); putExtra("title", title)
+                    putExtra("referer", referer); putExtra("nosubs", true)
+                    putExtra("vid", videoId); putExtra("meta", meta); putExtra("pos", pos)
+                }
+            }
+        }
+        @JavascriptInterface fun playDrm(url: String, licenseUrl: String, title: String, videoId: String, meta: String, pos: Long) {
+            runOnUiThread {
+                launchPlayer {
+                    putExtra("url", url); putExtra("drm", licenseUrl); putExtra("title", title); putExtra("nosubs", true)
+                    putExtra("vid", videoId); putExtra("meta", meta); putExtra("pos", pos)
+                }
+            }
+        }
+
         /** Broadcaster VOD (e.g. Reshet 13): DASH + Widevine licence URL from the broadcaster's own API. */
         @JavascriptInterface fun playDrm(url: String, licenseUrl: String, title: String) {
             runOnUiThread {

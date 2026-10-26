@@ -1,6 +1,7 @@
 /* Reshet 13, through the broadcaster's own Kaltura API. */
 import {$, esc, showErr} from '../core/dom.js';
 import {store} from '../core/store.js';
+import {showProgress} from '../data/watch.js';
 import {tr} from '../i18n.js';
 
 /* ---------- YouTube (official broadcaster channels) — fetched live, played in the YouTube app ---------- */
@@ -42,20 +43,22 @@ export async function r13source(assetId, live){
   if(!d) throw new Error('אין מקור לפרק');
   return {url: d.url, drm: (d.drm || []).find(k => k.scheme === 'WIDEVINE_CENC')?.licenseURL || ''};
 }
-export async function r13playEpisode(id, title){
+export async function r13playEpisode(id, title, img){
   try{
     const src = await r13source(id, false);
-    if(window.BoothAndroid && BoothAndroid.playDrm) BoothAndroid.playDrm(src.url, src.drm, title);
+    // the episode goes with it, by its asset, so that it is kept for Continue Watching and resumed (#438)
+    const vid = 'r13:' + id, {meta, pos} = showProgress(vid, title, img);
+    if(window.BoothAndroid && BoothAndroid.playDrm) BoothAndroid.playDrm(src.url, src.drm, title, vid, meta, pos);
     else alert('פרקי רשת 13 מתנגנים באפליקציית VEO לאנדרואיד.');
   }catch(e){ alert(`לא ניתן לנגן את הפרק (${e.message}).`); }
 }
 export function r13card(o){
   if(o.type == R13_SERIES) return `<a class="poster" href="#/r13/${encodeURIComponent(r13meta(o, 'SeriesID'))}/${encodeURIComponent(o.name)}">
       <div class="art" data-bg="${esc(r13img(o, '2x3', 300, 450))}"></div><div class="t" dir="auto">${esc(o.name)}</div></a>`;
-  return `<button class="poster wide" data-r13="${o.id}" data-title="${esc(o.name)}"><div class="art" data-bg="${esc(r13img(o, '16x9', 480, 270))}"></div>
+  return `<button class="poster wide" data-r13="${o.id}" data-title="${esc(o.name)}" data-img="${esc(r13img(o, '16x9', 480, 270))}"><div class="art" data-bg="${esc(r13img(o, '16x9', 480, 270))}"></div>
       <div class="t" dir="auto">${esc(o.name)}</div></button>`;
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-r13]'); if(b){ e.preventDefault(); r13playEpisode(b.dataset.r13, b.dataset.title); } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-r13]'); if(b){ e.preventDefault(); r13playEpisode(b.dataset.r13, b.dataset.title, b.dataset.img); } });
 /* Every other broadcaster's catalogue is kept for a few minutes; this one was fetched again for
    every row that wanted it, every search that touched it and every return to the screen - a hundred
    assets from Kaltura, each time. */
@@ -100,7 +103,7 @@ export async function viewR13Series(sid, title){
       $('#seasons').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { cur = +b.dataset.s; draw(); });
       const list = eps.filter(o => (+r13meta(o, 'SeasonNumber') || 0) === cur)
         .sort((a, b) => (+r13meta(a, 'EpisodeNumber') || 0) - (+r13meta(b, 'EpisodeNumber') || 0));
-      $('#eps').innerHTML = list.map(o => `<button class="eprow" data-r13="${o.id}" data-title="${esc(o.name)}">
+      $('#eps').innerHTML = list.map(o => `<button class="eprow" data-r13="${o.id}" data-title="${esc(title + ' · ' + o.name)}" data-img="${esc(r13img(o, '16x9', 480, 270))}">
           <img src="${esc(r13img(o, '16x9', 320, 180))}" alt="" loading="lazy"><span><b dir="auto">${esc(o.name)}</b>
           <small dir="auto">${esc(r13meta(o, 'ShortSummary') || o.description || '')}</small></span></button>`).join('');
     };

@@ -88,10 +88,12 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
   if(items.length) blocks.splice(contAt, 0, `<div class="row"><h2>${tr('row.continue')}</h2>${reel(items.map(x => {
     const ep = x.type === 'series' && Number.isFinite(x.season) && Number.isFinite(x.episode)
       ? `S${String(x.season).padStart(2, '0')} · E${String(x.episode).padStart(2, '0')}` : '';
-    // a programme watched in the page's own player: a card that plays it, from where it was left
+    // a programme - from the magazine (yt:), Kan (kan:) or Reshet 13 (r13:): a card that plays it, from where it was left
+    // (each source's own click handler - screens/web.js, providers/kan.js, providers/reshet.js - picks it up)
     if(x.type === 'show'){
-      const id = x.metaId.slice(3), pct = x.d ? Math.min(100, x.t / x.d * 100) : 0;
-      return `<button class="poster wide" data-id="${esc(x.metaId)}" data-yt="${esc(id)}" data-title="${esc(x.name)}">
+      const [src, ...rest] = x.metaId.split(':'), id = rest.join(':'), pct = x.d ? Math.min(100, x.t / x.d * 100) : 0;
+      const by = {kan: 'data-kan', r13: 'data-r13'}[src] || 'data-yt';
+      return `<button class="poster wide" data-id="${esc(x.metaId)}" ${by}="${esc(id)}" data-title="${esc(x.name)}" data-img="${esc(x.poster)}">
         <div class="art" data-bg="${esc(x.poster)}">${pct ? `<span class="track"><i style="width:${pct.toFixed(0)}%"></i></span>` : ''}</div>
         <div class="t" dir="auto">${esc(x.name)}</div></button>`;
     }
