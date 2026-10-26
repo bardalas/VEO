@@ -54,6 +54,13 @@ class SiteReader(
         pump()
     }
 
+    /** Let go of the window now - the player is opening - and answer whatever was still being read. */
+    fun release() {
+        handler.removeCallbacks(closeIdle)
+        close()
+        for (id in waiting.keys.toList()) done(id, "ERR:closed")
+    }
+
     /** Let go of the window (it is opened again by the next reading). */
     fun close() {
         window?.let { (it.parent as? ViewGroup)?.removeView(it); it.destroy() }
@@ -115,6 +122,10 @@ class SiteReader(
         hidden.settings.blockNetworkImage = true             // the words are what is wanted, not the pictures
         hidden.settings.userAgentString = UA
         hidden.addJavascriptInterface(Bridge(), "VeoSite")
+        // never the focus: an invisible window holding it would take the remote's arrows (#437)
+        hidden.isFocusable = false
+        hidden.isFocusableInTouchMode = false
+        hidden.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         hidden.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, finished: String) {
                 // a bot check loads, runs and reloads itself: read the page only once it is the page

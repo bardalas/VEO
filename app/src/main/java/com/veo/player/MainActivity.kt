@@ -139,6 +139,9 @@ class MainActivity : AppCompatActivity() {
 
     /** Opens the player with what [extras] puts in its intent; with [req], for its result. */
     private fun launchPlayer(req: Int? = null, extras: Intent.() -> Unit) {
+        // a broadcaster's site, read to find what is now playing, is not kept running beside the picture: its scripts
+        // share the page's renderer and the box's memory, during playback and after it (#437)
+        if (siteReaderMade.isInitialized()) siteReader.release()
         val i = Intent(this, PlayerActivity::class.java).apply(extras)
         if (req != null) startActivityForResult(i, req) else startActivity(i)
     }
@@ -147,9 +150,10 @@ class MainActivity : AppCompatActivity() {
     private fun showStatus(msg: String, error: Boolean = false) = runOnUiThread { callPage("boothTorrentStatus", msg, error) }
 
     /** The off-screen window that reads broadcasters' sites (see [SiteReader]). */
-    private val siteReader by lazy {
+    private val siteReaderMade = lazy {
         SiteReader(this, web) { id, ok, body -> callPage("boothFetchDone", id, ok, body) }
     }
+    private val siteReader by siteReaderMade
 
     /** Whether the kids profile is on: the page says so with its theme (setTheme), and a door out of the
         app - YouTube, a web page, another app - stays shut then, whatever the page asks. */
