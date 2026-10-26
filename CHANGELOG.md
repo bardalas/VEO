@@ -1,5 +1,13 @@
 # VEO Android changelog
 
+## 0.45.76 — 2026-10-26
+- **Kan and Reshet 13 episodes are kept in "המשך צפייה".** An episode watched from the broadcasters now gets a card with its
+  picture and progress, and OK on it plays it again from where it was left. (Keshet 12 opens in mako's own site and is not
+  followed.) (#438)
+- **Lighter after a Kan episode.** To play an episode the app reads Kan's site in a hidden window, which kept running for five
+  minutes beside the app - during the episode and after it. It is closed as the player opens now, and can never take the
+  remote's focus. (#437)
+
 ## 0.45.75 — 2026-10-23
 - **Lighter to move around.** A step along a row of titles lays the row out once instead of twice (about 40% less layout work a press), the
   screen no longer re-checks itself for the row's own movement, and remembering what was seen is written in small pieces instead of one
