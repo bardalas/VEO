@@ -7,6 +7,7 @@ import {kidsChild} from '../data/kids.js';
 import {PROVIDERS, SERVICES, noteServices, svcGlyph} from '../data/services.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
+import {TREND_ADDON} from '../data/trending.js';
 import {r13card, r13row} from '../providers/reshet.js';
 import {card} from './cards.js';
 
@@ -55,10 +56,8 @@ export async function loadOrigin(o, type, badge = false){
     return fromService(o, d.metas || [], badge, d.raw);
   }
   if(o.id === 'il'){
-    // one catalogue that fails leaves the others; all of them failing is the source failing
-    const res = await Promise.allSettled(localCatalogs(type).map(c => catalogFetch(localAddon(), type, c.id)));
-    if(res.length && res.every(r => r.status === 'rejected')) throw res[0].reason;
-    const lists = res.map(r => r.value?.metas || []);
+    // what Israel is watching now, and then its best known - playable ones only (data/trending.js, #442)
+    const lists = await Promise.all([`trend.ilnow.${type}`, `trend.il.${type}`].map(id => catalogFetch(TREND_ADDON, type, id).then(d => d.metas || [])));
     const seen = new Set();
     return lists.flat().filter(m => !seen.has(m.id) && seen.add(m.id)).map(m => ({id: m.id, meta: m, name: m.name, origin: o.id, html: card(m, markOf(o, badge))}));
   }

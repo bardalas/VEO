@@ -3,6 +3,7 @@ import {$, getJSON} from '../core/dom.js';
 import {settings} from '../core/settings.js';
 import {store} from '../core/store.js';
 import {addons} from './addons.js';
+import {TREND_ADDON} from './trending.js';
 import {WDAPI, wdMetas} from './hebrew.js';
 import {catalogName} from './names.js';
 import {tr} from '../i18n.js';
@@ -42,12 +43,17 @@ export const LOCAL_ADDON = {url: 'local:booth', local: localCatalog, manifest: {
 
 /* ---------- categories ---------- */
 export const SC_ID = 'pw.ers.netflix-catalog', BOOTH_ID = 'org.booth.catalogs', CINEMETA_ID = 'com.linvo.cinemeta';
+/* The recommendation engine's rows ('trend.<row>.<type>'). Its add-on is reached only when the rows are drawn (rowsFor):
+   this module and data/trending.js are in one import cycle (through data/addons.js), and a row list is made at load. */
+const TREND = 'org.veo.trend';
 // rows: [add-on id, catalog id (or pattern), extra args, title (a strings key)]. These are collections of
 // their own; a genre is not one - it is a filter (the Genre pill), and works inside every collection.
 // [prefix]: the collection's name is put before its rows' titles on the home page.
 export const CATEGORIES = [
-  {id: 'israeli', rows: [[BOOTH_ID, 'booth.he.movies'], [BOOTH_ID, 'booth.he.series'], [BOOTH_ID, 'booth.he.comedy'],
-    [BOOTH_ID, 'booth.he.comedy.series'], [BOOTH_ID, 'booth.he.movies.new']]},
+  // what Israel is watching now, its series and its films - playable ones only (data/trending.js, #442). Wikidata's lists
+  // (sorted by how many pages link to a title: classics, mostly with no source) are no longer rows of their own.
+  {id: 'israeli', rows: [[TREND, 'trend.ilnow.all', undefined, 'row.ilNow'], [TREND, 'trend.il.series', undefined, 'row.ilSeries'],
+    [TREND, 'trend.il.movie', undefined, 'row.ilMovies']]},
   {id: 'kids', prefix: true, rows: [[CINEMETA_ID, 'top', 'genre=Animation', 'cat.row.animation'], [CINEMETA_ID, 'top', 'genre=Family', 'cat.row.family']]},
   {id: 'docs', rows: [[SC_ID, 'cts', undefined, 'cat.row.docs'], [CINEMETA_ID, 'top', 'genre=Documentary', 'cat.row.docsPop'], [SC_ID, 'mgl', undefined, 'cat.row.docsMore']]},
 ];
@@ -70,6 +76,11 @@ export function rowsFor(cat){
   for(const spec of cat.rows){
     if(!Array.isArray(spec)){ out.push(spec); continue; }       // YouTube row
     const [aid, cid, extra, title] = spec;
+    if(aid === TREND){
+      const type = cid.split('.')[2];
+      out.push({a: TREND_ADDON, c: {type: type === 'all' ? 'movie' : type, id: cid}, title: tr(title), notype: true});
+      continue;
+    }
     const a = addons.find(x => x.manifest.id === aid);
     if(!a) continue;
     for(const c of a.manifest.catalogs || [])

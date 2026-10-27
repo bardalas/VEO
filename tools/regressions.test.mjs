@@ -1274,3 +1274,51 @@ test("Settings has an Android Auto diagnostics dialog: install source, car servi
   assert.match(c, /CarDiag\.log\(/);
   assert.match(s, /BoothAndroid\?\.showCarDiag/);
 });
+
+test('recommendations: an engine of what is new and interesting now, from every source, playable only (#442)', async () => {
+  const now = Date.UTC(2026, 9, 28);
+  const {store, kept} = memStore();
+  const day = 864e5;
+  const t = (id, o) => ({id, type: 'series', name: id, genres: [], rating: 7.5, votes: 5000, meter: 0, climb: 0, released: now - 30 * day, from: [], ...o});
+  kept.trend = {at: now, items: [
+    t('tt1', {meter: 3, climb: 40}),                                                         // hot and new
+    t('tt2', {meter: 2, released: now - 15 * 365 * day}),                                    // an old favourite, always popular
+    t('tt3', {genres: ['Documentary'], meter: 300, nfxIL: 8, nfx: 6}),                        // TYSON: a documentary, in both top 10s
+    t('tt4', {meter: 5, rating: 4.1, votes: 9000}),                                         // watched, and rated low
+    t('tt5', {meter: 9}),                                                                    // no source, on no service
+    t('tt6', {type: 'movie', meter: 50, nfxIL: 1}),
+    t('tt7', {il: true, meter: 0}),
+  ]};
+  const avail = {'series:tt5': [false, now, 2]};
+  const tr = await mini('data/trending.js', {
+    'core/bridge.js': {fetchText: async () => '', postText: async () => '{}'},
+    'core/store.js': {store},
+    'data/addons.js': {addons: [], catalogAll: async () => ({metas: []})},
+    'data/availability.js': {avail, availKnown: () => true, hasSources: async () => null, isNoSrc: e => e && !e[0] && e[2] >= 2, setAvail() {}},
+    'data/services.js': {svcOf: () => []},
+    'data/taste.js': {tasteFor: () => 0},
+  }, {Date: {now: () => now, UTC: Date.UTC}, Math, JSON, Promise, Object, Number, String, Set, Map, setTimeout});
+  const ids = async id => (await tr.trendCatalog(id)).metas.map(m => m.id);
+  const hot = await ids('trend.hot.all');
+  assert.ok(!hot.includes('tt5'));                                              // nothing that cannot be played
+  assert.ok(hot.indexOf('tt1') < hot.indexOf('tt2'));                            // new and climbing before an old favourite
+  assert.ok(hot.indexOf('tt4') > hot.indexOf('tt1'));                            // low-rated, held back
+  assert.deepEqual(await ids('trend.docs.all'), ['tt3']);
+  assert.deepEqual(await ids('trend.nfxil.all'), ['tt6', 'tt3']);                 // the top 10 in its order
+  assert.deepEqual(await ids('trend.ilnow.all'), ['tt7']);
+  assert.ok(!(await ids('trend.new.all')).includes('tt4'));                      // "new and hot" wants a decent title
+  const page = '<td class="title" data-uia="top10-table-row-title"><span class="rank">01</span><button>Nobody Wants This: Season 3</button></td>'
+    + '<td class="title" data-uia="top10-table-row-title"><span class="rank">02</span><button>TYSON: Limited Series</button></td>'
+    + '<td class="title" data-uia="top10-table-row-title"><span class="rank">03</span><button>Tom &amp; Jerry</button></td>';
+  assert.deepEqual([...tr.nfxNames(page)], ['Nobody Wants This', 'TYSON', 'Tom & Jerry']);
+  // the rows that used old lists now ask the engine
+  const home = await readFile(path.join(assets, 'js/screens/home.js'), 'utf8');
+  const cats = await readFile(path.join(assets, 'js/data/catalogs.js'), 'utf8');
+  assert.match(home, /trend\('hot', type, 'row\.featured'\)/);
+  assert.doesNotMatch(home, /row\.popularMovies/);
+  assert.match(cats, /\[TREND, 'trend\.ilnow\.all'/);
+  assert.doesNotMatch(cats, /\[BOOTH_ID, 'booth\.he\.movies'\]/);
+  // a row claims only the titles it draws (titles past its end were lost to every row below)
+  const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
+  assert.match(rows, /dedupe\(i, metas, rowMax\(\)\)/);
+});

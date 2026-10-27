@@ -25,7 +25,7 @@ export function setAvail(key, ok, sure = false){
   document.querySelectorAll(`[data-avail="${key}"]`).forEach(el => {
     if(none && el.contains(document.activeElement) && document.documentElement.dataset.nosrc === 'hide')
       (el.nextElementSibling || el.previousElementSibling)?.focus();
-    el.classList.toggle('nosrc', none);
+    el.classList.toggle('nosrc', none && !el.querySelector('.svcbadge'));   // on a service of the viewer's: watchable there
   });
   // one empty answer is not enough to hide a title (an add-on can answer empty for a moment): once more, soon
   if(!ok && !none) setTimeout(() => { if(document.querySelector(`[data-avail="${key}"]`) && !availKnown(key)){ availPending.add(key); if(!availBusy) availFlush(); } }, RECHECK_MS);

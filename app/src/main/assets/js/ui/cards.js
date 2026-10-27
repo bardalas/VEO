@@ -47,7 +47,8 @@ export function card(m, opts = {}){
     : `<div class="art noart">${esc(m.name)}${marks}${badge}${tag}</div>`;
   const name = heTitle(m.id, m.name);
   const key = /^tt\d+$/.test(m.id) && (m.type === 'movie' || m.type === 'series') ? `${m.type}:${m.id}` : '';
-  const none = key && typeof avail !== 'undefined' && isNoSrc(avail[key]);
+  // a title on one of the viewer's services has a way to be watched there ("צפייה ב־…"): no stream of its own is no reason to hide it
+  const none = key && !svc && typeof avail !== 'undefined' && isNoSrc(avail[key]);
   const rating = m.imdbRating ? `<small class="rate" title="IMDb">★ ${esc(m.imdbRating)}</small>` : '';
   const href = opts.href || `#/detail/${esc(m.type)}/${encodeURIComponent(m.id)}`;
   return `<a class="poster${none ? ' nosrc' : ''}${done ? ' watched' : ''}" data-id="${esc(m.id)}" ${key ? `data-avail="${key}"` : ''} href="${href}">${art}<div class="t"><span data-heid="${esc(m.id)}"${name !== m.name && name ? ` data-orig="${esc(m.name)}" title="${esc(m.name)}"` : ''} dir="${hasHebrew(name) ? 'rtl' : 'auto'}">${esc(name)}</span>${rating}</div><div class="y">${esc(yearOf(m))}</div></a>`;

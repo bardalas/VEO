@@ -8,6 +8,7 @@ import {heTitle} from '../data/hebrew.js';
 import {KID_GENRES, kidsChild, kidsOn, kidsOwn} from '../data/kids.js';
 import {GENRES, gridFrom, pageFilters, sortActive, sortBar, wireSortBar} from '../data/sort.js';
 import {TASTE_ADDON, becauseTitles, hasTaste} from '../data/taste.js';
+import {TREND_ADDON} from '../data/trending.js';
 import {dismissedContinue, latestPerTitle, progress} from '../data/watch.js';
 import {tr} from '../i18n.js';
 import {originsFor} from '../ui/origins.js';
@@ -31,13 +32,17 @@ export const GENRE_ROWS = {
   movie: ['Family', 'Animation', 'Comedy', 'Action', 'Thriller', 'Documentary', 'Sci-Fi', 'Horror'],
   series: ['Drama', 'Comedy', 'Crime', 'Documentary', 'Animation', 'Sci-Fi', 'Mystery'],
 };
-const THIS_YEAR = new Date().getFullYear();
+
+/** A row of the recommendation engine (data/trending.js): [row] of [type] ('movie', 'series' or 'all'). */
+const trend = (row, type, title) => ({a: TREND_ADDON, c: {type: type === 'all' ? 'movie' : type, id: `trend.${row}.${type}`}, title: tr(title), notype: true,
+  // Netflix's top 10 is a list in its order, and the documentaries a subject of their own: both whole, whatever the rows above hold
+  whole: row === 'nfxil' || row === 'docs'});
 
 export function typeRows(type){
   const rows = [];
   const cm = addons.find(a => a.manifest.id === CINEMETA_ID);
   const cmCat = id => (cm?.manifest.catalogs || []).find(c => c.id === id && c.type === type);
-  const top = cmCat('top'), best = cmCat('imdbRating'), year = cmCat('year');
+  const top = cmCat('top'), best = cmCat('imdbRating');
   // the kids profile: what is popular and best for children, and the genres they watch - every row filtered (data/kids.js)
   // (a series is let in by the family genre, so what is popular among series is asked of the family ones)
   rows.push(...tasteRows(type));
@@ -47,11 +52,12 @@ export function typeRows(type){
     if(top) for(const g of type === 'series' ? ['Animation'] : KID_GENRES) rows.push({a: cm, c: top, extra: `genre=${encodeURIComponent(g)}`, title: genreName(g), notype: true});
     return rows;
   }
-  if(year) rows.push({a: cm, c: year, extra: `genre=${THIS_YEAR}`, title: tr('row.new'), notype: true});
-  if(top) rows.push({a: cm, c: top, title: tr('row.trending'), notype: true});
+  // what is new and interesting now, from every source (#442) - not "everything dated this year" and Cinemeta's slow list
+  rows.push(trend('new', type, 'row.newHot'), trend('docs', type, 'row.docsHot'));
+  if(type === 'series') rows.push(trend('rising', 'series', 'row.rising'));
+  rows.push(trend('nfxil', type, 'row.nfxIL'));
   if(best) rows.push({a: cm, c: best, title: tr('row.best'), notype: true});
-  // the Israeli catalogues have a tab of their own; on All they are one row
-  if(originsFor(type).some(o => o.id === 'il')) rows.push({origins: ['il'], type, title: tr('origin.il')});
+  rows.push(trend('ilnow', type, 'row.ilNow'));
   if(top) for(const g of GENRE_ROWS[type] || []) rows.push({a: cm, c: top, extra: `genre=${encodeURIComponent(g)}`, title: genreName(g), notype: true});
   return rows;
 }
@@ -99,9 +105,9 @@ function kidsHome(){
 const svcIds = type => originsFor(type).filter(o => o.svc).map(o => o.id);
 export async function viewHome(){
   if(kidsChild()) return kidsHome();                   // a teenager's home is everyone's, filtered by age (data/kids.js)
-  // Cinemeta's popular rows, then the first row of every category.
-  const cm = addons.find(a => a.manifest.id === CINEMETA_ID);
-  const rows = cm ? (cm.manifest.catalogs || []).filter(c => c.id === 'top').map(c => ({a: cm, c, title: tr(c.type === 'movie' ? 'row.popularMovies' : 'row.popularSeries'), notype: true})) : [];
+  // what the engine finds new and interesting now (#442), the streaming services, then the first rows of every category
+  const rows = [trend('hot', 'all', 'row.hotNow'), trend('new', 'all', 'row.newHot'), trend('nfxil', 'all', 'row.nfxIL'),
+    trend('docs', 'all', 'row.docsHot'), trend('rising', 'series', 'row.rising')];
   if(addons.some(a => a.manifest.id === SC_ID)) rows.push(mergedRow('movie', tr('row.streamingMovies'), svcIds('movie')), mergedRow('series', tr('row.streamingSeries'), svcIds('series')));
   for(const cat of userCategories()){
     const r = rowsFor(cat);
@@ -136,14 +142,11 @@ export function viewCategory(id){
    (#288). */
 /** How many rows a television draws of the page: they load only as they come near the screen. */
 const TV_ROWS = 18;
-/** The sources of the type's home: all but the broadcasters, whose programmes are in Shows. */
-const homeOrigins = type => originsFor(type).filter(o => !o.shows);
 export function viewType(type){
-  const origins = homeOrigins(type);
   const top = `<div class="page pagehead typehead"><h1>${esc(tr(type === 'movie' ? 'cats.movies' : 'cats.series'))}</h1>
     <div class="srctabs" role="tablist"><a class="libgo" href="#/all/${type}">${tr(type === 'movie' ? 'lib.movies' : 'lib.series')}</a></div></div>`;
-  const wheel = {origins: origins.map(o => o.id), type, tabbed: true, badge: true, title: tr('row.featured')};
-  const rows = [...(origins.length ? [wheel] : []), ...typeRows(type)];
+  // the wheel: the engine's best of the type - not every source's list in turn, old Israeli catalogue included (#442)
+  const rows = [trend('hot', type, 'row.featured'), ...typeRows(type)];
   renderRows(isTvLayout() ? rows.slice(0, TV_ROWS) : rows, {top, cont: unfinished(type), contAt: 1});
   document.querySelector('.libgo').onclick = () => libraryFrom(type);
 }
