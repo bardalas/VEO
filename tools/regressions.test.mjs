@@ -1322,3 +1322,17 @@ test('recommendations: an engine of what is new and interesting now, from every 
   const rows = await readFile(path.join(assets, 'js/ui/rows.js'), 'utf8');
   assert.match(rows, /dedupe\(i, metas, rowMax\(\)\)/);
 });
+
+test('a title says what it is about: three lines in the wheel, "read more" on a TV title page that opens the whole summary (#444)', async () => {
+  const reel = await readFile(path.join(assets, 'css/reel.css'), 'utf8');
+  const detail = await readFile(path.join(assets, 'js/screens/detail.js'), 'utf8');
+  const sheets = await readFile(path.join(assets, 'js/ui/sheets.js'), 'utf8');
+  const tvnav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
+  assert.match(reel, /\.spotinfo p\{[^}]*-webkit-line-clamp:3/);
+  assert.doesNotMatch(reel, /\.spotinfo p\{[^}]*white-space:nowrap/);
+  assert.match(detail, /src\.insertAdjacentHTML\('beforeend', ` <button class="readmore" id="descmore">/);   // on #dsrc - a row of the remote's
+  assert.match(detail, /readSheet\(heTitle\(meta\.id, meta\.name\), fullDesc\)/);
+  assert.match(sheets, /class="body readtext" tabindex="0" data-scroll/);
+  assert.match(sheets, /if\(opener\?\.isConnected\) opener\.focus\(\)/);                                  // closed: back to "read more"
+  assert.match(tvnav, /closest\?\.\('\[data-scroll\]'\)/);                                               // the arrows scroll it (tvnav has them first)
+});

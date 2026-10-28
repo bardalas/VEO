@@ -417,6 +417,14 @@ addEventListener('keydown', e => {
   const a = document.activeElement;
   if(a && (a.tagName === 'INPUT' && !a.readOnly || a.tagName === 'SELECT' || a.classList?.contains('spectrum'))) return;   // typing / picking / moving a point on the colour plane
   e.preventDefault();
+  // a text to read ([data-scroll]: a title's whole summary) takes Up/Down while there is more of it that way - a remote has
+  // no other way to scroll it - and only at its ends do they move on (#444)
+  const text = a?.closest?.('[data-scroll]');
+  if(text && (dir === 'up' || dir === 'down')){
+    const before = text.scrollTop;
+    text.scrollTop += (dir === 'down' ? 1 : -1) * Math.round(text.clientHeight * 0.6);
+    if(text.scrollTop !== before) return;
+  }
   const now = performance.now();                     // a held key repeats fast: keep one move per ~55ms
   if(now - lastMoveAt < 55) return;
   moveGap = now - lastMoveAt;
