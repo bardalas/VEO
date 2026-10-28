@@ -53,8 +53,9 @@
 .spotinfo .facts span:not(:first-child)::before{content:"·";margin-inline-end:7px;opacity:.55}
 .spotinfo .facts .imdb{display:inline-flex;align-items:center;gap:5px;color:var(--light);font-weight:700}
 .spotinfo .facts .imdb i{background:#f5c518;color:#000;font:800 10px/1 var(--body);font-style:normal;padding:2px 4px;border-radius:3px}
-.spotinfo p{margin:0;font-size:11.5px;line-height:1.3;color:var(--text2);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* three lines of what it is about - one line, cut after a few words, said nothing (#444) */
+.spotinfo p{margin:0;font-size:11.5px;line-height:1.35;color:var(--text2);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 
 /* The two things to do with it stand one under the other, at the edge the row begins from: along the
    row you pass titles, down the column you pass what can be done with this one. */

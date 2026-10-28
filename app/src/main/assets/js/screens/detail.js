@@ -14,6 +14,7 @@ import {imdbTag, svcFacts} from '../data/services.js';
 import {library, progress} from '../data/watch.js';
 import {UI, tr} from '../i18n.js';
 import {card} from '../ui/cards.js';
+import {readSheet} from '../ui/sheets.js';
 import {nextEpisode} from '../ui/reel.js';
 import {startTaste, trailerId} from '../ui/taste.js';
 import {openPlayer} from '../ui/player.js';
@@ -90,9 +91,23 @@ export async function viewDetail(type, id, requestedVideoId = ''){
   }
   noteTaste({type, ...meta}, OPENED);                 // a page opened: a little of what the profile likes (data/taste.js)
   const saved = !!library[meta.id];
+  /* A television's title page shows the summary cut to a few lines, and its "read more" (in the text) is hidden: a
+     button in the text is not where the remote goes. When the text is cut, "read more" stands on the line under it
+     (#dsrc - a row of the remote's) and opens the whole of it over the page (#444). */
+  let fullDesc = meta.description || '';
+  const moreDesc = () => requestAnimationFrame(() => {
+    const el = $('#desc'), src = $('#dsrc');
+    if(!isTvLayout() || !el || !src || !inView()) return;
+    src.querySelector('#descmore')?.remove();
+    const shown = el.textContent.replace(/…$/, '').trim().length;
+    if(el.scrollHeight <= el.clientHeight + 4 && fullDesc.trim().length <= shown + 10) return;
+    src.insertAdjacentHTML('beforeend', ` <button class="readmore" id="descmore">${tr('detail.readMore')}</button>`);
+    $('#descmore').onclick = () => readSheet(heTitle(meta.id, meta.name), fullDesc);
+  });
   if(hebrewOn() && /^tt\d+$/.test(meta.id)) plotFor(meta.id, meta.description).then(plot => {
     const el = $('#desc');
     if(!inView() || !plot || !el) return;             // a summary belongs to the title that asked for it
+    fullDesc = plot.text;
     const PREVIEW = 650;
     const short = plot.text.length > PREVIEW ? plot.text.slice(0, plot.text.lastIndexOf(' ', PREVIEW)) + '…' : plot.text;
     const link = isTvLayout() ? tr('detail.wikiName')            // a link cannot be followed from a remote
@@ -111,7 +126,10 @@ export async function viewDetail(type, id, requestedVideoId = ''){
       el.innerHTML = esc(orig ? plot.text : plot.original).replace(/\n/g, '<br>');
       $('#mtorig').textContent = tr(orig ? 'detail.showOrig' : 'detail.showMt');
       $('#mtorig').dataset.on = orig ? '0' : '1';
+      fullDesc = orig ? plot.text : plot.original;
+      moreDesc();
     };
+    moreDesc();
     const h = app.querySelector('.detail h1');
     if(h && heCache[meta.id]?.t && !h.querySelector('.orig')) h.innerHTML = `${esc(heCache[meta.id].t)}<span class="orig"><bdi>${esc(meta.name)}</bdi></span>`;
   }).catch(() => {});
@@ -142,6 +160,7 @@ export async function viewDetail(type, id, requestedVideoId = ''){
             `<button data-season="${s}" class="sbtn">${s === 0 ? tr('detail.specials') : tr('detail.seasonN', {n: s})}</button>`).join('')}</div>` : ''}
           <div class="eps" id="eps"></div></div></div>
     </div>`;
+  moreDesc();                                         // the summary as the add-on gave it, until the Hebrew one comes
   document.body.classList.add('titlefit');             // on the TV a title page fits the screen, and its list scrolls
   // the age it is rated for, once Wikidata has said (kept on the device from then on)
   ratingsFor([meta.id]).then(() => {

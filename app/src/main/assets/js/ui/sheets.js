@@ -83,6 +83,23 @@ export async function openRtvKey(after){
  * A choice from a list, one line each, the current one marked: resolves with the value picked, or null
  * when the sheet is closed without one. [opts]: [[value, words], ...].
  */
+/** A title's whole summary over the page - a television's title page shows it cut to a few lines (#444). The arrows
+    scroll it ([data-scroll], ui/tvnav.js); at its ends they move on as everywhere; Back closes it. */
+export function readSheet(title, text){
+  document.querySelector('.sheet')?.remove();
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet readsheet';
+  sheet.innerHTML = `<div role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><b dir="auto">${esc(title)}</b><button data-back aria-label="${esc(tr('common.close'))}">✕</button></header>
+    <div class="body readtext" tabindex="0" data-scroll dir="auto">${esc(text).replace(/\n/g, '<br>')}</div></div>`;
+  const opener = document.activeElement;
+  document.body.appendChild(sheet);
+  // closed, the remote goes back to what opened it ("read more"), not to the top of the page
+  const close = () => { sheet.remove(); if(opener?.isConnected) opener.focus(); };
+  sheet.onclick = e => { if(e.target === sheet) close(); };
+  sheet.querySelector('header button').onclick = close;
+  sheet.querySelector('.readtext').focus();
+}
+
 export function pickFrom(title, opts, current){
   return new Promise(resolve => {
     document.querySelector('.sheet')?.remove();

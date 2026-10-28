@@ -32,6 +32,9 @@
 .dinfo .src{display:block;margin:-6px 0 8px;font-size:12px;color:var(--muted)}
 .dinfo .src a{color:var(--muted)}
 [data-layout="tv"] .desc .readmore{display:none}
+/* the whole summary, over the page (ui/sheets.js readSheet) */
+.readsheet .readtext{max-height:60vh;overflow:auto;padding:18px 22px 24px;font-size:17px;line-height:1.65;color:var(--text2);outline:none}
+[data-layout="tv"] .readsheet .readtext{font-size:22px}
 html[data-device="phone"] .desc .readmore{display:inline}          /* a finger can press it (#244) */
 .psrc{display:contents}
 /* ---------- a series: its seasons and its episodes ----------
