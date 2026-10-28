@@ -36,6 +36,11 @@ export function noteTaste(meta, weight){
   trimTo(taste.g, KEEP_GENRES); trimTo(taste.p, KEEP_PEOPLE); trimTo(taste.seen, KEEP_SEEN);
   store.lazy('taste', taste);
 }
+/** How much the profile likes [genres], 0..1 - measured against the genre it likes most (data/trending.js). */
+export function tasteFor(genres){
+  const most = Math.max(0, ...Object.values(taste.g));
+  return most ? Math.min(1, list(genres).reduce((s, g) => s + (taste.g[g] || 0), 0) / most) : 0;
+}
 /** Whether anything has been learnt yet: with nothing, there is nothing to suggest from. */
 export const hasTaste = () => Object.keys(taste.g).length > 0;
 /** The titles a "Because you watched" row can be about: the latest played or saved, newest first - in a kids

@@ -110,15 +110,21 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
 
   autoSpot($('#app .strip'));
   wireRemovable($('#contRow'));
-  // Each title appears once per page: it stays in the first (highest) row that has it.
+  // Each title appears once per page: it stays in the first (highest) row that has it. A row claims only the [n] it
+  // draws - claiming its whole list took titles past its end away from the rows below, which then drew neither (#442)
   const claimed = new Map();
-  const dedupe = (i, metas) => metas.filter(m => {
-    const j = claimed.get(m.id);
-    if(j !== undefined && j < i) return false;
-    if(j !== undefined && j > i) document.querySelectorAll(`#row${j} [data-id="${CSS.escape(m.id)}"]`).forEach(e => e.remove());
-    claimed.set(m.id, i);
-    return true;
-  });
+  const dedupe = (i, metas, n = Infinity) => {
+    const out = [];
+    for(const m of metas){
+      if(out.length >= n) break;
+      const j = claimed.get(m.id);
+      if(j !== undefined && j < i) continue;
+      if(j !== undefined && j > i) document.querySelectorAll(`#row${j} [data-id="${CSS.escape(m.id)}"]`).forEach(e => e.remove());
+      claimed.set(m.id, i);
+      out.push(m);
+    }
+    return out;
+  };
   const fillRow = async (x, i) => {
     const el = $('#row' + i);
     const again = () => fillRow(x, i);
@@ -232,7 +238,9 @@ export function renderRows(rows, {cont = [], heading = '', top = '', contAt = 0}
     try{
       const d = await catalogFetch(x.a, x.c.type, x.c.id, x.extra);
       const metas = x.keep ? (d.metas || []).filter(x.keep) : d.metas || [];     // [x.keep]: only some of the catalogue
-      if(el) el.innerHTML = dedupe(i, metas).slice(0, rowMax()).map(card).join('') || `<p class="note">${tr('row.empty')}</p>`;
+      // [x.whole]: a list that is whole or nothing - a top 10 in its order, a subject's best - is not thinned by the rows above
+      const shown = x.whole ? metas.slice(0, rowMax()) : dedupe(i, metas, rowMax());
+      if(el) el.innerHTML = shown.map(card).join('') || `<p class="note">${tr('row.empty')}</p>`;
     }catch(e){ showErr(el, tr('row.failedCat'), e, again); }
   };
   // the first row to answer offers the first title to the middle; whoever is already there keeps it

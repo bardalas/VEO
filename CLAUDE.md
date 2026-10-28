@@ -52,6 +52,7 @@ app/src/main/assets/
       ratings.js        age ratings (IMDb's IL/US certificates, then Wikidata)
       profiles.js       who is watching: the household's profiles
       taste.js          what a profile likes, learnt from what it does
+      trending.js       the recommendation engine: what is new and interesting now (IMDb charts and searches, Netflix's Top 10s), scored, playable only
       account.js sync.js  the household's account (Supabase) and keeping profiles the same on every device
     providers/          other people's catalogues
       kan.js reshet.js mako.js              broadcasters
