@@ -1,10 +1,11 @@
 /* ---------- who is watching: the picker, and a profile's own page ----------
    The picker comes up as the app starts whenever there is someone to choose (data/profiles.js), with the
    screen to itself; it is also where the menu's own entry leads, to change profile. A locked profile asks
-   for the parent code (ui/pin.js) - any profile can be locked, a teenager's too - and from a kids profile,
-   so does every profile looser than it: a grown-up's, or an older child's. The one the page is in simply
-   carries on. New profiles and changes to one are made on the profile's page, reached from Settings →
-   Profiles. What makes a profile looser asks for the code; what makes it stricter does not. */
+   for the parent code (ui/pin.js) - any profile can be locked, a teenager's too; one that is not locked
+   does not, whoever chooses it (its switch says so, and is what keeps children out: Settings → Profiles also
+   offers to lock every grown-up's at once, #446). The one the page is in simply carries on. New profiles and
+   changes to one are made on the profile's page, reached from Settings → Profiles. What makes a profile
+   looser asks for the code; what makes it stricter does not. */
 import {START, tuneLastChannel} from '../app.js';
 import {$, esc} from '../core/dom.js';
 import {AGE_LEVELS, IS_TV_DEVICE, setSetting, settings} from '../core/settings.js';
@@ -47,16 +48,14 @@ export function viewWho(){
   focusWho();
 }
 const focusWho = () => ($(`[data-pid="${CSS.escape(profileId)}"]`) || $('.whotile'))?.focus();
-/** How strict a profile is: the age of a kids profile, above every age for a grown-up's. */
-const strictness = p => isKids(p) ? AGE_LEVELS[settingsOf(p).kidsAge] ?? 9 : Infinity;
-/** [id] is who is watching. A locked profile first asks for the code - and so, from a kids profile, does one
-    looser than it: switching would otherwise be the way round what loosening a profile asks. Only the code
-    opens them: the grown-up's sum is for a parent at the kids profile's own settings, not for the picker. */
+/** [id] is who is watching. A locked profile first asks for the code - and only a locked one: a grown-up's profile
+    with its lock off used to ask too whenever the device was last left in a child's, which the switch said it would
+    not (#446). Only the code opens them: the grown-up's sum is for a parent at the kids profile's own settings, not
+    for the picker. */
 async function choose(id){
-  const p = profileById(id), here = currentProfile();
+  const p = profileById(id);
   if(!p) return;
-  const looser = p.id !== here.id && isKids(here) && strictness(p) > strictness(here);
-  if((p.lock || looser) && hasPin() && !await askPin(tr(p.lock ? 'prof.lockedAsk' : 'prof.switchAsk', {name: profileName(p)}), {sum: false})) return focusWho();
+  if(p.lock && hasPin() && !await askPin(tr('prof.lockedAsk', {name: profileName(p)}), {sum: false})) return focusWho();
   if(enterProfile(id)) return;                        // another profile: the page opens again in it, on its own start
   const kid = isKids(p);                              // this one: on to where it starts
   if(!kid && settings.start === 'lastch' && store.get('lastChannel', null)){ location.hash = '#/'; tuneLastChannel(); }
