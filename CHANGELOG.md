@@ -1,5 +1,16 @@
 # VEO Android changelog
 
+## 0.45.77 — 2026-10-28
+- **Recommendations of what is new and interesting now.** The home page, Movies and Series are built by one engine that crosses
+  IMDb's popularity charts and how fast a title climbs, Netflix's Top 10 in Israel and worldwide, new films, series and
+  documentaries, and your own taste - old and poorly rated titles are pushed down, and a title with no source is not shown.
+  New rows: "הכי מעניין עכשיו", "חדש ולוהט", "דוקו חם", "סדרות בעלייה", "טופ 10 של נטפליקס בישראל" (whole, in order).
+  Israeli content comes from what Israel is watching now - "ישראלי עכשיו", Israeli series and films - not an old list. (#442)
+- **A title says what it is about.** The wheel shows three lines of the summary instead of a few words, and on the TV a title
+  page whose summary is cut has "קרא עוד", which opens the whole of it (the arrows scroll it, Back closes it). (#444)
+- **The parent code is asked only for a locked profile.** Choosing an unlocked profile no longer asks for it because a
+  child's profile exists. (#446)
+
 ## 0.45.76 — 2026-10-26
 - **Kan and Reshet 13 episodes are kept in "המשך צפייה".** An episode watched from the broadcasters now gets a card with its
   picture and progress, and OK on it plays it again from where it was left. (Keshet 12 opens in mako's own site and is not
