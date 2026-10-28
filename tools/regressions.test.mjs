@@ -1336,3 +1336,10 @@ test('a title says what it is about: three lines in the wheel, "read more" on a 
   assert.match(sheets, /if\(opener\?\.isConnected\) opener\.focus\(\)/);                                  // closed: back to "read more"
   assert.match(tvnav, /closest\?\.\('\[data-scroll\]'\)/);                                               // the arrows scroll it (tvnav has them first)
 });
+
+test('choosing a profile asks for the parent code only when that profile is locked (#446)', async () => {
+  const prof = await readFile(path.join(assets, 'js/screens/profiles.js'), 'utf8');
+  assert.match(prof, /if\(p\.lock && hasPin\(\) && !await askPin\(tr\('prof\.lockedAsk'/);
+  assert.doesNotMatch(prof, /const looser = /);                                  // a child's profile no longer makes an unlocked one ask
+  assert.match(prof, /lockAll/);                                                 // what keeps children out stays: locking the grown-ups' profiles
+});

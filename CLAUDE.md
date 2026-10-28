@@ -224,8 +224,8 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   start once a session (sessionStorage `veo:who`) when there are 2+ profiles or the current one is locked; it is drawn
   before the add-ons load, `route()` sends every other address back to it until someone is chosen (except a grown-up's
   `#/profile/new`), no update/reminder card is shown over it, and Back there closes the app. Any profile can be locked
-  (parent code, `ui/pin.js`); from a kids profile, a looser one (grown-up, or older kids age) needs the code even if
-  unlocked. Making a profile looser needs it too. The grown-up's sum ("forgot the code") is never offered for locks or
+  (parent code, `ui/pin.js`); only a locked profile asks for it when chosen - its switch decides, whoever is choosing (#446;
+  Settings -> Profiles offers to lock every grown-up's at once). Making a profile looser needs the code. The grown-up's sum ("forgot the code") is never offered for locks or
   in teen tiers (`askPin(title, {sum})`). Turning kids on never replaces an existing household code. Native progress
   carries `pid` in its meta so `boothProgress` files it under the right profile.
   `booth.html`'s pre-paint script and `i18n.js` read the active profile's settings, not `booth:settings`.
