@@ -1,5 +1,12 @@
 # VEO Android changelog
 
+## 0.45.78 — 2026-10-30
+- **Watch history and favourites stay the same on every device.** What a sync brought from another device reached the
+  device's storage but not the app: it was not shown until the next launch, and the next watch or favourite here wrote the
+  old copy back and replaced what the account held, so history and favourites were lost. It now reaches the app at once and
+  is kept (reminders and the learnt taste too). The app also takes from the account each time it comes back to the screen, so
+  a television left open catches up. History lost earlier returns with the next watch on any device that still holds it. (#449)
+
 ## 0.45.77 — 2026-10-28
 - **Recommendations of what is new and interesting now.** The home page, Movies and Series are built by one engine that crosses
   IMDb's popularity charts and how fast a title climbs, Netflix's Top 10 in Israel and worldwide, new films, series and
