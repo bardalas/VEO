@@ -231,8 +231,11 @@ export async function boot(){
   if(bare && !picking && !kidsOn() && settings.start === 'lastch' && store.get('lastChannel', null)) tuneLastChannel();
   setTimeout(loadServices, 3000);
   // signed in to the household account: take what the other devices did, and send what this one did. A change to this
-  // profile is read again at once - but only once, and never while a title plays.
-  setTimeout(() => signedIn() && sync().then(r => { if(!r.changed) return; if(r.reload && !sessionStorage.getItem('veo:synced')){ sessionStorage.setItem('veo:synced', '1'); location.reload(); } else if(['', '#/', '#'].includes(location.hash)) route(); }).catch(() => {}), 4000);
+  // profile is read again at once - but only once, and never while a title plays. A television stays open for days, so
+  // this is done also each time the app comes back to the screen (#449).
+  const takeFromAccount = () => signedIn() && sync().then(r => { if(!r.changed) return; if(r.reload && !sessionStorage.getItem('veo:synced')){ sessionStorage.setItem('veo:synced', '1'); location.reload(); } else if(['', '#/', '#'].includes(location.hash)) route(); }).catch(() => {});
+  setTimeout(takeFromAccount, 4000);
+  addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') takeFromAccount(); });
   setTimeout(learnFromHistory, 12000);                 // a profile from before the app learnt tastes: from its history
   if(kidsOn()) return;                                 // no offers to install, no reminders of grown-up titles
   // nothing is offered over the picker: not an update, and not a reminder of a profile not yet chosen

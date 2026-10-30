@@ -12,6 +12,7 @@ import {tvFocus} from '../ui/tvnav.js';
    fails. Whoever wants it anyway can be reminded: the list is looked at when the app starts, at most
    once every six hours, and the first title that became watchable announces itself. */
 export let remind = store.get('remind', {});
+store.follow('remind', v => store.fillIn(remind, v));
 export const remindKey = ctx => ctx?.meta?.id ? `${ctx.type}:${ctx.meta.id}` : '';
 export function remindButton(ctx){
   const k = remindKey(ctx);

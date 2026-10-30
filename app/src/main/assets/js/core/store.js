@@ -69,6 +69,12 @@ export const store = {
   watch: null,
   /** Called with a profile's id when it is taken away. */
   removed: null,
+  /** What a module holds in memory of a key of this profile, told when a sync brings the key from another device (data/sync.js):
+      it is written back whole, so a copy left behind would wipe what was brought (#449). */
+  followers: {},
+  follow(k, fn){ store.followers[k] = fn; },
+  /** A module's object takes a value a sync brought, in place - the other modules hold the same object. */
+  fillIn(held, v){ for(const k of Object.keys(held)) if(!(k in (v || {}))) delete held[k]; Object.assign(held, v); },
   /** Everything a profile kept, gone with it. */
   dropProfile(pid){
     const pre = `booth:p/${pid}/`;

@@ -356,7 +356,7 @@ async function mini(entry, stubs, globals = {}){
   await m.evaluate();
   return m.namespace;
 }
-const memStore = () => { const kept = {}; return {kept, store: {get: (k, d) => kept[k] ?? d, set: (k, v) => { kept[k] = v; }, lazy: (k, v) => { kept[k] = v; }, dirty: {}}}; };
+const memStore = () => { const kept = {}; return {kept, store: {get: (k, d) => kept[k] ?? d, set: (k, v) => { kept[k] = v; }, lazy: (k, v) => { kept[k] = v; }, follow(){}, dirty: {}}}; };
 /** A translator that answers like Google's: one segment per line, each [translation, original]. */
 const gtx = (calls, fail) => async url => {
   calls.push(url);
@@ -1342,4 +1342,75 @@ test('choosing a profile asks for the parent code only when that profile is lock
   assert.match(prof, /if\(p\.lock && hasPin\(\) && !await askPin\(tr\('prof\.lockedAsk'/);
   assert.doesNotMatch(prof, /const looser = /);                                  // a child's profile no longer makes an unlocked one ask
   assert.match(prof, /lockAll/);                                                 // what keeps children out stays: locking the grown-ups' profiles
+});
+
+test('what a sync brings reaches the app, and the next write on this device does not wipe it (#449)', async () => {
+  // two devices - the real store, watch and sync, each with its own storage - and one account, its rows hours apart
+  const rows = new Map();
+  let clock = 1000;
+  const call = async (url, {method = 'GET', body} = {}) => {
+    const [table, query = ''] = url.replace('/rest/v1/', '').split('?');
+    if(table === 'profiles') return method === 'GET' ? [{id: 'p1', data: {name: 'a'}, deleted: false}] : null;
+    if(method !== 'GET'){
+      for(const r of body) rows.set(r.key, {...r, updated_at: new Date(++clock * 3600e3).toISOString()});
+      return null;
+    }
+    const since = Date.parse(decodeURIComponent(/updated_at=gt\.([^&]+)/.exec(query)?.[1] || '')) || 0;
+    return [...rows.values()].filter(r => Date.parse(r.updated_at) > since);
+  };
+  const device = async () => {
+    const mem = new Map([['booth:profiles', '[{"id":"p1","name":"a"}]'], ['booth:profile', '"p1"']]);
+    const localStorage = {getItem: k => mem.has(k) ? mem.get(k) : null, setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k)};
+    const context = vm.createContext({console, localStorage, addEventListener(){}, setTimeout: () => 0, clearTimeout(){}, document: {visibilityState: 'visible'}});
+    const stubs = {'data/account.js': {accessToken: async () => 't', accountId: () => 'u', signedIn: () => true, call}};
+    const modules = new Map();
+    const get = async rel => {
+      rel = path.posix.normalize(rel);
+      if(modules.has(rel)) return modules.get(rel);
+      const def = stubs[rel];
+      const m = def ? new vm.SyntheticModule(Object.keys(def), function(){ for(const [k, v] of Object.entries(def)) this.setExport(k, v); }, {context, identifier: rel})
+        : new vm.SourceTextModule(await readFile(path.join(assets, 'js', rel), 'utf8'), {context, identifier: rel});
+      modules.set(rel, m);
+      return m;
+    };
+    const load = async rel => {
+      const m = await get(rel);
+      if(m.status === 'unlinked') await m.link((s, ref) => get(path.posix.join(path.posix.dirname(ref.identifier), s)));
+      if(m.status === 'linked') await m.evaluate();
+      return m.namespace;
+    };
+    const watch = await load('data/watch.js'), {sync} = await load('data/sync.js'), {store} = await load('core/store.js');
+    return {sync, store, watch,
+      play(id, at){ watch.progress[id] = {t: 100, d: 3000, at, metaId: id, type: 'movie'}; store.set('progress', watch.progress); },
+      save(id){ watch.library[id] = {id}; store.set('library', watch.library); }};
+  };
+  const ids = o => Object.keys(o || {}).sort().join(' ');
+
+  const phone = await device(), tv = await device();
+  await tv.sync();                                       // the television is open before anything happens on the phone
+  phone.play('A', 1); phone.save('F1');
+  await phone.sync();
+  await tv.sync();
+  assert.equal(ids(tv.watch.progress), 'A');             // shown now, not at the next launch
+  assert.equal(ids(tv.watch.library), 'F1');
+  assert.equal(tv.watch.progressIdx.has('A'), true);
+  tv.play('B', 2); tv.save('F2');
+  await tv.sync();
+  assert.equal(ids(rows.get('progress').value), 'A B');  // the television's write did not wipe the phone's
+  assert.equal(ids(rows.get('library').value), 'F1 F2');
+  const fresh = await device();
+  await fresh.sync();
+  assert.equal(ids(fresh.store.get('progress', {})), 'A B');
+  assert.equal(ids(fresh.store.get('library', {})), 'F1 F2');
+  // a history entry not yet stored here (later than what came) is not replaced by what the sync joined
+  tv.watch.progress.A = {...tv.watch.progress.A, at: 9};
+  tv.store.followers.progress({A: {at: 1, metaId: 'A'}});
+  assert.equal(tv.watch.progress.A.at, 9);
+  // a favourite removed elsewhere goes here too
+  tv.store.followers.library({F2: {id: 'F2'}});
+  assert.equal(ids(tv.watch.library), 'F2');
+  // and each of the other pieces held in memory is told; the app takes from the account when it comes back to the screen
+  assert.match(await readFile(path.join(assets, 'js/data/reminders.js'), 'utf8'), /store\.follow\('remind'/);
+  assert.match(await readFile(path.join(assets, 'js/data/taste.js'), 'utf8'), /store\.follow\('taste'/);
+  assert.match(await readFile(path.join(assets, 'js/app.js'), 'utf8'), /visibilityState === 'visible'\) takeFromAccount\(\)/);
 });
