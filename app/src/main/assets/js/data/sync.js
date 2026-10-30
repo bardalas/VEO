@@ -133,7 +133,7 @@ async function pull(){
       const differs = JSON.stringify(store.getFor(r.profile_id, r.key, null)) !== JSON.stringify(v);   // the look-back re-reads rows already held: only a real change counts
       if(!differs) continue;
       store.setFor(r.profile_id, r.key, v);
-      if(r.profile_id === profileId){ changedHere = true; if(r.key === 'settings') needsReload = true; }
+      if(r.profile_id === profileId){ changedHere = true; store.followers[r.key]?.(v); if(r.key === 'settings') needsReload = true; }
     }
   }finally{ applying = false; }
   // the cursor is the newest time the SERVER gave, a few seconds back so a row committed just behind it is not missed (taking a row twice is harmless)

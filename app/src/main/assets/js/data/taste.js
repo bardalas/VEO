@@ -19,6 +19,7 @@ export const OPENED = 1, PLAYED = 3, FAVOURED = 4;
 const FADE = 0.98;
 const KEEP_GENRES = 30, KEEP_PEOPLE = 60, KEEP_SEEN = 500, KEEP_LAST = 8;
 const taste = Object.assign({g: {}, p: {}, seen: {}, last: []}, store.get('taste', {}));
+store.follow('taste', v => Object.assign(taste, {g: {}, p: {}, seen: {}, last: []}, v));
 const list = x => [].concat(x || []).filter(v => typeof v === 'string' && v);
 const top = (obj, n) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
 const trimTo = (obj, n) => { const keep = new Set(top(obj, n).map(([k]) => k)); for(const k in obj) if(!keep.has(k)) delete obj[k]; };

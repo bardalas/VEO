@@ -66,6 +66,13 @@ export function pruneProgress(){
   for(const id of ids.sort((a, b) => (progress[b].at || 0) - (progress[a].at || 0)).slice(400)) delete progress[id];
 }
 indexProgress();
+/* What a sync brings from another device reaches the objects everything reads (#449). The history: the later of the two for
+   each video - a write waiting to be stored (ui/ytplayer.js) is newer than what the sync joined. */
+store.follow('library', v => store.fillIn(library, v));
+store.follow('progress', v => {
+  for(const [id, x] of Object.entries(v || {})) if(!progress[id] || (x.at || 0) > (progress[id].at || 0)) progress[id] = x;
+  indexProgress();
+});
 /** Forget everything watched (Settings): "continue watching" and the marks on posters start from nothing. */
 export function clearProgress(){
   for(const id of Object.keys(progress)) delete progress[id];
