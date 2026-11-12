@@ -23,6 +23,7 @@ export const ROWS_SEL = [
   '.sheet header', '.sheet .body', '.tstat', '.update', '#player header',  // sheets and floating cards
   '.catorder', '.colorpickers', '.hsvrow', '.coloractions', '.addpl', '.add', '.addon', // settings lists, colour picker, add-ons
   '.whos', '.whoacts', '.profhead', '.avgrid', '.profacts',                // who is watching, and a profile's page
+  '.ytsearch',                                                             // the YouTube tab: its search and its sign-in
 ].join(', ');
 // offsetParent is null for position:fixed elements (per spec) even when they're plainly on
 // screen - the rail, the update card and the torrent-status card are all fixed. A size check

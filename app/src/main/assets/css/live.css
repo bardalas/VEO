@@ -132,3 +132,11 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 
 /* a broadcaster's own site, opened in the app */
 .openbtn{display:inline-flex;align-items:center;gap:8px}
+/* the YouTube tab (screens/youtube.js) */
+.ytsearch{display:flex;gap:12px;align-items:center;margin:0 0 18px}
+.ytsearch form{flex:1;max-width:560px}
+.ytsearch .field{width:100%}
+.ytgrid{grid-template-columns:repeat(auto-fill,minmax(calc(var(--poster-w) * 1.55),1fr))}
+.ytsignsheet .body{text-align:center;padding:18px 22px 24px}
+.ytsignsheet .ytcode{font-size:40px;font-weight:700;letter-spacing:.12em;margin:8px 0 14px}
+.ytsignsheet .ytqr svg{width:180px;height:180px;background:#fff;border-radius:10px}

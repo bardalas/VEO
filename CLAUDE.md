@@ -54,6 +54,7 @@ app/src/main/assets/
       taste.js          what a profile likes, learnt from what it does
       trending.js       the recommendation engine: what is new and interesting now (IMDb charts and searches, Netflix's Top 10s), scored, playable only
       account.js sync.js  the household's account (Supabase) and keeping profiles the same on every device
+      youtube.js        YouTube itself: search and the viewer's own account (TV device sign-in, internal TVHTML5 API)
     providers/          other people's catalogues
       kan.js reshet.js mako.js              broadcasters
       web.js                                the Magazine: internet programmes, read as YouTube feeds
@@ -64,7 +65,7 @@ app/src/main/assets/
       tvnav.js sheets.js (a code typed on screen, a choice from a list) pin.js (the parent code) report.js (a problem, reported; QR)
     screens/            one file per screen, each exporting its view function
       home.js catalog.js (the library of a type) detail.js search.js library.js (favourites) live.js
-      broadcasters.js web.js settings.js addons.js profiles.js signin.js
+      broadcasters.js web.js youtube.js (the YouTube tab) settings.js addons.js profiles.js signin.js
 ```
 
 A module may use anything from a layer below it (core → data → providers → ui → screens → app.js);
@@ -202,7 +203,12 @@ and the categories carry the pills (`SORT_GROUPS`: Genre, Service, Year, Rating,
 `pageFilters`); when any pill is on, `gridFrom()` shows one ranked grid and states how many titles, how
 sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated titles of that genre
 (`withGenreRows`). Genres are not a page any more (`viewGenre` just sets the filter, for old links).
-- **The menu**: Home, Movies, Series, **Shows**, Live, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
+- **The YouTube tab** (`#/yt`, `screens/youtube.js`, `data/youtube.js`, #452): free search, and once signed in the viewer's
+  own YouTube - home, history, subscriptions, Watch Later, playlists. Sign-in is YouTube's TV app's device flow (a code
+  typed at google.com/device); the token is a device key `ytAuth:<profile>` (never synced) and opens YouTube's internal
+  API as the TVHTML5 client - not an official API, so this is the file to mend when YouTube changes. Videos play in
+  `ui/ytplayer.js` with the app's Hebrew captions. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
+- **The menu**: Home, Movies, Series, **Shows**, Live, YouTube, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
   `screens/broadcasters.js` `viewShows`) holds the broadcasters' programmes (Kan, Keshet, Reshet): tabs over the page,
   All = a wheel of every programme, what aired last and a row per broadcaster. Each broadcaster's tab is laid out
   alike: a wheel of all its programmes, then a row per genre (Kan's sections, `MAKO_GENRES`, Reshet's `Genre` tags).

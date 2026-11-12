@@ -1414,3 +1414,48 @@ test('what a sync brings reaches the app, and the next write on this device does
   assert.match(await readFile(path.join(assets, 'js/data/taste.js'), 'utf8'), /store\.follow\('taste'/);
   assert.match(await readFile(path.join(assets, 'js/app.js'), 'utf8'), /visibilityState === 'visible'\) takeFromAccount\(\)/);
 });
+
+test('the YouTube tab reads YouTube as its television app does: shelves, tiles and lockups, no ads, the library without its history (#452)', async () => {
+  const {ytShelves} = await mini('data/youtube.js', {'core/bridge.js': {postText: async () => '{}'}, 'core/store.js': {profileId: 'p1', store: memStore().store}});
+  const tile = (id, title, extra = {}) => ({tileRenderer: {contentId: id, contentType: 'TILE_CONTENT_TYPE_VIDEO',
+    header: {tileHeaderRenderer: {thumbnail: {thumbnails: [{url: 'small'}, {url: 'big'}]}, thumbnailOverlays: [{thumbnailOverlayTimeStatusRenderer: {text: {simpleText: '3:39'}}}]}},
+    metadata: {tileMetadataRenderer: {title: {simpleText: title}, lines: [{lineRenderer: {items: [{lineItemRenderer: {text: {simpleText: 'Chan'}}}]}},
+      {lineRenderer: {items: [{lineItemRenderer: {text: {runs: [{text: '‫55M‏‬ צפיות'}]}}}]}}]}}, ...extra}});
+  const ad = {tileRenderer: {contentId: 'adadadadada', contentType: 'TILE_CONTENT_TYPE_VIDEO', metadata: {tileMetadataRenderer: {title: {simpleText: 'buy'},
+    lines: [{lineRenderer: {items: [{lineItemRenderer: {badge: {adBadgeViewModel: {}}}}]}}]}}}};
+  const home = {contents: {tvBrowseRenderer: {content: {tvSurfaceContentRenderer: {content: {sectionListRenderer: {contents: [
+    {shelfRenderer: {headerRenderer: {shelfHeaderRenderer: {title: {simpleText: 'מומלצים'}}}, content: {horizontalListRenderer: {items: [tile('aaaaaaaaaaa', 'One'), ad]}}}},
+    {shelfRenderer: {endpoint: {browseEndpoint: {browseId: 'FEhistory'}}, headerRenderer: {shelfHeaderRenderer: {title: {simpleText: 'היסטוריה'}}},
+      content: {horizontalListRenderer: {items: [{tileRenderer: {contentType: 'TILE_CONTENT_TYPE_CHANNEL', contentId: 'FEhistory', metadata: {tileMetadataRenderer: {}}}}]}}}},
+  ]}}}}}}};
+  const sh = ytShelves(home);
+  assert.equal(sh.length, 1);                                       // the ad went, and so did a tile with no name
+  assert.deepEqual([sh[0].title, sh[0].items.length, sh[0].items[0].id, sh[0].items[0].pic, sh[0].items[0].dur, sh[0].items[0].sub],
+    ['מומלצים', 1, 'aaaaaaaaaaa', 'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg', '3:39', 'Chan · 55M צפיות']);
+  const search = {contents: {sectionListRenderer: {contents: [{shelfRenderer: {title: {simpleText: 'תוצאות'}, content: {horizontalListRenderer: {items: [
+    {lockupViewModel: {contentId: 'PLx', contentType: 'LOCKUP_CONTENT_TYPE_PLAYLIST', contentImage: {thumbnailViewModel: {image: {sources: [{url: 'p'}]}}},
+      metadata: {lockupMetadataViewModel: {title: {content: 'A list'}}}}}]}}}}]}}};
+  const pl = ytShelves(search)[0].items[0];
+  assert.deepEqual([pl.kind, pl.browse, pl.pic], ['playlist', 'VLPLx', 'p']);   // a playlist opens as a page
+  // wired: a menu entry, a route, a D-pad row; the library leaves out its history shelf; out of every kids profile
+  const read = f => readFile(path.join(assets, f), 'utf8');
+  assert.match(await read('booth.html'), /href="#\/yt" data-r="yt"/);
+  assert.match(await read('js/app.js'), /else if\(r === 'yt'\) viewYouTube\(a, b, c\)/);
+  assert.match(await read('js/ui/tvnav.js'), /'\.ytsearch'/);
+  assert.doesNotMatch(await read('js/ui/tvnav.js'), /'\.ytbar'/);                // the player's seek bar (.ytbar) is not a row
+  assert.match(await read('js/screens/youtube.js'), /s\.browse !== 'FEhistory'/);
+  assert.match(await read('css/settings.css'), /:root\[data-kids\^="teen"\] \.nav a\[data-r="yt"\]/);
+  assert.doesNotMatch(await read('js/core/store.js'), /'ytAuth/);                  // the token is the device's: never synced
+});
+
+test('no string is defined twice in a language: the second silently replaces the first (#452 - the YouTube tab once renamed the captions)', async () => {
+  const src = await readFile(path.join(assets, 'js/i18n.js'), 'utf8');
+  for(const lang of ['he', 'en']){
+    const start = src.indexOf(`\n${lang}: {`);
+    assert.ok(start >= 0, lang);
+    const body = src.slice(start, src.indexOf('\n}', start + 1));
+    const keys = [...body.matchAll(/^\s*'([\w.:-]+)':|,\s*'([\w.:-]+)':/gm)].map(m => m[1] || m[2]);
+    const twice = keys.filter((k, i) => keys.indexOf(k) !== i);
+    assert.deepEqual(twice, [], lang);
+  }
+});

@@ -31,6 +31,7 @@ import {paintRailProfile, viewProfile, viewWho} from './screens/profiles.js';
 import {viewSearch} from './screens/search.js';
 import {viewSettings} from './screens/settings.js';
 import {viewWebShow} from './screens/web.js';
+import {viewYouTube} from './screens/youtube.js';
 import {endTaste} from './ui/taste.js';
 import {markNav, openRail} from './ui/rail.js';
 import {signedIn} from './data/account.js';
@@ -104,7 +105,7 @@ export async function route(){
   document.body.classList.toggle('who', r === 'who');   // the picker has the screen to itself (screens/profiles.js)
   // the menu lights the place you are in; a title or a search keeps the one it was opened from
   markNav(r === '' ? 'home' : r === 'cat' ? (['movies', 'series'].includes(a) ? a : '') : r === 'all' ? (a === 'movie' ? 'movies' : 'series')
-    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : ['live', 'library', 'settings', 'who'].includes(r) ? r
+    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : ['live', 'yt', 'library', 'settings', 'who'].includes(r) ? r
     : r === 'profile' || r === 'report' ? 'settings' : '');
   if(['', 'cat', 'all', 'genres', 'genre', 'search', 'library', 'shows', 'tv'].includes(r)) listHash = location.hash || '#/';
   if(r === 'genres') viewGenres();
@@ -114,6 +115,7 @@ export async function route(){
   else if(r === 'tv') viewTv(a);
   else if(r === 'shows') viewShows(a);
   else if(r === 'web') viewWebShow(a);
+  else if(r === 'yt') viewYouTube(a, b, c);
   else if(r === 'mako') viewMakoProgram(a, b);
   else if(r === 'cat') viewCategory(a);
   else if(r === 'all') viewAll(a);
