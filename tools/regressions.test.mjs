@@ -1552,3 +1552,13 @@ test("a profile's YouTube sign-in follows it to every device; the hour's token s
   assert.equal(JSON.stringify(b.store.get('ytAuth', null)), '{"refresh":"R2"}');
   assert.equal(JSON.stringify(was), '{"refresh":"R1"}');            // B held the old one when it asked
 });
+
+test('every row of titles turns inside its frame: a bare strip moved the whole page aside, the menu with it (#460)', async () => {
+  const dir = path.join(assets, 'js/screens');
+  for(const f of ['youtube.js', 'search.js']){
+    const src = await readFile(path.join(dir, f), 'utf8');
+    assert.match(src, /import \{reel\} from '\.\.\/ui\/rows\.js';/, f);
+    assert.doesNotMatch(src, /<div class="strip/, f);              // a row is reel(...): .reelwrap clips the wheel's turning
+  }
+  assert.match(await readFile(path.join(assets, 'css/reel.css'), 'utf8'), /\.reelwrap\{overflow:hidden;/);
+});

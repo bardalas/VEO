@@ -10,6 +10,7 @@ import {makoCard, makoPrograms} from '../providers/mako.js';
 import {r13card, r13row} from '../providers/reshet.js';
 import {tr} from '../i18n.js';
 import {card, skeletons} from '../ui/cards.js';
+import {reel} from '../ui/rows.js';
 
 /**
   * The broadcasters' own catalogues are lists the app already holds (or fetches once and keeps), so
@@ -40,7 +41,8 @@ async function searchChannels(q, host){
     }).catch(() => {}),
   ]);
   if(!rows.length || !host.isConnected) return;
-  host.innerHTML = rows.map(r => `<div class="row"><h2>${esc(r.name)}</h2><div class="strip">${r.html}</div></div>`).join('');
+  // each a wheel in its frame (ui/rows.js reel): a bare strip turning along moved the whole page aside (#460)
+  host.innerHTML = rows.map(r => `<div class="row"><h2>${esc(r.name)}</h2>${reel(r.html)}</div>`).join('');
 }
 
 /** What a search finds carries no genres: in the kids profile each title is judged by its own page. */
@@ -54,12 +56,12 @@ export async function viewSearch(q){
   $('#q').value = q;
   const app = $('#app');
   const cats = addons.flatMap(a => (a.manifest.catalogs||[]).filter(c => (c.extra||[]).some(e => e.name === 'search') || (c.extraSupported||[]).includes('search')).map(c => ({a, c})));
-  app.innerHTML = `<div class="page searchpage"><h1>${esc(tr('search.results', {q}))}</h1><div class="searchrows" id="searchRows"><div id="sChan"></div>${cats.map((x,i) => `<div class="row"><h2>${esc(typeName(x.c.type))} ${esc(x.a.manifest.name)}</h2><div class="strip" id="s${i}">${skeletons(6)}</div></div>`).join('') || `<p class="note">${esc(tr('search.noAddons'))}</p>`}</div></div>`;
+  app.innerHTML = `<div class="page searchpage"><h1>${esc(tr('search.results', {q}))}</h1><div class="searchrows" id="searchRows"><div id="sChan"></div>${cats.map((x,i) => `<div class="row"><h2>${esc(typeName(x.c.type))} ${esc(x.a.manifest.name)}</h2>${reel(skeletons(6), 's' + i)}</div>`).join('') || `<p class="note">${esc(tr('search.noAddons'))}</p>`}</div></div>`;
   // the broadcasters answer from lists already in hand, so their row comes up first
   // the kids profile searches only what can be judged: the broadcasters' programmes carry no genres
   if(!kidsChild()) searchChannels(q, $('#sChan'));
   if(hasHebrew(q)){
-    $('#searchRows').insertAdjacentHTML('afterbegin', `<div class="row"><h2>${esc(tr('search.hebrew'))} </h2><div class="strip" id="sHe">${skeletons(6)}</div></div>`);
+    $('#searchRows').insertAdjacentHTML('afterbegin', `<div class="row"><h2>${esc(tr('search.hebrew'))} </h2>${reel(skeletons(6), 'sHe')}</div>`);
     // the strip this query built: a later query builds its own, and an answer to this one must not
     // be written into it
     const heStrip = $('#sHe');

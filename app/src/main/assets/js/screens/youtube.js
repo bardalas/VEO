@@ -9,6 +9,7 @@ import {tr} from '../i18n.js';
 import {progress} from '../data/watch.js';
 import {onYtSignIn, ytBrowse, ytSearch, ytSignCheck, ytSignedIn, ytSignOut, ytSignStart} from '../data/youtube.js';
 import {qrSvg} from '../ui/report.js';
+import {reel} from '../ui/rows.js';
 
 /** A video plays; a playlist or a channel opens. Shorts are left out: an upright picture on a television. */
 function ytCard(it){
@@ -21,7 +22,8 @@ function ytCard(it){
 }
 const shown = items => items.filter(it => it.kind !== 'short');
 const row = (title, items) => shown(items).length
-  ? `<div class="row"><h2 dir="auto">${esc(title)}</h2><div class="strip">${shown(items).map(ytCard).join('')}</div></div>` : '';
+  // a wheel in its frame (ui/rows.js reel): a bare strip turning ten titles along moved the whole page aside with it (#460)
+  ? `<div class="row"><h2 dir="auto">${esc(title)}</h2>${reel(shown(items).map(ytCard).join(''))}</div>` : '';
 const rows = shelves => shelves.map(s => row(s.title, s.items)).join('');
 
 /** What this profile watched of YouTube in the app, on any of its devices, newest first - as the tab's items. YouTube's
