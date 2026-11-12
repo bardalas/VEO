@@ -1,5 +1,14 @@
 # VEO Android changelog
 
+## 0.45.80 — 2026-11-12
+- **YouTube: each profile's sign-in follows it to every TV.** Signed in once, the profile is signed in to the same YouTube
+  on every device that opens it (kept with the profile in the household's account). Signing out signs it out everywhere.
+- **Signing in is a scan.** Signed out, the YouTube tab shows the QR and the code in the middle of the page; the QR
+  carries the code, so the phone only has to approve. Typing the code at google.com/device still works.
+- **"צפיתם לאחרונה" starts with what you watched in VEO**, on any device, with how far you got - YouTube's own history
+  never hears of what plays in the app. Then YouTube's own history.
+- **The search is easy to reach:** larger, with a clear mark, and where the remote lands coming from the menu. (#457)
+
 ## 0.45.79 — 2026-11-12
 - **A YouTube tab.** A new entry in the menu: search anything on YouTube, and - signed in to your own YouTube account
   (a code shown on the TV, typed on a phone at google.com/device) - your history, your YouTube home, new from your
