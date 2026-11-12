@@ -138,6 +138,9 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 .ytsearch .field{width:100%;font:600 22px var(--body);padding:12px 16px;border:2px solid var(--line);border-radius:12px;background:var(--surface)}
 .ytsearch .field:focus{border-color:var(--light);background:var(--raise);box-shadow:0 0 0 3px var(--night),0 0 0 6px var(--light);outline:0}
 .ytgrid{grid-template-columns:repeat(auto-fill,minmax(calc(var(--poster-w) * 1.55),1fr))}
-.ytsignsheet .body{text-align:center;padding:18px 22px 24px}
-.ytsignsheet .ytcode{font-size:40px;font-weight:700;letter-spacing:.12em;margin:8px 0 14px}
-.ytsignsheet .ytqr svg{width:180px;height:180px;background:#fff;border-radius:10px}
+.ytsignin{max-width:820px;margin:28px auto 34px;padding:26px 32px;text-align:center;border:1px solid var(--line);border-radius:18px;background:var(--surface)}
+.ytsignin h2{margin:0 0 6px;font-size:28px}
+.ytsignway{display:flex;gap:32px;align-items:center;justify-content:center;margin-top:14px;text-align:start}
+.ytsignway p{margin:0 0 6px}
+.ytsignin .ytcode{font-size:40px;font-weight:700;letter-spacing:.08em;white-space:nowrap;margin:8px 0 10px}
+.ytsignin .ytqr svg{display:block;width:190px;height:190px;background:#fff;border-radius:10px}

@@ -1443,6 +1443,7 @@ test('the YouTube tab reads YouTube as its television app does: shelves, tiles a
   assert.match(await read('js/ui/tvnav.js'), /'\.ytsearch'/);
   assert.doesNotMatch(await read('js/ui/tvnav.js'), /'\.ytbar'/);                // the player's seek bar (.ytbar) is not a row
   assert.match(await read('js/screens/youtube.js'), /s\.browse !== 'FEhistory'/);
+  assert.match(await read('js/screens/youtube.js'), /if\(!signed\)\{ signIn\(\$\('#ytsignin'\)\); return; \}/);   // signed out: the code and its QR in the page itself (#457)
   assert.match(await read('css/settings.css'), /:root\[data-kids\^="teen"\] \.nav a\[data-r="yt"\]/);
   assert.match(await read('js/core/store.js'), /'lastChannel', 'ytAuth']/);       // the sign-in follows the profile (#457)
 });

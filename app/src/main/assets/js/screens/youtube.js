@@ -37,33 +37,33 @@ function bar(q = '', land = false){
   const signed = ytSignedIn();
   // [land]: arriving from the menu, the remote lands on the search - the rows below it are long (ui/tvnav.js data-land)
   return `<div class="ytsearch"><form id="ytform"><input type="search" class="field" id="ytq" value="${esc(q)}" placeholder="${esc(tr('ytab.search'))}" dir="auto"${land ? ' data-land' : ''}></form>
-    <button class="qbtn" id="ytsign">${tr(signed ? 'ytab.signOut' : 'ytab.signIn')}</button></div>`;
+    ${signed ? `<button class="qbtn" id="ytsign">${tr('ytab.signOut')}</button>` : ''}</div>`;
 }
 function wireBar(){
   const q = $('#ytq');
   $('#ytform').onsubmit = e => { e.preventDefault(); if(q.value.trim()) location.hash = '#/yt/s/' + encodeURIComponent(q.value.trim()); };
   // the field is unlocked by its first OK on a television (ui/tvnav.js armInput); Enter after that searches
   q.addEventListener('keydown', e => { if(e.key === 'Enter' && !e.defaultPrevented && !q.readOnly){ e.preventDefault(); $('#ytform').requestSubmit(); } });
-  $('#ytsign').onclick = () => {
-    if(!ytSignedIn()) return signIn();
+  if($('#ytsign')) $('#ytsign').onclick = () => {
     const b = $('#ytsign');
     if(b.dataset.sure){ ytSignOut(); viewYouTube(); return; }           // a second press: it is not undone by accident
     b.dataset.sure = '1'; b.textContent = tr('ytab.signOutSure');
   };
 }
 
-/** The tab: signed in, the viewer's own YouTube; signed out, YouTube's home and a way to sign in. */
+/** The tab: signed in, the viewer's own YouTube; signed out, the way in - the code and its QR in the middle of the page,
+    there already, not behind a button - and what was watched in the app. */
 async function viewTab(){
   const signed = ytSignedIn();
   $('#app').innerHTML = `<div class="page ytpage">${bar('', true)}
-    ${signed ? '' : `<p class="note">${tr('ytab.why')}</p>`}
+    ${signed ? '' : '<div class="ytsignin" id="ytsignin"></div>'}
     <div id="ythist"></div><div id="ythome"></div><div id="ytsubs"></div><div id="ytlib"></div></div>`;
   wireBar();
   const fill = (id, job) => job.then(html => { const el = $(id); if(el?.isConnected) el.innerHTML = html; })
     .catch(e => { const el = $(id); if(el?.isConnected && id === '#ythome') showErr(el, tr('ytab.failed'), e, viewTab); });
   const here = watchedHere();
   $('#ythist').innerHTML = row(tr('ytab.history'), here);
-  if(!signed) return;                              // YouTube's television home is for a signed-in viewer only
+  if(!signed){ signIn($('#ytsignin')); return; }   // YouTube's television home is for a signed-in viewer only
   $('#ythome').innerHTML = `<p class="note">${tr('common.loading')}</p>`;
   fill('#ythome', ytBrowse('FEwhat_to_watch', 3).then(rows));
   fill('#ythist', ytBrowse('FEhistory', 2).then(sh => row(tr('ytab.history'), joined(here, sh.flatMap(s => s.items))), () => row(tr('ytab.history'), here)));
@@ -95,32 +95,24 @@ async function viewBrowse(id, name){
   }catch(e){ if(box.isConnected) showErr(box, tr('ytab.failed'), e, () => viewBrowse(id, name)); }
 }
 
-/** Signing in, as YouTube's television app does: a code to type at google.com/device on a phone (or its QR). */
-async function signIn(){
-  document.querySelector('.sheet')?.remove();
-  const sheet = document.createElement('div');
-  sheet.className = 'sheet ytsignsheet';
-  sheet.innerHTML = `<div role="dialog" aria-modal="true"><header><b>${tr('ytab.signIn')}</b><button data-back aria-label="${esc(tr('common.close'))}">✕</button></header>
-    <div class="body" tabindex="0"><p class="note">${tr('common.loading')}</p></div></div>`;
-  const opener = document.activeElement;
-  document.body.appendChild(sheet);
-  const close = () => { sheet.remove(); if(opener?.isConnected) opener.focus(); };
-  sheet.onclick = e => { if(e.target === sheet) close(); };
-  sheet.querySelector('header button').onclick = close;
-  const body = sheet.querySelector('.body');
-  body.focus();
+/** Signing in, as YouTube's television app does: a code to type at google.com/device on a phone (or its QR), shown in
+    [box] for as long as the tab is open; approved, the tab is drawn signed in. A code lasts half an hour: then, a new one. */
+async function signIn(box){
+  const head = `<h2>${tr('ytab.signIn')}</h2><p class="note">${tr('ytab.why')}</p>`;
+  box.innerHTML = head + `<p class="note">${tr('common.loading')}</p>`;
   try{
     const s = await ytSignStart();
     const qr = await qrSvg(s.url, 2);
-    if(!sheet.isConnected) return;
-    body.innerHTML = `<p>${tr('ytab.signHow', {url: esc(s.url.replace(/^https?:\/\/(www\.)?/, ''))})}</p>
-      <p class="ytcode" dir="ltr">${esc(s.code)}</p>${qr ? `<div class="ytqr">${qr}</div>` : ''}<p class="note">${tr('ytab.signWait')}</p>`;
-    while(sheet.isConnected){
+    if(!box.isConnected) return;
+    box.innerHTML = head + `<div class="ytsignway">${qr ? `<div class="ytqr">${qr}</div>` : ''}<div>
+      <p>${tr('ytab.signHow', {url: esc(s.url.replace(/^https?:\/\/(www\.)?/, ''))})}</p>
+      <p class="ytcode" dir="ltr">${esc(s.code)}</p><p class="note">${tr('ytab.signWait')}</p></div></div>`;
+    while(box.isConnected){
       await new Promise(r => setTimeout(r, s.every));
-      if(!sheet.isConnected) return;
-      if(await ytSignCheck(s)){ close(); if(location.hash.startsWith('#/yt')) viewYouTube(); return; }
+      if(!box.isConnected) return;
+      if(await ytSignCheck(s)){ if(box.isConnected) viewTab(); return; }
     }
-  }catch(e){ if(sheet.isConnected) showErr(body, tr('ytab.signFailed'), e, signIn); }
+  }catch(e){ if(box.isConnected) showErr(box, tr('ytab.signFailed'), e, () => signIn(box)); }
 }
 
 // signed in or out on another device of this profile (a sync brought it): the tab is drawn again
