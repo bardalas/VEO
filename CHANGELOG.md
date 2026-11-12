@@ -1,5 +1,15 @@
 # VEO Android changelog
 
+## 0.45.79 — 2026-11-12
+- **A YouTube tab.** A new entry in the menu: search anything on YouTube, and - signed in to your own YouTube account
+  (a code shown on the TV, typed on a phone at google.com/device) - your history, your YouTube home, new from your
+  subscriptions, Watch Later, playlists and liked videos. A video plays in the app's YouTube player with Hebrew captions;
+  a playlist or a channel opens as a page. The sign-in stays on the device. Not in kids profiles. (#452)
+- **The player's side menu is easier to find your way in.** One short page for every film: the subtitle (its files on a
+  page of their own), automatic sync and manual tuning when they can work, size, a new **position** (bottom to top), sound
+  sync and the audio track. Size and position are always there - the menu once shrank to the sound's sync alone when no
+  subtitle file was found. OK on a moved value puts it back. (#454)
+
 ## 0.45.78 — 2026-10-30
 - **Watch history and favourites stay the same on every device.** What a sync brought from another device reached the
   device's storage but not the app: it was not shown until the next launch, and the next watch or favourite here wrote the
