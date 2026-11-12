@@ -102,10 +102,11 @@ async function signIn(box){
   box.innerHTML = head + `<p class="note">${tr('common.loading')}</p>`;
   try{
     const s = await ytSignStart();
-    const qr = await qrSvg(s.url, 2);
+    // the QR carries the code itself: scanned, the phone opens Google's page with it filled in - only approve is left
+    const qr = await qrSvg(`${s.url}?user_code=${encodeURIComponent(s.code)}`, 2);
     if(!box.isConnected) return;
     box.innerHTML = head + `<div class="ytsignway">${qr ? `<div class="ytqr">${qr}</div>` : ''}<div>
-      <p>${tr('ytab.signHow', {url: esc(s.url.replace(/^https?:\/\/(www\.)?/, ''))})}</p>
+      ${qr ? `<p><b>${tr('ytab.signScan')}</b></p>` : ''}<p>${tr('ytab.signHow', {url: esc(s.url.replace(/^https?:\/\/(www\.)?/, ''))})}</p>
       <p class="ytcode" dir="ltr">${esc(s.code)}</p><p class="note">${tr('ytab.signWait')}</p></div></div>`;
     while(box.isConnected){
       await new Promise(r => setTimeout(r, s.every));
