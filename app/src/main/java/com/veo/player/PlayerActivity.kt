@@ -171,6 +171,8 @@ class PlayerActivity : AppCompatActivity() {
     private var captions: Captions? = null
     /** How large they are drawn, as a multiple of the player's own size; kept between films. */
     private var subScale = 1.0f
+    /** Where the subtitles stand: 0 at the bottom, then higher, high, at the top (kept per device, as the size is). */
+    private var subPos = 0
     private val audioDelay = AudioDelayProcessor { if (autoOn) liveSpeech else null }
     /** Whether the translation found is put on by itself (Settings → Playback), or waits to be picked. */
     private var subsAuto = true
@@ -218,6 +220,7 @@ class PlayerActivity : AppCompatActivity() {
         val view = findViewById<PlayerView>(R.id.playerView)
         val prefs = getSharedPreferences("veo", MODE_PRIVATE)
         subScale = prefs.getFloat("subScale", 1.0f)
+        subPos = prefs.getInt("subPos", 0).coerceIn(0, SUB_POS.size - 1)
         syncZ = prefs.getFloat("syncZ", FastOffsetAligner.DEFAULT_Z_ACCEPT.toFloat()).toDouble().coerceIn(2.0, 6.0)
         // Settings → Playback: subtitles only when the viewer picks them - the film starts without, and
         // with the track inside the file turned off too (applyTextTracks)
@@ -228,8 +231,9 @@ class PlayerActivity : AppCompatActivity() {
             setStyle(CaptionStyleCompat(Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT,
                 CaptionStyleCompat.EDGE_TYPE_OUTLINE, Color.BLACK, null))
             setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * subScale)
-            setBottomPaddingFraction(0.04f)
+            setBottomPaddingFraction(SUB_POS[subPos])
         }
+        view.post { applySubPos() }
 
         val remote = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
         if (live || remote) view.useController = false   // a remote has the banner; a touch screen has the controls
@@ -493,12 +497,6 @@ class PlayerActivity : AppCompatActivity() {
         else -> "לא בוצע"
     }
 
-    private fun setSyncZ(value: Double) {
-        syncZ = (Math.round(value.coerceIn(2.0, 6.0) * 2.0) / 2.0)
-        getSharedPreferences("veo", MODE_PRIVATE).edit().putFloat("syncZ", syncZ.toFloat()).apply()
-        captions?.takeIf { it.any }?.let { offsetAligner = FastOffsetAligner(it.activity(), it.starts(), syncZ) }
-    }
-
     /** Start only when the viewer asks. The film keeps playing; no network seek or second decoder is opened. */
     private fun toggleAuto() {
         if (autoOn) {
@@ -604,6 +602,24 @@ class PlayerActivity : AppCompatActivity() {
         getSharedPreferences("veo", MODE_PRIVATE).edit().putInt("audioDelayMs", audioDelay.delayMs).apply()
     }
 
+    private fun setSubPos(v: Int) {
+        subPos = v.coerceIn(0, SUB_POS.size - 1)
+        getSharedPreferences("veo", MODE_PRIVATE).edit().putInt("subPos", subPos).apply()
+        applySubPos()
+    }
+    /** Both surfaces: the player's own (a track inside the film) and the app's (a file it found). */
+    @OptIn(UnstableApi::class)
+    private fun applySubPos() {
+        val frac = SUB_POS[subPos]
+        findViewById<PlayerView>(R.id.playerView).subtitleView?.setBottomPaddingFraction(frac)
+        val cues = findViewById<TextView>(R.id.cues)
+        val height = (cues.parent as? View)?.height?.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+        (cues.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.let {
+            it.bottomMargin = maxOf(dp(48), (height * frac).toInt())
+            cues.layoutParams = it
+        }
+    }
+
     @OptIn(UnstableApi::class)
     private fun setSubScale(v: Float) {
         subScale = v.coerceIn(0.8f, 2.4f)
@@ -628,106 +644,183 @@ class PlayerActivity : AppCompatActivity() {
         /** [value]: what the line stands at, written at its end (a state, not a choice). */
         class Pick(val text: String, val on: () -> Boolean, val act: () -> Unit, val value: (() -> String)? = null,
             /** a quiet second line under the name, and how the value is toned: 0 quiet, 1 good, 2 warning */
-            val sub: String? = null, val tone: (() -> Int)? = null) : SubsRow()
-        /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held. */
-        class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false) : SubsRow()
+            val sub: String? = null, val tone: (() -> Int)? = null,
+            /** a quiet line under it that changes (why the automatic sync failed); none when empty */
+            val note: (() -> String)? = null) : SubsRow()
+        /** [ok]: OK steps it one way too; [fast]: holding the arrow runs faster the longer it is held;
+         *  [reset]: OK puts it back where it was, when it is not there ([atDefault]). */
+        class Step(val text: String, val value: () -> String, val by: (Int) -> Unit, val ok: Boolean = false, val fast: Boolean = false,
+            val reset: (() -> Unit)? = null, val atDefault: () -> Boolean = { true }) : SubsRow()
+        /** A line that opens a page of its own (OK, or the arrow forward); with [by], the arrows step through it in place. */
+        class Nav(val text: String, val value: () -> String, val open: () -> Unit, val by: ((Int) -> Unit)? = null) : SubsRow()
     }
 
-    /** The sound moved later (+) or earlier (-) than the picture, in steps of 50 ms: the arrows change it where it is written. */
-    private fun audioSyncRows(): List<SubsRow> = listOf(
-        SubsRow.Head("סנכרון שמע"),
-        SubsRow.Step("הזזת השמע", { "%+d ms".format(audioDelay.delayMs) }, { step -> shiftAudio(step * 50) }, fast = true),
-        SubsRow.Pick("אפס את סנכרון השמע", { audioDelay.delayMs == 0 }, { shiftAudio(-audioDelay.delayMs) }))
+    // ---------- the side menu: subtitles and sound (#454) ----------
+    /* One short page, the same for every film: the translation (its files a page of their own), how it is synced, its
+       size and its place on the screen, and the sound. What cannot work here is not offered - but the size and the place
+       always are: they are kept, and the next translation is drawn by them. It once fell back to the sound's sync alone
+       whenever no file was found, an embedded translation included - "a menu with almost nothing in it". Back on a page
+       of its own returns to the line that opened it; Back on the main page closes the menu. */
+    private var menuPage = ""                  // "": the main page; "pick", "manual", "audio"
+    private var menuFrom = -1                  // the main page's line that opened the page shown
 
-    private fun subsRows(): List<SubsRow> {
-        val out = ArrayList<SubsRow>()
-        out.add(SubsRow.Head("כתוביות"))
-        subs.orEmpty().forEachIndexed { i, s ->
-            // "Wizdom · עברית · The.Matrix.1999..." is the source, the language and the release: the release is the name
-            val parts = s.label.split(" · ")
-            val release = if (parts.size >= 3) parts.drop(2).joinToString(" · ") else s.label
-            val from = if (parts.size >= 3) parts.take(2).joinToString(" · ") else null
-            out.add(SubsRow.Pick(release, { subPick == i }, { useCaptions(i) }, sub = from))
+    private fun embeddedSubs() = player?.currentTracks?.groups?.any { it.type == C.TRACK_TYPE_TEXT } == true
+    private val drawingSubs get() = captions?.any == true
+
+    /** The translation, as its line says it: whose and which of how many, or that there is none and why. */
+    private fun subValue(): String {
+        val list = subs.orEmpty()
+        return when {
+            subPick < 0 -> "כבויות"
+            list.isNotEmpty() -> "${list[subPick.coerceIn(0, list.size - 1)].label.substringBefore(" · ")} ${subPick + 1}/${list.size}"
+            subsPending -> "מחפש…"
+            embeddedSubs() -> "מובנית"
+            else -> "לא נמצאו"
         }
-        out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
-        out.add(SubsRow.Head("סנכרון כתוביות"))
-        // the one way in to the automatic sync, with where it stands written at the end of the line
-        out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() },
-            tone = { if (autoLocked && !autoOn) 1 else if (lastFail.isNotEmpty() && !autoOn) 2 else 0 }))
-        // after a failure the reason stays here, under the line, for as long as the viewer wants to read it
-        if (lastFail.isNotEmpty() && !autoOn) out.add(SubsRow.Info { "הניסיון האחרון: $lastFail · כדאי לנסות בסצנה עם יותר דיבור" })
-        out.add(SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }))
-        if (subs.orEmpty().size > 1) out.add(SubsRow.Step("כתובית אחרת", { "${subPick + 1}/${subs.orEmpty().size}" }, { step -> cycleSub(step) }, ok = true))
-        out.add(SubsRow.Head("תיקון ידני"))
-        out.add(SubsRow.Step("הזזה", { "%+.1fs".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true))
-        out.add(SubsRow.Step("קצב", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true))
-        out.add(SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true))
-        out.add(SubsRow.Pick("איפוס תיקון ידני", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
-        out.addAll(audioSyncRows())
-        out.add(SubsRow.Head("גודל"))
-        out.add(SubsRow.Step("גודל הכתוביות", { "%d%%".format((subScale * 100).toInt()) },
-            { step -> setSubScale(subScale + step * 0.1f) }))
-        out.add(SubsRow.Head("מתקדם"))
-        out.add(SubsRow.Step("סף ביטחון לסנכרון", { "%.1f".format(syncZ) }, { step -> setSyncZ(syncZ + step * 0.5) }))
+    }
+
+    private fun menuRows(): List<SubsRow> {
+        val out = ArrayList<SubsRow>()
+        out.add(SubsRow.Head("כתוביות ושמע"))
+        out.add(SubsRow.Head("כתוביות"))
+        // live TV has a translation only when the stream carries one
+        if (!live || embeddedSubs())
+            out.add(SubsRow.Nav("כתובית", { subValue() }, { openMenuPage("pick") }, by = if (subs.orEmpty().size > 1) { step -> cycleSub(step) } else null))
+        if (drawingSubs) {                     // the sync works on a translation the app draws itself
+            out.add(SubsRow.Pick("סנכרון אוטומטי", { false }, { toggleAuto() }, { autoState() },
+                tone = { if (autoLocked && !autoOn) 1 else if (lastFail.isNotEmpty() && !autoOn) 2 else 0 },
+                // after a failure the reason stays under the line, for as long as the viewer wants to read it
+                note = { if (lastFail.isNotEmpty() && !autoOn) "$lastFail · כדאי לנסות בסצנה עם יותר דיבור" else "" }))
+            out.add(SubsRow.Nav("כיוון ידני", { if (subShift == 0L && manualStretch == 1.0) "ללא" else "%+.1f שנ׳".format(subShift / 1000.0) },
+                { openMenuPage("manual") }))
+        }
+        out.add(SubsRow.Step("גודל", { "%d%%".format(Math.round(subScale * 100)) }, { step -> setSubScale(subScale + step * 0.1f) },
+            reset = { setSubScale(1f) }, atDefault = { Math.round(subScale * 10) == 10 }))
+        out.add(SubsRow.Step("מיקום", { SUB_POS_NAMES[subPos] }, { step -> setSubPos(subPos + step) },
+            reset = { setSubPos(0) }, atDefault = { subPos == 0 }))
+        out.add(SubsRow.Head("שמע"))
+        out.add(SubsRow.Step("סנכרון שמע", { "%+.2f שנ׳".format(audioDelay.delayMs / 1000.0) }, { step -> shiftAudio(step * 50) }, fast = true,
+            reset = { shiftAudio(-audioDelay.delayMs) }, atDefault = { audioDelay.delayMs == 0 }))
+        if (audioChoices().size > 1)
+            out.add(SubsRow.Nav("רצועת שמע", { audioChoices().firstOrNull { it.selected }?.label ?: "" }, { openMenuPage("audio") }))
+        if (live) {
+            // only where it can work: watching the past, on a channel whose breaks carry the mark
+            out.add(SubsRow.Head("ערוץ"))
+            out.add(SubsRow.Pick("דילוג על פרסומות", { adSkipOn }, { adSkipOn = !adSkipOn },
+                { if (adSkipOn) "פעיל" else "כבוי" }, sub = "בצפייה מהעבר · קשת 12 ורשת 13"))
+        }
         return out
     }
 
-    private fun openSubsPanel() {
-        if (subs.orEmpty().isEmpty()) {
-            // still looking is not the same as nothing to find, and a viewer can wait for one of them
-            if (subsPending) showMessage("מחפש כתוביות…", 0)
-            else openSyncPanel()                       // no subtitles: the sound's sync is still there to tune
-            return
+    /** Every translation there is: none, the film's own, the files found. OK chooses and stays - the next can be tried at once. */
+    private fun pickRows(): List<SubsRow> {
+        val out = ArrayList<SubsRow>()
+        out.add(SubsRow.Head("כתוביות › בחירה"))
+        out.add(SubsRow.Pick("ללא כתוביות", { subPick < 0 }, { useCaptions(-1) }))
+        if (subs.orEmpty().isEmpty() && embeddedSubs()) out.add(SubsRow.Pick("מובנית בסרט", { subPick >= 0 }, { useCaptions(0) }))
+        subs.orEmpty().forEachIndexed { i, s ->
+            // "Wizdom · עברית · The.Matrix.1999..." is the source, the language and the release: the release is the name
+            val parts = s.label.split(" · ")
+            val release = (if (parts.size >= 3) parts.drop(2).joinToString(" · ") else s.label).replace('.', ' ').replace('_', ' ')
+            val from = if (parts.size >= 3) parts.take(2).joinToString(" · ") else null
+            out.add(SubsRow.Pick(release, { subPick == i }, { useCaptions(i) }, sub = from))
         }
-        showRowsPanel(subsRows())
+        return out
     }
 
-    /** Live TV (and a film with no subtitles): the panel is only the sound's sync. */
-    private fun openSyncPanel() {
-        hideChannelBar()
-        val rows = ArrayList(audioSyncRows())
-        if (live) {
-            // only where it can work: watching the past, on a channel whose breaks carry the mark
-            rows.add(SubsRow.Head("פרסומות"))
-            rows.add(SubsRow.Pick("דילוג על פרסומות", { adSkipOn }, { adSkipOn = !adSkipOn },
-                { if (adSkipOn) "פעיל" else "כבוי" }, sub = "בצפייה מהעבר · קשת 12 ורשת 13"))
-        }
-        showRowsPanel(rows)
+    private fun manualRows(): List<SubsRow> = listOf(
+        SubsRow.Head("כתוביות › כיוון ידני"),
+        SubsRow.Step("הזזה", { "%+.1f שנ׳".format(subShift / 1000.0) }, { step -> shiftCaptions(step * 100L) }, fast = true),
+        SubsRow.Step("קצב", { stretchLabel() }, { step -> stretchCaptions(step) }, fast = true),
+        SubsRow.Step("קצב לפי פריימים", { presetLabel() }, { step -> cyclePreset(step) }, ok = true),
+        SubsRow.Pick("סנכרון לפי שורה", { false }, { startLineSync() }),
+        SubsRow.Pick("איפוס הכיוון", { subShift == 0L && manualStretch == 1.0 }, { resetManual() }))
+
+    private fun audioRows(): List<SubsRow> {
+        val out = ArrayList<SubsRow>()
+        out.add(SubsRow.Head("שמע › רצועה"))
+        for (ch in audioChoices()) out.add(SubsRow.Pick(ch.label, { ch.selected }, {
+            player?.let { p ->
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setOverrideForType(TrackSelectionOverride(ch.group.mediaTrackGroup, ch.track)).build()
+                showMessage("אודיו: ${ch.label}", 2_000)
+                handler.post { menuBack() }    // chosen: back to the main page, which says what plays now
+            }
+        }))
+        return out
     }
 
-    private fun showRowsPanel(rows: List<SubsRow>) {
+    private fun openSubsPanel() = openMenu()
+    /** Live TV (the banner's sync button, the menu key): the same menu, with what live TV has. */
+    private fun openSyncPanel() { hideChannelBar(); openMenu() }
+    private fun openMenu() {
+        menuPage = ""
+        val rows = menuRows()
+        showRowsPanel(rows, rows.indexOfFirst { it !is SubsRow.Head && it !is SubsRow.Info })
+    }
+    private fun openMenuPage(page: String) {
+        menuFrom = findViewById<ListView>(R.id.chList).selectedItemPosition
+        menuPage = page
+        val rows = when (page) { "pick" -> pickRows(); "manual" -> manualRows(); else -> audioRows() }
+        // on what is chosen now; on a page of quantities, its first
+        val on = rows.indexOfFirst { it is SubsRow.Pick && it.on() }
+        showRowsPanel(rows, if (page != "manual" && on > 0) on else 1)
+    }
+    /** Back from a page of its own to the main page, on the line that opened it. False on the main page itself. */
+    private fun menuBack(): Boolean {
+        if (menuPage.isEmpty() || !panelOpen) return false
+        menuPage = ""
+        val rows = menuRows()                  // drawn again: what was chosen there changes what this page offers
+        var at = menuFrom.coerceIn(1, rows.size - 1)
+        while (at < rows.size - 1 && (rows[at] is SubsRow.Head || rows[at] is SubsRow.Info)) at++
+        showRowsPanel(rows, at)
+        return true
+    }
+
+    private fun showRowsPanel(rows: List<SubsRow>, focus: Int) {
         val adapter = SubsAdapter(rows)
         val list = findViewById<ListView>(R.id.chList)
         dressPanel(list)
         list.adapter = adapter
         list.onItemSelectedListener = redrawOnFocus(adapter)
         list.setOnItemClickListener { _, _, i, _ ->
-            (rows[i] as? SubsRow.Pick)?.act?.invoke()
-            (rows[i] as? SubsRow.Step)?.takeIf { it.ok }?.by?.invoke(1)
+            when (val row = rows[i]) {
+                is SubsRow.Pick -> row.act()
+                is SubsRow.Nav -> { row.open(); return@setOnItemClickListener }
+                is SubsRow.Step -> if (row.ok) row.by(1) else if (!row.atDefault()) row.reset?.invoke()
+                else -> {}
+            }
             adapter.notifyDataSetChanged()
         }
         list.setOnItemLongClickListener { _, _, _, _ -> true }
-        // a quantity is changed where it is written, by the arrows, without leaving the line
+        // a quantity is changed where it is written, by the arrows, without leaving the line; forward opens a page, back returns
         list.setOnKeyListener { _, code, ev ->
             val step = when (code) {
                 KeyEvent.KEYCODE_DPAD_RIGHT -> if (skin.rtl) -1 else 1     // more is the way forward is: Left in Hebrew
                 KeyEvent.KEYCODE_DPAD_LEFT -> if (skin.rtl) 1 else -1
                 else -> 0
             }
-            val row = rows.getOrNull(list.selectedItemPosition) as? SubsRow.Step
-            if (step != 0 && row != null && ev.action == KeyEvent.ACTION_DOWN) {
-                // held down, a quantity that is long to travel runs faster the longer it is held
-                val faster = if (!row.fast) 1 else when { ev.repeatCount < 10 -> 1; ev.repeatCount < 30 -> 3; else -> 8 }
-                row.by(step * faster)
-                adapter.notifyDataSetChanged()
-                true
-            } else false
+            if (step == 0 || ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            when (val row = rows.getOrNull(list.selectedItemPosition)) {
+                is SubsRow.Step -> {
+                    // held down, a quantity that is long to travel runs faster the longer it is held
+                    val faster = if (!row.fast) 1 else when { ev.repeatCount < 10 -> 1; ev.repeatCount < 30 -> 3; else -> 8 }
+                    row.by(step * faster)
+                    adapter.notifyDataSetChanged()
+                    true
+                }
+                is SubsRow.Nav -> {
+                    val by = row.by
+                    if (by != null) { by(step); adapter.notifyDataSetChanged() }
+                    else if (step > 0 && ev.repeatCount == 0) row.open()
+                    true
+                }
+                else -> step < 0 && ev.repeatCount == 0 && menuBack()
+            }
         }
         findViewById<View>(R.id.chPanel).visibility = View.VISIBLE
         list.requestFocus()
-        // on the chosen translation if there is one, else past the first heading
-        val on = rows.indexOfFirst { it is SubsRow.Pick && it.on() }
-        if (list.selectedItemPosition < 0) list.setSelection(if (rows.size <= 3) 1 else if (on > 0) on else 1)
+        list.setSelection(focus.coerceIn(0, rows.size - 1))
     }
 
     /* The panel is dressed like the rest of the TV: a large row, the line the remote is on drawn as a
@@ -818,6 +911,7 @@ class PlayerActivity : AppCompatActivity() {
                     name.textSize = 17f
                     name.setTextColor(if (on && !focused) skin.accent else ink)
                     name.typeface = if (on) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                    row.note?.invoke()?.takeIf { it.isNotEmpty() }?.let { sub.visibility = View.VISIBLE; sub.text = it; sub.setTextColor(quiet) }
                     if (row.sub != null) {
                         // a release name: one line, read left to right, its middle given up before its end (the group is at the end)
                         name.maxLines = 1; name.ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
@@ -850,7 +944,21 @@ class PlayerActivity : AppCompatActivity() {
                     name.textSize = 17f
                     name.setTextColor(ink)
                     // the arrows say what the side keys do on this line
-                    value.text = "‹  ${row.value()}  ›"
+                    value.text = "◂  ${row.value()}  ▸"
+                    value.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    value.setTextColor(if (focused) skin.night else skin.accent)
+                    // moved from where it was: OK puts it back
+                    if (row.reset != null && !row.atDefault()) { sub.visibility = View.VISIBLE; sub.text = "איפוס: OK"; sub.setTextColor(quiet) }
+                }
+                is SubsRow.Nav -> {
+                    box.setPadding(dp(22), dp(8), dp(22), dp(8))
+                    box.minimumHeight = dp(44)
+                    name.text = row.text
+                    name.textSize = 17f
+                    name.setTextColor(ink)
+                    // stepped through in place, it shows both arrows; otherwise the one forward, to the page it opens - a triangle,
+                    // which has no mirrored twin: a chevron beside a Hebrew value was drawn turned around
+                    value.text = if (row.by != null) "◂  ${row.value()}  ▸" else if (skin.rtl) "◂  ${row.value()}" else "${row.value()}  ▸"
                     value.typeface = android.graphics.Typeface.DEFAULT_BOLD
                     value.setTextColor(if (focused) skin.night else skin.accent)
                 }
@@ -1779,6 +1887,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun closePanel() {
+        menuPage = ""
         findViewById<View>(R.id.chPanel).visibility = View.GONE
         findViewById<ListView>(R.id.chList).apply {
             adapter = null                                       // the next opening decides what it lists
@@ -2465,7 +2574,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         if (panelOpen) {
-            if (code == KeyEvent.KEYCODE_BACK) { if (down) closePanel(); return true }
+            if (code == KeyEvent.KEYCODE_BACK) { if (down && !menuBack()) closePanel(); return true }
             // OK on the channel list is decided here, not by the list (which reads a held remote OK as a run of clicks):
             // one press, acted on when it is let go, opens the chosen channel. The OK held to open the panel is let go
             // once the panel is up - that release is not a choice, so it is swallowed.
@@ -2682,6 +2791,9 @@ class PlayerActivity : AppCompatActivity() {
 
     companion object {
         private const val AUDIO_SHIFT_MAX_MS = 3_000
+        /** The subtitles' place: how far above the bottom of the picture they stand (#454) - the four the in-page YouTube player offers. */
+        private val SUB_POS = floatArrayOf(0.04f, 0.14f, 0.26f, 0.78f)
+        private val SUB_POS_NAMES = arrayOf("למטה", "מעט גבוה", "גבוה", "למעלה")
         /** What live requests identify as when the playlist names no agent of its own. */
         private const val LIVE_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

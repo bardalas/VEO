@@ -1459,3 +1459,22 @@ test('no string is defined twice in a language: the second silently replaces the
     assert.deepEqual(twice, [], lang);
   }
 });
+
+test('the player side menu: one short page for every film, subtitle files on a page of their own, size and position always there (#454)', async () => {
+  const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  const menu = kt.slice(kt.indexOf('private fun menuRows()'), kt.indexOf('private fun pickRows()'));
+  // no film falls back to the sound's sync alone any more (no file found, an embedded one, broadcaster VOD)
+  assert.match(kt, /private fun openSubsPanel\(\) = openMenu\(\)/);
+  assert.doesNotMatch(kt, /else openSyncPanel\(\)\s+\/\/ no subtitles/);
+  // size and position are on the main page, unconditionally; the files are not
+  assert.match(menu, /SubsRow\.Step\("גודל"/);
+  assert.match(menu, /SubsRow\.Step\("מיקום"/);
+  assert.match(menu, /SubsRow\.Nav\("כתובית", \{ subValue\(\) \}, \{ openMenuPage\("pick"\) \}/);
+  assert.doesNotMatch(menu, /forEachIndexed/);
+  // the position reaches both surfaces, and is kept
+  assert.match(kt, /subtitleView\?\.setBottomPaddingFraction\(frac\)/);
+  assert.match(kt, /putInt\("subPos", subPos\)/);
+  // Back on a page of its own returns to the main page before it closes the menu
+  assert.match(kt, /if \(code == KeyEvent\.KEYCODE_BACK\) \{ if \(down && !menuBack\(\)\) closePanel\(\); return true \}/);
+  assert.doesNotMatch(kt, /סף ביטחון לסנכרון|"כתובית אחרת"/);
+});
