@@ -1443,8 +1443,10 @@ test('the YouTube tab reads YouTube as its television app does: shelves, tiles a
   assert.match(await read('js/ui/tvnav.js'), /'\.ytsearch'/);
   assert.doesNotMatch(await read('js/ui/tvnav.js'), /'\.ytbar'/);                // the player's seek bar (.ytbar) is not a row
   assert.match(await read('js/screens/youtube.js'), /s\.browse !== 'FEhistory'/);
+  assert.match(await read('js/screens/youtube.js'), /if\(!signed\)\{ signIn\(\$\('#ytsignin'\)\); return; \}/);   // signed out: the code and its QR in the page itself (#457)
+  assert.match(await read('js/screens/youtube.js'), /qrSvg\(`\$\{s\.url\}\?user_code=\$\{encodeURIComponent\(s\.code\)\}`/);   // scanned, the code is already filled in
   assert.match(await read('css/settings.css'), /:root\[data-kids\^="teen"\] \.nav a\[data-r="yt"\]/);
-  assert.doesNotMatch(await read('js/core/store.js'), /'ytAuth/);                  // the token is the device's: never synced
+  assert.match(await read('js/core/store.js'), /'lastChannel', 'ytAuth']/);       // the sign-in follows the profile (#457)
 });
 
 test('no string is defined twice in a language: the second silently replaces the first (#452 - the YouTube tab once renamed the captions)', async () => {
@@ -1476,4 +1478,77 @@ test('the player side menu: one short page for every film, subtitle files on a p
   // Back on a page of its own returns to the main page before it closes the menu
   assert.match(kt, /if \(code == KeyEvent\.KEYCODE_BACK\) \{ if \(down && !menuBack\(\)\) closePanel\(\); return true \}/);
   assert.doesNotMatch(kt, /סף ביטחון לסנכרון|"כתובית אחרת"/);
+});
+
+test("a profile's YouTube sign-in follows it to every device; the hour's token stays on each (#457)", async () => {
+  // two devices - the real store, sync and youtube modules - one household account, and YouTube's sign-in answered here
+  const rows = new Map();
+  let clock = 1000, tokens = 0, refused = new Set();
+  const call = async (url, {method = 'GET', body} = {}) => {
+    const [table, query = ''] = url.replace('/rest/v1/', '').split('?');
+    if(table === 'profiles') return method === 'GET' ? [{id: 'p1', data: {name: 'a'}, deleted: false}] : null;
+    if(method !== 'GET'){ for(const r of body) rows.set(r.key, {...r, updated_at: new Date(++clock * 3600e3).toISOString()}); return null; }
+    const since = Date.parse(decodeURIComponent(/updated_at=gt\.([^&]+)/.exec(query)?.[1] || '')) || 0;
+    return [...rows.values()].filter(r => Date.parse(r.updated_at) > since);
+  };
+  const postText = async (url, body) => {
+    const b = JSON.parse(body);
+    if(url.endsWith('/device/code')) return JSON.stringify({user_code: 'ABC', device_code: 'd', verification_url: 'https://www.google.com/device', interval: 5, expires_in: 1800});
+    if(url.endsWith('/token') && b.code) return JSON.stringify({access_token: 'acc' + (++tokens), refresh_token: 'R1', expires_in: 3600});
+    if(url.endsWith('/token')) return JSON.stringify(refused.has(b.refresh_token) ? {error: 'invalid_grant'} : {access_token: 'acc' + (++tokens), expires_in: 3600});
+    return '{}';
+  };
+  const device = async () => {
+    const mem = new Map([['booth:profiles', '[{"id":"p1","name":"a"}]'], ['booth:profile', '"p1"']]);
+    const localStorage = {getItem: k => mem.has(k) ? mem.get(k) : null, setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k)};
+    const context = vm.createContext({console, localStorage, addEventListener(){}, setTimeout: () => 0, clearTimeout(){}, document: {visibilityState: 'visible'}});
+    const stubs = {'data/account.js': {accessToken: async () => 't', accountId: () => 'u', signedIn: () => true, call}, 'core/bridge.js': {postText}};
+    const modules = new Map();
+    const get = async rel => {
+      rel = path.posix.normalize(rel);
+      if(modules.has(rel)) return modules.get(rel);
+      const def = stubs[rel];
+      const m = def ? new vm.SyntheticModule(Object.keys(def), function(){ for(const [k, v] of Object.entries(def)) this.setExport(k, v); }, {context, identifier: rel})
+        : new vm.SourceTextModule(await readFile(path.join(assets, 'js', rel), 'utf8'), {context, identifier: rel});
+      modules.set(rel, m);
+      return m;
+    };
+    const load = async rel => {
+      const m = await get(rel);
+      if(m.status === 'unlinked') await m.link((s, ref) => get(path.posix.join(path.posix.dirname(ref.identifier), s)));
+      if(m.status === 'linked') await m.evaluate();
+      return m.namespace;
+    };
+    return {yt: await load('data/youtube.js'), sync: (await load('data/sync.js')).sync, store: (await load('core/store.js')).store, mem};
+  };
+  const a = await device(), b = await device();
+  await b.sync();
+  assert.equal(b.yt.ytSignedIn(), false);
+  let told = 0;
+  b.yt.onYtSignIn(() => told++);
+  // signed in on A: the profile is signed in on B at its next sync, and B's open tab is told
+  const s = await a.yt.ytSignStart();
+  assert.equal(await a.yt.ytSignCheck(s), true);
+  await a.sync();
+  await b.sync();
+  assert.equal(b.yt.ytSignedIn(), true);
+  assert.equal(told, 1);
+  // B makes its own hour's token from it: on B only, and the account's row is not written again
+  const before = rows.get('ytAuth').updated_at;
+  await b.yt.ytSearch('x');
+  await b.sync();
+  assert.equal(rows.get('ytAuth').updated_at, before);
+  assert.equal(JSON.stringify(rows.get('ytAuth').value), '{"refresh":"R1"}');
+  assert.ok(b.store.get('ytTok:p1', null)?.access && !rows.has('ytTok:p1'));
+  // a revoked sign-in signs out every device - but a device whose copy is stale does not wipe a newer one
+  a.store.set('ytAuth', {refresh: 'R2'});
+  refused.add('R1');
+  b.store.set('ytTok:p1', null);
+  const newer = {refresh: 'R2'};
+  const was = b.store.get('ytAuth', null);
+  const failing = b.yt.ytSearch('y').catch(e => e.message);
+  b.store.setFor('p1', 'ytAuth', newer);                         // the newer sign-in arrives while B's refresh is out
+  assert.equal(await failing, 'invalid_grant');
+  assert.equal(JSON.stringify(b.store.get('ytAuth', null)), '{"refresh":"R2"}');
+  assert.equal(JSON.stringify(was), '{"refresh":"R1"}');            // B held the old one when it asked
 });

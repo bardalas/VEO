@@ -3,8 +3,10 @@
    viewer has signed in - their home, their subscriptions, what they watched, Watch Later and their playlists (#452).
    Signing in is the television app's own: a code shown here, approved on a phone at google.com/device. What comes
    back is a token for YouTube's internal API (the TVHTML5 client), not an official one - when YouTube changes it,
-   this is the file to mend. The token is kept on this device for the profile that signed in, and never goes to the
-   household's account (data/sync.js): it opens the whole YouTube account. Requests go natively (no CORS). */
+   this is the file to mend. The sign-in is the profile's (#457): its lasting token ('ytAuth', in PROFILE_KEYS) goes with
+   the profile to the household's account (data/sync.js), so every television that opens the profile is signed in to the
+   same YouTube. The hour's token made from it stays on the device ('ytTok:<profile>') - asked for again every hour, it
+   would otherwise be sent to every device every hour. Requests go natively (no CORS). */
 import {postText} from '../core/bridge.js';
 import {profileId, store} from '../core/store.js';
 
@@ -14,12 +16,28 @@ const SCOPE = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
 const OAUTH = 'https://www.youtube.com/o/oauth2/';
 const API = 'https://www.youtube.com/youtubei/v1/';
 const CLIENT = {clientName: 'TVHTML5', clientVersion: '7.20251101.10.00', hl: 'he', gl: 'IL'};
-const KEY = 'ytAuth:' + profileId;                     // a device key (not in PROFILE_KEYS): never synced
+const TOK = 'ytTok:' + profileId;                      // the hour's token: the device's own, never synced
+const OLD = 'ytAuth:' + profileId;                     // where a sign-in was kept before it followed the profile
 
 const ask = async (url, body, headers = {}) => JSON.parse(await postText(url, JSON.stringify(body), {'Content-Type': 'application/json', ...headers}));
-const auth = () => store.get(KEY, null);
+const auth = () => store.get('ytAuth', null);
+// a television signed in before the sign-in followed the profile keeps it, and hands it to the profile's other devices
+{
+  const old = store.get(OLD, null);
+  if(old?.refresh){
+    if(!auth()?.refresh) store.set('ytAuth', {refresh: old.refresh});
+    store.set(OLD, null);
+  }
+}
+const tag = refresh => String(refresh || '').slice(-16);   // which sign-in an hour's token was made from
 export const ytSignedIn = () => !!auth()?.refresh;
-export function ytSignOut(){ store.set(KEY, null); }
+/** Signed out - on every device of the profile. */
+export function ytSignOut(){ store.set('ytAuth', null); store.set(TOK, null); }
+/** [fn] is told when the sign-in changes from another device (a sync): the tab draws itself again. */
+const told = new Set();
+export const onYtSignIn = fn => told.add(fn);
+store.follow('ytAuth', () => { store.set(TOK, null); told.forEach(fn => fn()); });
+const keepToken = (refresh, t) => store.set(TOK, {access: t.access_token, until: Date.now() + (t.expires_in - 60) * 1000, of: tag(refresh)});
 
 /** A sign-in begins: {code, url, device, every} - the viewer types [code] at [url]. */
 export async function ytSignStart(){
@@ -31,7 +49,7 @@ export async function ytSignStart(){
 export async function ytSignCheck(s){
   if(Date.now() > s.until) throw new Error('expired');
   const t = await ask(OAUTH + 'token', {client_id: CLIENT_ID, client_secret: CLIENT_SECRET, code: s.device, grant_type: 'http://oauth.net/grant_type/device/1.0'});
-  if(t.access_token){ store.set(KEY, {refresh: t.refresh_token, access: t.access_token, until: Date.now() + (t.expires_in - 60) * 1000}); return true; }
+  if(t.access_token){ store.set('ytAuth', {refresh: t.refresh_token}); keepToken(t.refresh_token, t); return true; }
   if(['authorization_pending', 'slow_down'].includes(t.error)) return false;
   throw new Error(t.error || 'refused');
 }
@@ -39,10 +57,16 @@ export async function ytSignCheck(s){
 async function token(){
   const a = auth();
   if(!a?.refresh) return '';
-  if(a.access && Date.now() < a.until) return a.access;
+  const held = store.get(TOK, null);
+  if(held?.access && held.of === tag(a.refresh) && Date.now() < held.until) return held.access;
   const t = await ask(OAUTH + 'token', {client_id: CLIENT_ID, client_secret: CLIENT_SECRET, refresh_token: a.refresh, grant_type: 'refresh_token'});
-  if(!t.access_token){ if(t.error === 'invalid_grant') ytSignOut(); throw new Error(t.error || 'sign-in lost'); }   // revoked: signed out
-  store.set(KEY, {...a, access: t.access_token, until: Date.now() + (t.expires_in - 60) * 1000});
+  if(!t.access_token){
+    // revoked: signed out everywhere - but only if it is still the sign-in that failed; a device whose copy is old must
+    // not wipe the one another device has just made
+    if(t.error === 'invalid_grant' && auth()?.refresh === a.refresh) ytSignOut();
+    throw new Error(t.error || 'sign-in lost');
+  }
+  keepToken(a.refresh, t);
   return t.access_token;
 }
 async function inner(path, body){
