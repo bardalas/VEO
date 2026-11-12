@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.81 — 2026-11-12
+- **Scrolling a YouTube row no longer moves the whole page aside.** After about ten videos the screen went dark, the
+  list flashed and slid away, and the menu ended up on the left: the YouTube tab's rows (and the search page's) turned
+  without the frame every other row has, and dragged the page with them. They now turn inside it. (#460)
+
 ## 0.45.80 — 2026-11-12
 - **YouTube: each profile's sign-in follows it to every TV.** Signed in once, the profile is signed in to the same YouTube
   on every device that opens it (kept with the profile in the household's account). Signing out signs it out everywhere.
