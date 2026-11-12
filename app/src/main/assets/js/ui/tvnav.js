@@ -304,6 +304,9 @@ export function tvMove(dir){
         focusItem(railReturnFocus);
         return true;
       }
+      // a screen may say where it begins (the YouTube tab: its search, above rows too long to climb back over)
+      const land = target?.querySelector('[data-land]');
+      if(land && visible(land)){ focusItem(land); return true; }
       // the titles are what the viewer came for: the pills above them are not where to land
       const rows = target ? tvRows().filter(r => target.contains(r)) : [];
       const cards = rows.find(r => r.querySelector('.poster, .ep, .chmain, .eprow'));
@@ -496,6 +499,8 @@ export function tvFocus(tries = 0){
   // few more moments for them before anything else is taken.
   // The first row is where a screen begins - and its titles, not whichever row happened to answer first.
   // (A selector list answers in page order, so the title in the middle is asked for on its own.)
+  const land = document.querySelector('#app [data-land]');
+  if(land && visible(land)){ land.focus({preventScroll: false}); if(!IS_TV_DEVICE) land.blur(); return; }
   const lead = document.querySelector('#app .strip');
   const waiting = tries < 4;
   const title = document.querySelector('#app .poster.spot') || lead?.querySelector('a.poster[href], button.poster')

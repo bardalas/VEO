@@ -6,7 +6,8 @@
    #/yt/b/<id>/<name>   a playlist ('VL…') or a channel ('UC…') */
 import {$, esc, showErr} from '../core/dom.js';
 import {tr} from '../i18n.js';
-import {ytBrowse, ytSearch, ytSignCheck, ytSignedIn, ytSignOut, ytSignStart} from '../data/youtube.js';
+import {progress} from '../data/watch.js';
+import {onYtSignIn, ytBrowse, ytSearch, ytSignCheck, ytSignedIn, ytSignOut, ytSignStart} from '../data/youtube.js';
 import {qrSvg} from '../ui/report.js';
 
 /** A video plays; a playlist or a channel opens. Shorts are left out: an upright picture on a television. */
@@ -23,9 +24,19 @@ const row = (title, items) => shown(items).length
   ? `<div class="row"><h2 dir="auto">${esc(title)}</h2><div class="strip">${shown(items).map(ytCard).join('')}</div></div>` : '';
 const rows = shelves => shelves.map(s => row(s.title, s.items)).join('');
 
-function bar(q = ''){
+/** What this profile watched of YouTube in the app, on any of its devices, newest first - as the tab's items. YouTube's
+    own history never hears of it: the app plays in YouTube's signed-out embedded player. */
+function watchedHere(){
+  return Object.entries(progress).filter(([k, x]) => k.startsWith('yt:') && x?.name).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 30)
+    .map(([k, x]) => ({kind: 'video', id: k.slice(3), title: x.name, sub: tr('ytab.inApp'), pic: `https://i.ytimg.com/vi/${k.slice(3)}/mqdefault.jpg`,
+      dur: '', pct: x.d ? Math.min(100, Math.round(x.t / x.d * 100)) : 0, browse: ''}));
+}
+const joined = (first, then) => { const seen = new Set(first.map(it => it.id)); return [...first, ...then.filter(it => !seen.has(it.id))]; };
+
+function bar(q = '', land = false){
   const signed = ytSignedIn();
-  return `<div class="ytsearch"><form id="ytform"><input type="search" class="field" id="ytq" value="${esc(q)}" placeholder="${esc(tr('ytab.search'))}" dir="auto"></form>
+  // [land]: arriving from the menu, the remote lands on the search - the rows below it are long (ui/tvnav.js data-land)
+  return `<div class="ytsearch"><form id="ytform"><input type="search" class="field" id="ytq" value="${esc(q)}" placeholder="${esc(tr('ytab.search'))}" dir="auto"${land ? ' data-land' : ''}></form>
     <button class="qbtn" id="ytsign">${tr(signed ? 'ytab.signOut' : 'ytab.signIn')}</button></div>`;
 }
 function wireBar(){
@@ -44,16 +55,18 @@ function wireBar(){
 /** The tab: signed in, the viewer's own YouTube; signed out, YouTube's home and a way to sign in. */
 async function viewTab(){
   const signed = ytSignedIn();
-  $('#app').innerHTML = `<div class="page ytpage">${bar()}
+  $('#app').innerHTML = `<div class="page ytpage">${bar('', true)}
     ${signed ? '' : `<p class="note">${tr('ytab.why')}</p>`}
     <div id="ythist"></div><div id="ythome"></div><div id="ytsubs"></div><div id="ytlib"></div></div>`;
   wireBar();
   const fill = (id, job) => job.then(html => { const el = $(id); if(el?.isConnected) el.innerHTML = html; })
     .catch(e => { const el = $(id); if(el?.isConnected && id === '#ythome') showErr(el, tr('ytab.failed'), e, viewTab); });
+  const here = watchedHere();
+  $('#ythist').innerHTML = row(tr('ytab.history'), here);
   if(!signed) return;                              // YouTube's television home is for a signed-in viewer only
   $('#ythome').innerHTML = `<p class="note">${tr('common.loading')}</p>`;
   fill('#ythome', ytBrowse('FEwhat_to_watch', 3).then(rows));
-  fill('#ythist', ytBrowse('FEhistory', 2).then(sh => row(tr('ytab.history'), sh.flatMap(s => s.items))));
+  fill('#ythist', ytBrowse('FEhistory', 2).then(sh => row(tr('ytab.history'), joined(here, sh.flatMap(s => s.items))), () => row(tr('ytab.history'), here)));
   // subscriptions come as small shelves by day: one row, newest first
   fill('#ytsubs', ytBrowse('FEsubscriptions', 2).then(sh => row(tr('ytab.subs'), sh.flatMap(s => s.items))));
   // the library: Watch Later, the playlists, liked videos (its history is the row above)
@@ -109,6 +122,9 @@ async function signIn(){
     }
   }catch(e){ if(sheet.isConnected) showErr(body, tr('ytab.signFailed'), e, signIn); }
 }
+
+// signed in or out on another device of this profile (a sync brought it): the tab is drawn again
+onYtSignIn(() => { if(['#/yt', '#/yt/'].includes(location.hash)) viewTab(); });
 
 export function viewYouTube(a, b, c){
   if(a === 's' && b) return viewResults(b);

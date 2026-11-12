@@ -205,9 +205,12 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
 (`withGenreRows`). Genres are not a page any more (`viewGenre` just sets the filter, for old links).
 - **The YouTube tab** (`#/yt`, `screens/youtube.js`, `data/youtube.js`, #452): free search, and once signed in the viewer's
   own YouTube - home, history, subscriptions, Watch Later, playlists. Sign-in is YouTube's TV app's device flow (a code
-  typed at google.com/device); the token is a device key `ytAuth:<profile>` (never synced) and opens YouTube's internal
+  typed at google.com/device); the sign-in is the profile's, on every device: its refresh token is the synced profile key
+  `ytAuth`, the hour's access token a device key `ytTok:<profile>` (#457). It opens YouTube's internal
   API as the TVHTML5 client - not an official API, so this is the file to mend when YouTube changes. Videos play in
-  `ui/ytplayer.js` with the app's Hebrew captions. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
+  `ui/ytplayer.js` with the app's Hebrew captions - signed out, so YouTube's own history never hears of them: the
+  history row starts with the profile's `yt:` progress. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
+  A screen may name where the remote lands when it arrives from the menu: `[data-land]` (ui/tvnav.js).
 - **The menu**: Home, Movies, Series, **Shows**, Live, YouTube, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
   `screens/broadcasters.js` `viewShows`) holds the broadcasters' programmes (Kan, Keshet, Reshet): tabs over the page,
   All = a wheel of every programme, what aired last and a row per broadcaster. Each broadcaster's tab is laid out

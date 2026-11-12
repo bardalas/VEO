@@ -135,7 +135,8 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 /* the YouTube tab (screens/youtube.js) */
 .ytsearch{display:flex;gap:12px;align-items:center;margin:0 0 18px}
 .ytsearch form{flex:1;max-width:560px}
-.ytsearch .field{width:100%}
+.ytsearch .field{width:100%;font:600 22px var(--body);padding:12px 16px;border:2px solid var(--line);border-radius:12px;background:var(--surface)}
+.ytsearch .field:focus{border-color:var(--light);background:var(--raise);box-shadow:0 0 0 3px var(--night),0 0 0 6px var(--light);outline:0}
 .ytgrid{grid-template-columns:repeat(auto-fill,minmax(calc(var(--poster-w) * 1.55),1fr))}
 .ytsignsheet .body{text-align:center;padding:18px 22px 24px}
 .ytsignsheet .ytcode{font-size:40px;font-weight:700;letter-spacing:.12em;margin:8px 0 14px}
