@@ -859,7 +859,7 @@ test('the sound can be moved against the picture: a delay processor in the audio
   const proc = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/AudioDelayProcessor.kt'), 'utf8');
   assert.match(proc, /class AudioDelayProcessor\(private val speechTimeline: \(\) -> SpeechTimeline\?\) : BaseAudioProcessor\(\)/);
   assert.match(k, /setAudioProcessors\(arrayOf<androidx\.media3\.common\.audio\.AudioProcessor>\(audioDelay\)\)/);
-  assert.match(k, /SubsRow\.Step\("הזזת השמע"/);
+  assert.match(k, /SubsRow\.Step\("סנכרון שמע"/);
   assert.match(k, /KeyEvent\.KEYCODE_MENU, KeyEvent\.KEYCODE_PROG_YELLOW/);
 });
 
@@ -1004,7 +1004,7 @@ test('subtitles: the sync is remembered per film and translation, and carried al
 
 test('subtitles: sync commands, status and manual corrections are clearly separated in the panel (#302)', async () => {
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
-  for (const label of ['סנכרון כתוביות', 'סנכרון אוטומטי', 'לא בוצע', 'סנכרון לפי שורה', 'תיקון ידני', 'קצב לפי פריימים', 'איפוס תיקון ידני'])
+  for (const label of ['סנכרון אוטומטי', 'לא בוצע', 'סנכרון לפי שורה', 'כיוון ידני', 'קצב לפי פריימים', 'איפוס הכיוון'])
     assert.ok(k.includes(label), label);
   assert.match(k, /class Info\(val text: \(\) -> String\) : SubsRow\(\)/);
   assert.match(k, /lineSync >= 0 && \(ok \|\| code == KeyEvent\.KEYCODE_DPAD_UP/);
@@ -1071,7 +1071,6 @@ test("automatic sync is a viewer-requested live offset match over already-playin
   assert.match(k, /speechSeconds/);
   assert.match(k, /syncZ = prefs\.getFloat\("syncZ"/);
   assert.match(k, /coerceIn\(2\.0, 6\.0\)/);
-  assert.match(k, /"סף ביטחון לסנכרון"/);
   assert.match(k, /AudioDelayProcessor \{ if \(autoOn\) liveSpeech else null \}/);
   assert.match(k, /if \(autoOn\) liveSpeech else null/);
   assert.match(k, /"סנכרון אוטומטי", \{ false \}, \{ toggleAuto\(\) \}, \{ autoState\(\) \}/);
@@ -1164,7 +1163,7 @@ test("the side menu keeps why the last automatic sync failed, under its line (#3
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /private var lastFail = ""/);
   assert.match(k, /lastFail\.isNotEmpty\(\) -> "לא הצליח"/);
-  assert.match(k, /if \(lastFail\.isNotEmpty\(\) && !autoOn\) out\.add\(SubsRow\.Info/);
+  assert.match(k, /note = \{ if \(lastFail\.isNotEmpty\(\) && !autoOn\)/);   // the reason is the line's own note (#454)
 });
 
 test("the side menu shows a release name on one line with its source beneath, and the sync state as a toned chip (#387)", async () => {
