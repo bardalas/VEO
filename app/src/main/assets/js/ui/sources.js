@@ -235,20 +235,19 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
     // This row chooses; the list below it is what starts. The quality in use wears the accent, and what
     // it will play - its size, and whether anything is still answering - is said beside it.
     const byQuality = QUALITIES.filter(q => playable.some(x => x.q === q));
-    // One row for the quality, not one per quality: pressing it takes the next one there is - and after
-    // the last, automatic again ('').
-    const cycle = [...byQuality, ''];
-    const next = cycle[(cycle.indexOf(prefQ && byQuality.includes(prefQ) ? prefQ : best.q) + 1) % cycle.length];
-    // with one quality there is nothing to switch to - but what will play is still said
-    const what = `${best.q === 'Other' ? '—' : best.q}${best.size ? ` · ${fmtSize(best.size)}` : ''}`;
-    box.innerHTML = `${byQuality.length > 1 ? `<button class="qbtn" id="qnext" data-q="${next}">${what}</button>` : `<span class="srcstat idle">${what}</span>`}
+    /* A button for each quality there is, the one in use lit - not one button stepping through them: 4K came last in its
+       turn, after 720p and SD, and nobody ever reached it (#466). With one quality, what will play is still said. */
+    const size = best.size ? ` · ${fmtSize(best.size)}` : '';
+    const chips = byQuality.map(q => `<button class="qbtn qchip${q === best.q ? ' on' : ''}" id="q-${q}" data-q="${q}" aria-pressed="${q === best.q}">${q}${q === best.q ? size : ''}</button>`).join('');
+    box.innerHTML = `${byQuality.length > 1 ? chips : `<span class="srcstat idle">${best.q === 'Other' ? '—' : best.q}${size}</span>`}
       ${links}${more}${failure}${pending ? `<span class="srcstat">${tr('src.searchingMore')}</span>` : ''}`;
     box.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
       if(!isCurrent()) return;
-      setPrefQ(b.dataset.q);
+      const q = b.dataset.q;
+      setPrefQ(q);
       lastStreams?.();
-      // the row is drawn again the moment it is pressed, and the viewer is still standing on it
-      const stay = () => document.getElementById('qnext')?.focus();
+      // the row is drawn again the moment it is pressed, and the viewer is still standing on what they chose
+      const stay = () => document.getElementById('q-' + q)?.focus();
       stay();
       requestAnimationFrame(stay);
     });

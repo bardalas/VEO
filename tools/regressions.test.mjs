@@ -753,7 +753,7 @@ test('a torrent stream keeps a window of pieces wanted ahead of the reader, and 
   assert.match(srv, /handle\.setPieceDeadline\(p, 400 \+ rank \* 150\)/);
   assert.match(srv, /positions\.values\.minOrNull\(\)/);                                // the connection being watched, not the index fetch at the end
   assert.match(eng, /int_types\.request_timeout/); assert.match(eng, /int_types\.max_out_request_queue/);
-  assert.match(kt, /if \(live\) 2_000 else if \(torrent\) 15_000 else 6_000/);          // after a stall: a real stretch before going on
+  assert.match(kt, /if \(live\) 5_000 else if \(torrent\) 15_000 else 6_000/);          // after a stall: a real stretch before going on
 });
 
 test('a source that did not answer is shown only when nothing playable was found (#228)', async () => {
@@ -1592,4 +1592,22 @@ test('TorrentsDB is a default source and the dead Pirate Bay+ add-on is taken ou
   const src = await readFile(path.join(assets, 'js/data/addons.js'), 'utf8');
   assert.match(src, /store\.get\('addons', \[CINEMETA, TORRENTIO, TORRENTSDB, WATCHHUB, STREAMING_CATALOGS\]\)/);
   assert.match(src, /if\(store\.get\('defaultsRev', 1\) < 6\)\{[\s\S]*?addonUrls\.filter\(u => u !== TPB\)[\s\S]*?addonUrls\.splice\(at >= 0 \? at \+ 1/);
+});
+
+test('every quality there is has a button of its own, 4K included - not one button stepping through them (#466)', async () => {
+  const film = {type: 'movie', meta: {id: 'tt15398776', type: 'movie', name: 'Oppenheimer', releaseInfo: '2023'}};
+  const t = (name, size, seeds) => ({infoHash: 'h' + name.length + size, title: `${name}\n👤 ${seeds} 💾 ${size}`});
+  const streams = [t('Oppenheimer.2023.1080p.BluRay.x264', '2.5 GB', 900), t('Oppenheimer.2023.2160p.UHD.BluRay.x265', '20 GB', 400), t('Oppenheimer.2023.720p.WEB', '1.2 GB', 300)];
+  const f = await fixture({realSources: true, addons: [addon], fetchStreams: async () => streams});
+  const s = await f.load('ui/sources.js');
+  await s.loadStreams(film, 'tt15398776', 'Oppenheimer');
+  const chips = [...f.box.querySelectorAll('[data-q]')].map(b => b.dataset.q);
+  assert.deepEqual([...chips], ['4K', '1080p', '720p']);
+  assert.match(f.box.innerHTML, /class="qbtn qchip on" id="q-1080p"/);    // the one that will play is lit
+});
+
+test('live TV holds a few seconds before it starts and after a stall: a slow line stopped it every second or two (#467)', async () => {
+  const kt = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
+  assert.match(kt, /if \(live\) 2_500 else if \(torrent\) 3_000 else 900,/);
+  assert.match(kt, /if \(live\) 5_000 else if \(torrent\) 15_000 else 6_000/);
 });
