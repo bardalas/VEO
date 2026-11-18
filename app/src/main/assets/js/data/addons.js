@@ -10,11 +10,13 @@ export const CINEMETA = 'https://v3-cinemeta.strem.io/manifest.json';
 export const TORRENTIO = 'https://torrentio.strem.fun/manifest.json';
 // A second torrent index (it finds releases Torrentio misses), and WatchHub, which answers with the
 // subscription service a title is on - the only answer there is for a service's own productions.
-export const TPB = 'https://thepiratebay-plus.strem.fun/manifest.json';
+export const TPB = 'https://thepiratebay-plus.strem.fun/manifest.json';      // gone (its address no longer resolves): taken out below
+/** Torrents from a second set of sites (YTS, 1337x, EZTV, RARBG copies, Knaben ...), free and in Torrentio's own format (#465). */
+export const TORRENTSDB = 'https://torrentsdb.com/manifest.json';
 export const WATCHHUB = 'https://watchhub.strem.io/manifest.json';
 // Netflix, Apple TV+, Disney+, Prime, HBO Max, Paramount+, Curiosity Stream, MagellanTV (Israel region).
 export const STREAMING_CATALOGS = 'https://7a82163c306e-stremio-netflix-catalog-addon.baby-beamup.club/bmZ4LG5mayxhdHAsZG5wLGFtcCxoYm0scG1wLGN0cyxtZ2w6OklMOjE3ODk4NDE1MDgwMDA6MTowOg==/manifest.json';
-export let addonUrls = store.get('addons', [CINEMETA, TORRENTIO, TPB, WATCHHUB, STREAMING_CATALOGS]);
+export let addonUrls = store.get('addons', [CINEMETA, TORRENTIO, TORRENTSDB, WATCHHUB, STREAMING_CATALOGS]);
 if(store.get('defaultsRev', 1) < 2){
   if(!addonUrls.includes(STREAMING_CATALOGS)) addonUrls.push(STREAMING_CATALOGS);
   store.set('defaultsRev', 2);
@@ -56,6 +58,16 @@ if(store.get('defaultsRev', 1) < 5){
     }
   }
   store.set('defaultsRev', 5);
+}
+if(store.get('defaultsRev', 1) < 6){
+  // The Pirate Bay+ is gone - every search waited on it for nothing; TorrentsDB adds sources Torrentio does not have (#465)
+  addonUrls = addonUrls.filter(u => u !== TPB);
+  if(!addonUrls.includes(TORRENTSDB)){
+    const at = addonUrls.indexOf(TORRENTIO);
+    addonUrls.splice(at >= 0 ? at + 1 : addonUrls.length, 0, TORRENTSDB);
+  }
+  store.set('addons', addonUrls);
+  store.set('defaultsRev', 6);
 }
 /** The services the add-on is set to list, by their codes (data/services.js), in its order. */
 export const scProviders = () => (scFields(scUrl() || '')?.[0] || '').split(',').filter(Boolean);

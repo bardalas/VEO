@@ -1587,3 +1587,9 @@ test('a film with only cinema recordings says so and offers them; another film h
   assert.equal(s.fitsTitle(x('Я играю Рокки 1080p'), rocky.meta), true);
   assert.equal(s.fitsTitle(x('Anything 1999'), {...rocky.meta}, 'series'), true);   // series are left alone
 });
+
+test('TorrentsDB is a default source and the dead Pirate Bay+ add-on is taken out, existing installs too (#465)', async () => {
+  const src = await readFile(path.join(assets, 'js/data/addons.js'), 'utf8');
+  assert.match(src, /store\.get\('addons', \[CINEMETA, TORRENTIO, TORRENTSDB, WATCHHUB, STREAMING_CATALOGS\]\)/);
+  assert.match(src, /if\(store\.get\('defaultsRev', 1\) < 6\)\{[\s\S]*?addonUrls\.filter\(u => u !== TPB\)[\s\S]*?addonUrls\.splice\(at >= 0 \? at \+ 1/);
+});
