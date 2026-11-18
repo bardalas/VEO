@@ -1150,8 +1150,10 @@ class PlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(
                 if (live) 8_000 else if (torrent) 30_000 else 15_000,
                 if (torrent) 120_000 else 90_000,
-                if (live) 1_000 else if (torrent) 3_000 else 900,
-                if (live) 2_000 else if (torrent) 15_000 else 6_000
+                // live: a line that cannot keep up stopped the picture every second or two (measured on a Mi Box, #467) -
+                // a few seconds held before it starts, and after a stall, make that one pause and then a run
+                if (live) 2_500 else if (torrent) 3_000 else 900,
+                if (live) 5_000 else if (torrent) 15_000 else 6_000
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
