@@ -1,5 +1,16 @@
 # VEO Android changelog
 
+## 0.45.82 — 2026-11-18
+- **4K can be chosen.** Every quality a title has gets a button of its own (4K, 1080p, 720p ...), the one that will play
+  lit - the single button that stepped through them reached 4K last, so in practice never. (#466)
+- **More free sources:** TorrentsDB joins Torrentio (it finds releases Torrentio does not); the Pirate Bay+ add-on, whose
+  address no longer exists, is gone. (#465)
+- **A film still in cinemas says so.** When only cinema recordings exist the page says so and lists them (never started
+  by itself) instead of showing nothing; and a different film an add-on attached by mistake (a Star Wars collection on
+  "I Play Rocky") is no longer offered or started. (#463)
+- **Live TV on a slow line** waits a few seconds before it starts and after a stall - one pause and then a run, instead
+  of stopping every second or two. (#467)
+
 ## 0.45.81 — 2026-11-12
 - **Scrolling a YouTube row no longer moves the whole page aside.** After about ten videos the screen went dark, the
   list flashed and slid away, and the menu ended up on the left: the YouTube tab's rows (and the search page's) turned
