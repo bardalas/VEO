@@ -66,10 +66,25 @@ export function parseStream(s, addon, i){
   };
 }
 
+/** Whether a film's source is that film. An add-on sometimes hands over another one entirely - "I Play Rocky" (2026) came with
+ *  a Star Wars I-VI collection, the only source left once the camera copies were set aside, so Play would have started it
+ *  (#463). A release that names none of the title's words and only other years is not the film; one in another script, or
+ *  with no year at all, is given the benefit of the doubt. Series are left alone (their releases name episodes). */
+export function fitsTitle(x, meta, type = meta?.type){
+  if(!meta || type !== 'movie' || x.external || x.direct) return true;
+  const text = `${x.name || ''} ${x.s?.behaviorHints?.filename || ''}`.toLowerCase();
+  const words = String(meta.name || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+    .split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !['the', 'and', 'for', 'with', 'from', 'part'].includes(w));
+  if(!words.length || words.some(w => text.includes(w))) return true;
+  const year = +(String(meta.releaseInfo || meta.year || '').match(/\d{4}/)?.[0] || 0);
+  const years = (text.match(/\b(19|20)\d{2}\b/g) || []).map(Number);
+  return !year || !years.length || years.some(y => Math.abs(y - year) <= 1);
+}
+
 /** A source the player can start on its own: a stream, not a service's page, not a camera copy, and worth playing. */
 export const canPlay = x => !x.external && x.q !== 'CAM' && rank(x) > 0;
 /** The source to start: the best of those, in the quality the viewer prefers. */
-const bestOf = all => pickQ(all.filter(canPlay).sort((a, b) => rank(b) - rank(a)));
+const bestOf = (all, meta, type) => pickQ(all.filter(x => canPlay(x) && fitsTitle(x, meta, type)).sort((a, b) => rank(b) - rank(a)));
 
 /** How good a source is to stream on a phone/TV: direct links first, then well-seeded 1080p. */
 export function rank(x){
@@ -188,7 +203,11 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
   const alt = $('#palt');
   const wasOpen = $('#altToggle')?.getAttribute('aria-expanded') === 'true';
   if(alt) alt.innerHTML = '';
-  const list = all.filter(x => !x.external && x.q !== 'CAM').sort((a, b) => rank(b) - rank(a));
+  const fits = x => fitsTitle(x, ctx?.meta, ctx?.type);
+  const list = all.filter(x => !x.external && x.q !== 'CAM' && fits(x)).sort((a, b) => rank(b) - rank(a));
+  /* A copy filmed in a cinema is never started by itself - but when it is all there is (a film just out), it is said so and
+     offered, at the end of the list, rather than hidden: the page used to show no sources and no reason (#463). */
+  const cams = all.filter(x => !x.external && x.q === 'CAM' && fits(x)).sort((a, b) => rank(b) - rank(a));
   // Somebody has to be sharing a source for it to play. The rest are still listed - for a rare
   // documentary one seeder is all there is - but never behind a button that says "play", and never
   // counted as "this title can be watched".
@@ -202,14 +221,15 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
   }).join('');
   const best = pickQ(playable);
   // the list under the row follows the quality chosen: its sources first (each part still best first)
-  const rest = (best ? list.filter(x => x !== best) : list).sort((a, b) => (b.q === best?.q) - (a.q === best?.q));
-  const more = rest.length ? `<button class="altbtn" id="altToggle" aria-expanded="${wasOpen}">${tr(best ? 'src.more' : 'src.weakN', {n: rest.length})}</button>` : '';
+  const rest = [...(best ? list.filter(x => x !== best) : list).sort((a, b) => (b.q === best?.q) - (a.q === best?.q)), ...cams];
+  const onlyCams = !best && !list.length && cams.length;
+  const more = rest.length ? `<button class="altbtn" id="altToggle" aria-expanded="${wasOpen}">${tr(best ? 'src.more' : onlyCams ? 'src.camN' : 'src.weakN', {n: rest.length})}</button>` : '';
   // a source that did not answer (a broadcaster's page, an add-on) is worth saying only when nothing playable was found: with a
   // row of sources in hand it is noise, and the viewer cannot do anything about it
   const failure = errors.length && !best ? `<span class="srcstat err">${errors.map(esc).join(' · ')}</span><button class="qbtn" id="sretry">${tr('common.retry')}</button>` : '';
   if(!best){
     // Program links and failed/partial searches must not be labelled "no sources".
-    const status = pending ? tr('src.searching') : !links && !errors.length ? tr('src.none') : '';
+    const status = pending ? tr('src.searching') : onlyCams ? tr('src.camOnly') : !links && !errors.length ? tr('src.none') : '';
     box.innerHTML = `${status ? `<span class="srcstat${pending ? '' : ' idle'}">${status}</span>` : ''}${links}${more}${failure}${pending || errors.length ? '' : remindButton(ctx)}`;
   }else{
     // This row chooses; the list below it is what starts. The quality in use wears the accent, and what
@@ -219,7 +239,9 @@ export function renderStreams(box, all, pending, label, ctx, errors = [], retry,
     // the last, automatic again ('').
     const cycle = [...byQuality, ''];
     const next = cycle[(cycle.indexOf(prefQ && byQuality.includes(prefQ) ? prefQ : best.q) + 1) % cycle.length];
-    box.innerHTML = `${byQuality.length > 1 ? `<button class="qbtn" id="qnext" data-q="${next}">${best.q}${best.size ? ` · ${fmtSize(best.size)}` : ''}</button>` : ''}
+    // with one quality there is nothing to switch to - but what will play is still said
+    const what = `${best.q === 'Other' ? '—' : best.q}${best.size ? ` · ${fmtSize(best.size)}` : ''}`;
+    box.innerHTML = `${byQuality.length > 1 ? `<button class="qbtn" id="qnext" data-q="${next}">${what}</button>` : `<span class="srcstat idle">${what}</span>`}
       ${links}${more}${failure}${pending ? `<span class="srcstat">${tr('src.searchingMore')}</span>` : ''}`;
     box.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
       if(!isCurrent()) return;
@@ -305,7 +327,7 @@ export async function loadStreams({type, meta}, videoId, label, autoplay = false
     renderStreams(box, all, pendingAddons + pendingBroadcasters > 0, label, ctx, errors, retry, current);
     // Broadcaster pages must not delay a playable source from an add-on.
     if(autoplay && !played){
-      const ready = bestOf(all);
+      const ready = bestOf(all, meta, type);
       if(ready && (!pendingAddons || impatient || ready.direct || ready.q === prefQ)){
         played = true;
         clearTimeout(graceTimer);

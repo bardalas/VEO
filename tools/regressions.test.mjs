@@ -1562,3 +1562,28 @@ test('every row of titles turns inside its frame: a bare strip moved the whole p
   }
   assert.match(await readFile(path.join(assets, 'css/reel.css'), 'utf8'), /\.reelwrap\{overflow:hidden;/);
 });
+
+test('a film with only cinema recordings says so and offers them; another film handed over by an add-on is set aside (#463)', async () => {
+  // "I Play Rocky" (2026), as Torrentio answered it: camera copies and telesyncs - and a Star Wars collection
+  const rocky = {type: 'movie', meta: {id: 'tt11995650', type: 'movie', name: 'I Play Rocky', releaseInfo: '2026'}};
+  const t = (name, size = '2.1 GB', seeds = 40) => ({infoHash: 'h' + name.length, title: `${name}\n👤 ${seeds} 💾 ${size}`});
+  const streams = [t('I.Play.Rocky.2026.CAM.720p.IT.EN-OnlyFlix'), t('I.Play.Rocky.2026.D.TS.1080p'), t('I PLAY ROCKY (2026) 1080p TELESYNC HEVC [Ukr Dub]'),
+    t('I.Play.Rocky.2026.SCREENER.DVDSCR.1080p.XviD.AC3-GUACAMOLE'), t('Звездные войны I-VI / Star Wars I-VI [1977-2005 DVDRip]', '28 GB', 300)];
+  const f = await fixture({realSources: true, addons: [addon], fetchStreams: async () => streams});
+  const s = await f.load('ui/sources.js');
+  await s.loadStreams(rocky, 'tt11995650', 'I Play Rocky');
+  assert.match(f.box.innerHTML, /src\.camOnly/);                      // said, not hidden
+  assert.match(f.box.innerHTML, /src\.camN/);
+  assert.doesNotMatch(f.box.innerHTML, /src\.none/);
+  const offered = [...f.alt.querySelectorAll('[data-i]')].map(b => streams[+b.dataset.i].title.split('\n')[0]);
+  assert.equal(offered.length, 4);
+  assert.ok(!offered.some(n => /Star Wars/.test(n)));                // the other film is not offered, and never started
+  assert.equal(f.calls.plays.length, 0);
+  // the rule itself: a release naming the title, or the year, or in another script, stays
+  const x = name => ({name, s: {}});
+  assert.equal(s.fitsTitle(x('Звездные войны I-VI / Star Wars I-VI [1977-2005 DVDRip]'), rocky.meta), false);
+  assert.equal(s.fitsTitle(x('Rocky.Plays.2026.1080p'), rocky.meta), true);
+  assert.equal(s.fitsTitle(x('Я играю Рокки 2026 1080p'), rocky.meta), true);
+  assert.equal(s.fitsTitle(x('Я играю Рокки 1080p'), rocky.meta), true);
+  assert.equal(s.fitsTitle(x('Anything 1999'), {...rocky.meta}, 'series'), true);   // series are left alone
+});
