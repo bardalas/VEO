@@ -51,3 +51,5 @@ body.motion :focus,body.motion :focus-visible{outline:none}
 
 /* the search box is a field: it keeps a field's outline */
 body.motion .search input:focus{border-color:var(--tungsten);box-shadow:0 0 0 2px var(--tungsten)}
+/* and so does every other text field - the Live page's search had nothing to show it held the remote (#493) */
+body.motion .field:focus{border-color:var(--light);box-shadow:0 0 0 3px var(--light)}

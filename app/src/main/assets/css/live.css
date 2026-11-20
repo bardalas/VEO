@@ -171,5 +171,5 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 .backdrop.progback{background-size:cover;background-position:center 20%}
 .proglogo{height:1.1em;max-width:4em;object-fit:contain;vertical-align:-.15em;margin-inline-end:.4em;background:#ffffff14;border-radius:8px;padding:.1em .2em}
 /* a programme's card has no story under it (that room is the wheel's for films and series, #475): its rows sit close */
-.livepage .strip.reel,[data-layout="tv"] .livepage .strip.reel{padding-top:4px;padding-bottom:4px}
-.livepage .row h2{margin:0 0 2px;line-height:1.15}
+.livepage .strip.reel,[data-layout="tv"] .livepage .strip.reel{padding-top:6px;padding-bottom:14px}
+.livepage .row h2{margin:10px 0 4px;line-height:1.15}
