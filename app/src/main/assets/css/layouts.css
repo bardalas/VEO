@@ -5,10 +5,11 @@
 /* List: compact rows with small art, title and year */
 /* TV: 10-foot UI - larger type, posters and focus for a remote */
 [data-layout="tv"] body{font-size:17px}
+[data-layout="tv"]{--poster-w:118px}                      /* a little smaller at arm's length: more of a row in view (#495) */
 [data-layout="tv"] .poster{flex-basis:var(--poster-w)}
 [data-layout="tv"] .grid{grid-template-columns:repeat(auto-fill,minmax(var(--poster-w),1fr))}
 [data-layout="tv"] .strip{gap:24px;padding:8px 6px 18px}
-[data-layout="tv"] .row h2{font-size:28px}
+[data-layout="tv"] .row h2{font-size:28px;line-height:1.2;margin-bottom:8px}   /* a row's name close to its row (#495) */
 /* The side menu used to push the whole page aside over a third of a second - a full relayout of every
    row on every frame of it, twice per visit to the menu, which is the most expensive thing a
    television is ever asked to do here. It moves at once instead. */

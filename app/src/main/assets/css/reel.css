@@ -68,7 +68,7 @@
 .spotact .btn:focus,.spotact .btn:focus-visible{background:var(--light);color:var(--night)}
 
 /* ---------- at arm's length ---------- */
-[data-layout="tv"] .strip.reel{padding-bottom:132px}   /* the facts, the cast and three lines of story, with room under them (#475) */
+[data-layout="tv"] .strip.reel{padding-bottom:108px}   /* the facts, the cast and three lines of story under the smaller card (#475, #495) */
 [data-layout="tv"] .spotinfo .facts{font-size:13px}
 [data-layout="tv"] .spotinfo p{font-size:13px}
 /* who is in it: one line under the facts (#469) */
