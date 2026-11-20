@@ -1775,3 +1775,11 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   const store = await readFile(path.join(assets, 'js/core/store.js'), 'utf8');
   assert.doesNotMatch(store.match(/PROFILE_KEYS\s*=\s*\[[^\]]*\]/)?.[0] || '', /guideIdx/);
 });
+
+test("coming back from a broadcaster's programme lands on its card, and a key with nothing focused lands on the row in view (#499)", async () => {
+  const mem = await readFile(path.join(assets, 'js/core/screenmem.js'), 'utf8');
+  assert.match(mem, /href: card\?\.dataset\.id \? '' : card\?\.getAttribute\('href'\)/);          // a card without an id is known by its link
+  assert.match(mem, /`\.poster\[href="\$\{CSS\.escape\(mem\.href\)\}"\]`/);
+  const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
+  assert.match(nav, /const inView = rows\.find\(r => \$\('#app'\)\?\.contains\(r\)/);             // not the page's first row, far above
+});

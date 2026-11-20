@@ -275,7 +275,13 @@ export function tvMove(dir){
   if(!rows.length) return false;
   const active = document.activeElement;
   let row = rows.find(r => r.contains(active));
-  if(!row){ focusItem(itemsOf(rows[0])[0]); return true; }
+  /* Nothing holds the remote (a screen came back without its title, #499): the row on the screen is where a key lands -
+     not the page's first row, which may be far above what the viewer is looking at. */
+  if(!row){
+    const inView = rows.find(r => $('#app')?.contains(r) && (b => b.bottom > 0 && b.top < innerHeight)(r.getBoundingClientRect()));
+    focusItem(inView ? bestIn(inView, null, 'down') : itemsOf(rows[0])[0]);
+    return true;
+  }
   const items = itemsOf(row);
   const i = items.indexOf(active);
   // A side menu is a column: up/down pick an entry, left steps into what it controls - #rail drives

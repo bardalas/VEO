@@ -13,7 +13,9 @@ export function rememberScreen(){
   const card = document.activeElement?.closest?.('.poster, .epcard, .chmain');
   const opened = lastOpened?.hash === memHash ? lastOpened.id : null;
   // the row it was in too: the same title can stand in two rows (the source wheel and a row below it)
-  screenMem.set(memHash, {y: scrollY, id: card?.dataset.id || opened, strip: card?.closest('.strip')?.id || ''});
+  // a card is known by its id, or - a broadcaster's programme has none - by where it leads (#499)
+  screenMem.set(memHash, {y: scrollY, id: card?.dataset.id || opened, href: card?.dataset.id ? '' : card?.getAttribute('href') || '',
+    strip: card?.closest('.strip')?.id || ''});
   memHash = location.hash;
 }
 /** How long the title is looked for only in the row it was in, before anywhere on the screen will do:
@@ -21,7 +23,7 @@ export function rememberScreen(){
 const STRIP_WAIT_MS = 3000;
 export function restoreScreen(){
   const mem = screenMem.get(location.hash);
-  if(!mem || (!mem.y && !mem.id)){ scrollTo(0, 0); return; }
+  if(!mem || (!mem.y && !mem.id && !mem.href)){ scrollTo(0, 0); return; }
   // The rows of a screen come back one answer at a time, and the one the viewer was on may be the last
   // of them - so the place is looked for until it is there (about ten seconds), and given up the moment
   // the viewer moves themselves.
@@ -32,9 +34,9 @@ export function restoreScreen(){
   addEventListener('touchstart', cancel, {once: true});
   addEventListener('keydown', cancel, {once: true});
   const check = () => {
-    if(stop || !mem.id) return;
+    if(stop || !(mem.id || mem.href)) return;
     // in the row it was in first; anywhere on the screen only once that row has had time to arrive
-    const sel = `.poster[data-id="${CSS.escape(mem.id)}"]`;
+    const sel = mem.id ? `.poster[data-id="${CSS.escape(mem.id)}"]` : `.poster[href="${CSS.escape(mem.href)}"]`;
     const anywhere = !mem.strip || performance.now() - t0 > STRIP_WAIT_MS;
     const el = (mem.strip && document.querySelector(`#${CSS.escape(mem.strip)} ${sel}`)) || (anywhere ? document.querySelector(sel) : null);
     if(el){ isTvLayout() ? focusItem(el) : el.scrollIntoView({block: 'center', behavior: 'smooth'}); stop = true; }
@@ -47,7 +49,7 @@ export function restoreScreen(){
   };
   tick();
   // …and the moment the title itself arrives, whenever that is: a row can take longer than any wait
-  if(mem.id){
+  if(mem.id || mem.href){
     const watch = new MutationObserver(() => { check(); if(stop) watch.disconnect(); });
     watch.observe(document.getElementById('app'), {childList: true, subtree: true});
     setTimeout(() => watch.disconnect(), 20000);
