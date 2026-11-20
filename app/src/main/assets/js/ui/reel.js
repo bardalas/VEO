@@ -190,7 +190,7 @@ function sharpen(art){
 function showInfo(el, info){
   if(!info?.isConnected || spot !== el) return;
   const r = info.getBoundingClientRect(), top = el.getBoundingClientRect().top;
-  const over = Math.min(r.bottom - (innerHeight - 16), top - 12);
+  const over = Math.min(r.bottom - (innerHeight - 40), top - 12);   // with room under the words (#475)
   if(over > 4) scrollBy({top: over, behavior: 'smooth'});
 }
 

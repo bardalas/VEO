@@ -8,7 +8,7 @@
    7% of the card), or the ring is cut at its corners; the negative margin gives the room back to the layout */
 .reelwrap{overflow:hidden;margin:-24px -28px;padding:24px 28px}
 /* the room under the row is the same whether a title stands in it or not, so nothing below it moves */
-.strip.reel{position:relative;overflow:visible;scroll-snap-type:none;padding-bottom:76px;
+.strip.reel{position:relative;overflow:visible;scroll-snap-type:none;padding-bottom:104px;
   transition:transform var(--settle) var(--ease)}
 .strip.reel .poster{flex:0 0 calc(var(--poster-w) * 1.3)}
 /* The picture takes its new size at once - the row's own travel is the movement the eye follows, and
@@ -68,7 +68,7 @@
 .spotact .btn:focus,.spotact .btn:focus-visible{background:var(--light);color:var(--night)}
 
 /* ---------- at arm's length ---------- */
-[data-layout="tv"] .strip.reel{padding-bottom:92px}
+[data-layout="tv"] .strip.reel{padding-bottom:132px}   /* the facts, the cast and three lines of story, with room under them (#475) */
 [data-layout="tv"] .spotinfo .facts{font-size:13px}
 [data-layout="tv"] .spotinfo p{font-size:13px}
 /* who is in it: one line under the facts (#469) */
@@ -84,7 +84,7 @@
   .strip.reel{overflow-x:auto}
   .strip.reel .poster{flex-basis:var(--poster-w)}
   .strip .poster.spot,.strip.reel .poster.spot{flex-basis:min(76vw,calc(var(--poster-w) * 2.4))}
-  .strip.reel{padding-bottom:70px}
+  .strip.reel{padding-bottom:96px}
 }
 
 
