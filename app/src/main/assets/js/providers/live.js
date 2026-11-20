@@ -101,7 +101,7 @@ export async function liveChannels(key){
 
 /** Play a channel full screen, with the rest of the list available for zapping. */
 export function watchChannel(list, i, sourceKey){
-  if(!liveAllowed()) return;                          // every way to a channel goes through here: a kids profile only from 16
+  if(!liveAllowed()) return;                          // every way to a channel goes through here
   store.set('lastChannel', {src: sourceKey, name: list[i].name});
   const shown = list.map(c => channelName(c.name)), twice = new Set(shown.filter((n, k) => shown.indexOf(n) !== k));
   if(window.BoothAndroid && BoothAndroid.playChannels)
