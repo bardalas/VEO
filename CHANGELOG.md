@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.84 — 2026-11-20
+- **Updates are found again.** "Check for updates" said there was no internet: GitHub's API answers only sixty questions an
+  hour for a whole home, and the household's TVs and phones, each asking at every start, used them up. The check now reads
+  the releases' page feed, which has no such limit (the API stays as a fallback). (#472)
+
 ## 0.45.83 — 2026-11-20
 - **The summary under the wheel is seen in full.** On a page whose wheel stands low the words under the wide card were
   below the screen; the page now moves up just enough to show them.
