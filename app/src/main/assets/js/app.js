@@ -28,6 +28,7 @@ import {viewDetail} from './screens/detail.js';
 import {viewCategory, viewGenre, viewGenres, viewHome} from './screens/home.js';
 import {viewLibrary} from './screens/library.js';
 import {viewLive} from './screens/live.js';
+import {viewProgramme} from './screens/programme.js';
 import {paintRailProfile, viewProfile, viewWho} from './screens/profiles.js';
 import {viewSearch} from './screens/search.js';
 import {viewSettings} from './screens/settings.js';
@@ -89,7 +90,7 @@ export let lastPaint = 0;                                   // when this screen 
 const KIDS_ROUTES = ['', 'detail', 'library', 'settings', 'search', 'all', 'who'];
 const TEEN_ROUTES = ['cat', 'genres', 'genre', 'shows', 'web', 'kan', 'r13', 'tv'];   // not Keshet: its episodes are its own site's
 const kidsMay = (r, a) => KIDS_ROUTES.includes(r) || (r === 'cat' && ['movies', 'series'].includes(a))
-  || (kidsTeen() && TEEN_ROUTES.includes(r)) || (r === 'live' && liveAllowed());
+  || (kidsTeen() && TEEN_ROUTES.includes(r)) || ((r === 'live' || r === 'prog') && liveAllowed());
 export async function route(){
   invalidateView();                                 // cancel work from the previous view before rendering
   const [, r0 = '', a0] = location.hash.split('/').map(decodeURIComponent);
@@ -121,6 +122,7 @@ export async function route(){
   else if(r === 'cat') viewCategory(a);
   else if(r === 'all') viewAll(a);
   else if(r === 'live') viewLive();
+  else if(r === 'prog') viewProgramme(a);
   else if(r === 'search') viewSearch(a);
   else if(r === 'detail') viewDetail(a, b, c);
   else if(r === 'library') viewLibrary();

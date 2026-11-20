@@ -166,3 +166,6 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 /* a programme's own picture (#487): whole, over a dim blurred copy of itself */
 .progcard .picart{background:var(--pic) center/contain no-repeat;overflow:hidden;isolation:isolate}
 .progcard .picart::before{content:"";position:absolute;inset:-20px;background:var(--pic) center/cover;filter:blur(18px) brightness(.45);z-index:-1}
+/* a programme's page (#490): its picture behind it, or its channel's logo small where it has none */
+.backdrop.progback{background-size:cover;background-position:center 20%}
+.proglogo{height:1.1em;max-width:4em;object-fit:contain;vertical-align:-.15em;margin-inline-end:.4em;background:#ffffff14;border-radius:8px;padding:.1em .2em}
