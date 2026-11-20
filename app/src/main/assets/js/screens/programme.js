@@ -5,8 +5,26 @@
 import {$, esc} from '../core/dom.js';
 import {channelName} from '../data/names.js';
 import {tr} from '../i18n.js';
-import {episodesOf, playBroadcast, programmeByKey, whenAired} from '../providers/guide.js';
+import {kidsOn} from '../data/kids.js';
+import {episodesOf, playBroadcast, progKey, programmeByKey, whenAired} from '../providers/guide.js';
+import {kanBox, kanCard} from '../providers/kan.js';
+import {makoCard, makoPrograms} from '../providers/mako.js';
+import {r13card, r13row} from '../providers/reshet.js';
 import {loadRtv} from '../providers/rtv.js';
+
+/** The same programme in a broadcaster's own catalogue - kept there for good, all its episodes (#504): [{name, href}] or
+    null. Looked for by the name the guide groups it by; Keshet's catalogue is not a kids profile's. */
+async function onDemand(p){
+  const key = progKey(p.name);
+  const places = [['origin.kan', async () => (await kanBox()).flatMap(sec => sec.items), kanCard],
+    ...(kidsOn() ? [] : [['origin.mako', () => makoPrograms(''), makoCard]]), ['origin.r13', () => r13row('series'), r13card]];
+  for(const [name, load, card] of places){
+    const hit = ((await load().catch(() => [])) || []).find(it => progKey(it.name || '') === key);
+    const href = hit && (card(hit).match(/href="([^"]+)"/) || [])[1];
+    if(href) return {name: tr(name), href};
+  }
+  return null;
+}
 
 export async function viewProgramme(key){
   const app = $('#app');
@@ -27,6 +45,7 @@ export async function viewProgramme(key){
           <div class="facts"><span>${esc(tr('guide.g.' + p.genre))}</span><span>${esc(tr('guide.eps', {n: count}))}</span>${onChannels.slice(0, 3).map(c => `<span>${esc(c)}</span>`).join('')}</div>
         </div>
       </div>
+      <div class="tacts" id="pvod" hidden></div>
       <div class="epanel"><div class="epwrap">
         ${seasons.length > 1 ? `<div class="seasonbar" role="group" aria-label="${esc(tr('detail.season'))}">${seasons.map(s =>
           `<button data-season="${s}" class="sbtn">${s ? tr('detail.seasonN', {n: s}) : tr('guide.otherEps')}</button>`).join('')}</div>` : ''}
@@ -49,6 +68,13 @@ export async function viewProgramme(key){
   const season = seasons.filter(Boolean).at(-1) ?? seasons[0] ?? 0;
   draw(season);
   // the remote starts on the episode on most recently
+  // this week's episodes are the guide's; the programme for good is in the broadcaster's own catalogue, when it is there
+  onDemand(p).then(v => {
+    const box = $('#pvod');
+    if(!v || !box?.isConnected) return;
+    box.innerHTML = `<a class="btn" href="${esc(v.href)}">${esc(tr('guide.vod', {bc: v.name}))}</a>`;
+    box.hidden = false;
+  });
   const eps = of(season), latest = eps.reduce((m, ep, i) => ep.b.t > eps[m].b.t ? i : m, 0);
   $(`#eps [data-i="${latest}"]`)?.focus();
 }

@@ -21,13 +21,17 @@ const PAST = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 
 /** A source tab was chosen: the remote stays on it while its channels come. */
 let onTab = false;
-export async function viewLive(){
+export async function viewLive(tab){
   const app = $('#app');
   const opened = performance.now(), keepTab = onTab;
   onTab = false;
   const sources = liveSources();
-  let sel = store.get('livePl', sources[0].key);
+  /* Coming from the menu, Channels opens on the live channels, whatever tab was last (#504: live TV is what is watched
+     most, and how to reach it must not depend on where the viewer was before). A tab is in the address (#/live/<tab>), so
+     Back from a programme comes back to it. */
+  let sel = tab || sources[0].key;
   if(!sources.some(x => x.key === sel)) sel = sources[0].key;
+  store.set('livePl', sel);
   const hasRtv = !!store.get('rtvKey', '');
   const search = `<input class="field" id="lq" type="search" placeholder="${esc(tr('live.search'))}" aria-label="${esc(tr('live.search'))}">`;
   app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
@@ -45,9 +49,10 @@ export async function viewLive(){
   if($('#rtvOpen')) $('#rtvOpen').onclick = () => openRtvKey(viewLive);
   app.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => {
     if(b.classList.contains('on')) return;
-    store.set('livePl', b.dataset.pl); store.set('liveGroup', '');
+    store.set('liveGroup', '');
     onTab = true;
-    viewLive();
+    history.replaceState(null, '', '#/live/' + encodeURIComponent(b.dataset.pl));
+    viewLive(b.dataset.pl);
     $(`[data-pl="${CSS.escape(b.dataset.pl)}"]`)?.focus();     // the remote stays on the tab it chose
   });
 
@@ -92,7 +97,7 @@ export async function viewLive(){
     nowIo?.disconnect();
     const q = $('#lq').value.trim().toLowerCase(), g = $('#lg').hidden ? '' : $('#lg').querySelector('.on')?.dataset.g || '';
     const list = chans.filter(c => (!g || c.group === g) && (!q || c.name.toLowerCase().includes(q) || channelName(c.name).toLowerCase().includes(q)));
-    $('#chs').innerHTML = list.length ? `<div class="chlist">${list.map((c, i) => `<button class="chmain${c.name === lastName ? ' last' : ''}" data-i="${i}">
+    $('#chs').innerHTML = list.length ? `<div class="chlist">${list.map((c, i) => `<button class="chmain${c.name === lastName ? ' last' : ''}"${c.name === lastName ? ' data-land' : ''} data-i="${i}">
         <span class="chtop"><span class="chlogo">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${initials(c)}'}))">` : `<span>${initials(c)}</span>`}</span>
           <span class="chnum">${numbers.get(c)}</span>${c.name === lastName ? `<span class="chtag">${tr('live.last')}</span>` : ''}</span>
         <b class="chname" dir="auto">${esc(channelName(c.name))}</b>

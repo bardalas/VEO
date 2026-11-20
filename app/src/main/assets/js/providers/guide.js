@@ -369,8 +369,10 @@ const chOf = epg => load().ch[epg] || {};
 export function guideCard(p, i){
   const c = chOf(p.eps[0].epg);
   const tag = p.eps.length > 1 ? `<span class="chtag">${tr('guide.times', {n: p.eps.length})}</span>` : '';
+  // a broadcast, not a catalogue's title: its channel's logo stands in the corner of its picture (#504)
+  const corner = c.logo ? `<img class="chcorner" src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : '';
   const art = p.poster
-    ? `<div class="art picart" style="--pic:url(&quot;${esc(p.poster)}&quot;)">${tag}</div>`
+    ? `<div class="art picart" style="--pic:url(&quot;${esc(p.poster)}&quot;)">${corner}${tag}</div>`
     : `<div class="art logoart">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ''}${tag}</div>`;
   return `<button class="poster wide progcard" data-gp="${i}" data-id="guide:${esc(p.key)}">${art}
     <div class="t" dir="auto">${esc(p.name)}</div>
