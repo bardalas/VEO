@@ -142,9 +142,9 @@ export const bestIn = (row, from, dir) => {
   // the one the viewer was on before, or the row's first - not whatever happens to be across the page
   if(row.classList.contains('reel'))
     return cand.find(el => el.classList.contains('spot')) || cand.find(el => el.dataset.wasSpot) || cand[0];
-  // the season being shown, the episode lined up to play, and the source the wheel is showing are
-  // where arriving on those rows lands
-  return ((row.classList.contains('seasonbar') || row.classList.contains('srctabs') || row.classList.contains('stabs')) && cand.find(el => el.classList.contains('on')))
+  // the season being shown, the episode lined up to play, the source the wheel is showing and the chosen chip
+  // (#493: arriving on the Live page's chips landed on whichever stood nearest) are where arriving on those rows lands
+  return (['seasonbar', 'srctabs', 'stabs', 'live-groups'].some(c => row.classList.contains(c)) && cand.find(el => el.classList.contains('on')))
     || (row.classList.contains('eps') && cand.find(el => el.classList.contains('on')))
     || near.reduce((best, el) => Math.abs(centerX(el) - x) < Math.abs(centerX(best) - x) ? el : best, near[0]);
 };

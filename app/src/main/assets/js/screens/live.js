@@ -29,11 +29,14 @@ export async function viewLive(){
   let sel = store.get('livePl', sources[0].key);
   if(!sources.some(x => x.key === sel)) sel = sources[0].key;
   const hasRtv = !!store.get('rtvKey', '');
+  const search = `<input class="field" id="lq" type="search" placeholder="${esc(tr('live.search'))}" aria-label="${esc(tr('live.search'))}">`;
   app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
     <div class="livehead"><h1>${tr('nav.live')}</h1>
+      ${/* the search box stands at the end of the tabs' line - one row for the remote: Left from the last tab reaches it,
+           Down from either goes on to the page (#493) */ ''}
       ${sources.length > 1 ? `<div class="srctabs livetabs" role="tablist">${sources.map(x =>
-        `<button class="srctab${x.key === sel ? ' on' : ''}" role="tab" aria-selected="${x.key === sel}" data-pl="${esc(x.key)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
-      <div class="livesearch"><input class="field" id="lq" type="search" placeholder="${esc(tr('live.search'))}" aria-label="${esc(tr('live.search'))}"></div></div>
+        `<button class="srctab${x.key === sel ? ' on' : ''}" role="tab" aria-selected="${x.key === sel}" data-pl="${esc(x.key)}">${esc(x.name)}</button>`).join('')}${search}</div>`
+        : `<div class="livesearch">${search}</div>`}</div>
     <div class="live-groups" id="lg" role="group" hidden></div>
     <div id="chs"><p class="note">${tr('live.loading')}</p></div>
     <p class="snote livehint" id="lhint" hidden></p>
