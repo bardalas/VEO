@@ -71,6 +71,10 @@
 [data-layout="tv"] .strip.reel{padding-bottom:92px}
 [data-layout="tv"] .spotinfo .facts{font-size:13px}
 [data-layout="tv"] .spotinfo p{font-size:13px}
+/* who is in it: one line under the facts (#469) */
+.spotinfo .cast{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spotinfo .cast:empty{display:none}
+[data-layout="tv"] .spotinfo .cast{font-size:13px}
 [data-layout="tv"] .spotact .btn{padding:10px 22px;font-size:17px}
 [data-layout="tv"] .spotact{gap:8px}
 

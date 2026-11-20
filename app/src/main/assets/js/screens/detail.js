@@ -145,7 +145,7 @@ export async function viewDetail(type, id, requestedVideoId = ''){
           <p class="desc" id="desc" dir="auto">${esc(meta.description)}</p>
           <div class="src" id="dsrc"></div>
           <div class="facts">${svcFacts(meta.id)}${meta.imdbRating ? imdbTag(meta.imdbRating) : ''}${yearOf(meta) ? `<span>${esc(yearOf(meta))}</span>` : ''}${meta.runtime ? `<span>${esc(meta.runtime)}</span>` : ''}${(meta.genres||meta.genre||[]).slice(0, 2).map(g => `<span>${esc(genreName(g))}</span>`).join('')}</div>
-          <div class="people">${meta.director?.length ? `<div><b>${tr('detail.director')}</b> ${esc([].concat(meta.director).join(', '))}</div>` : ''}${meta.cast?.length ? `<div><b>${tr('detail.cast')}</b> ${esc(meta.cast.slice(0,6).join(', '))}</div>` : ''}</div>
+          <div class="people">${meta.director?.length ? `<div class="pdir"><b>${tr('detail.director')}</b> ${esc([].concat(meta.director).join(', '))}</div>` : ''}${meta.cast?.length ? `<div class="pcast"><b>${tr('detail.cast')}</b> ${esc(meta.cast.slice(0,6).join(', '))}</div>` : ''}</div>
         </div>
       </div>
       <div class="tacts">

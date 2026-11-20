@@ -163,7 +163,9 @@ export async function hebrewPlot(id){
   if(!article) return plotCache[id] = null;
   const d = await getJSON(`https://he.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=wiki&redirects=1&format=json&origin=*&titles=${encodeURIComponent(article)}`);
   const text = Object.values(d.query.pages)[0]?.extract || '';
-  const plot = text.match(/^==\s*(?:עלילה|עלילת הסרט|עלילת הסדרה|תקציר העלילה|תקציר הסדרה|תקציר|תקציר עלילה)\s*==\s*$([\s\S]*?)(?=^==[^=]|$(?![\s\S]))/m);
+  // the story's own section, whatever it is called - "עלילה", "תקציר העלילה", "רקע עלילתי" ...: an article whose section went
+  // by a name not on a list gave its opening instead - festivals and cast, not what the film is about (#469)
+  const plot = text.match(/^==\s*(?:[^=\n]*עלילה|[^=\n]*עלילתי|תקציר[^=\n]*)\s*==\s*$([\s\S]*?)(?=^==[^=]|$(?![\s\S]))/m);
   const body = (plot ? plot[1] : text.split(/^==/m)[0]).replace(/^===.*===$/gm, '').replace(/\n{2,}/g, '\n').trim();
   return plotCache[id] = body ? {text: body, article} : null;
 }
