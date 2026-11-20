@@ -51,6 +51,7 @@ class PlayerActivity : AppCompatActivity() {
     private data class Source(
         val name: String, val url: String, val ua: String, val referer: String, val drm: String = "",
         val num: Int = 0, val logo: String = "", val epg: String = "", val arch: String = "", val rec: Int = 0,
+        val mark: String = "",                                       // a radio station's short name, where it has no logo
     )
     /** One programme from a channel's guide. */
     private data class Prog(val from: Long, val to: Long, val name: String)
@@ -199,7 +200,7 @@ class PlayerActivity : AppCompatActivity() {
                 a.getJSONObject(i).run {
                     Source(optString("name"), optString("url"), optString("ua"), optString("referer"),
                         optString("drm"), optInt("num", i + 1), optString("logo"), optString("epg"),
-                        optString("arch"), optInt("rec"))
+                        optString("arch"), optInt("rec"), optString("mark"))
                 }
             }
         } ?: listOfNotNull(intent.getStringExtra("url")?.let {
@@ -1228,6 +1229,8 @@ class PlayerActivity : AppCompatActivity() {
                             .flatMap { g -> (0 until g.length).filter { i -> g.isTrackSelected(i) }.map { i -> g.getTrackFormat(i).bitrate } }
                             .maxOrNull()?.toLong()?.takeIf { it > 0 } ?: 0L
                         avoidAudioDescription(tracks)
+                        // sound with no picture - the radio: its mark where the picture would be (#477)
+                        if (!tracks.isEmpty) showSoundArt(tracks.groups.none { g -> g.type == C.TRACK_TYPE_VIDEO })
                     }
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) = showPaused(!playWhenReady)
                     override fun onPlaybackStateChanged(state: Int) {
@@ -1502,15 +1505,42 @@ class PlayerActivity : AppCompatActivity() {
     private fun loadLogo(url: String) {
         Thread {
             val bmp = runCatching {
-                java.net.URL(url).openStream().use { android.graphics.BitmapFactory.decodeStream(it) }
+                // a mark the page carries itself (the radio's) is read where the page is read from: the web
+                // bundle's files, or the APK's - not over the network, where that address leads nowhere
+                val own = url.substringAfter(PAGE_ASSETS, "")
+                val stream = if (url.startsWith(PAGE_ASSETS)) WebBundle.handler(this).handle(own)?.data
+                             else java.net.URL(url).openStream()
+                stream?.use { android.graphics.BitmapFactory.decodeStream(it) }
             }.getOrNull()
             runOnUiThread {
                 logos[url] = bmp
                 if (bannerOpen && sources.getOrNull(index)?.logo == url && bmp != null) {
                     findViewById<ImageView>(R.id.chLogo).apply { setImageBitmap(bmp); visibility = View.VISIBLE }
                 }
+                if (sources.getOrNull(index)?.logo == url && findViewById<View>(R.id.soundArt).visibility == View.VISIBLE) paintSoundArt()
             }
         }.start()
+    }
+
+    /** Sound alone (the radio, #477): the station's mark and name over the dark where a picture would be. */
+    private fun showSoundArt(on: Boolean) {
+        findViewById<View>(R.id.soundArt).visibility = if (on) View.VISIBLE else View.GONE
+        if (on) paintSoundArt()
+    }
+    private fun paintSoundArt() {
+        val src = sources.getOrNull(index) ?: return
+        findViewById<View>(R.id.soundPlate).background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(18).toFloat(); setColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<TextView>(R.id.soundName).text = src.name
+        findViewById<TextView>(R.id.soundState).text = if (live) "רדיו · שידור חי" else ""
+        val bmp = logos[src.logo]
+        findViewById<ImageView>(R.id.soundLogo).apply { setImageBitmap(bmp); visibility = if (bmp != null) View.VISIBLE else View.GONE }
+        findViewById<TextView>(R.id.soundMark).apply {
+            text = src.mark.ifBlank { src.name }
+            visibility = if (bmp == null) View.VISIBLE else View.GONE
+        }
+        if (src.logo.isNotBlank() && !logos.containsKey(src.logo)) loadLogo(src.logo)
     }
 
     /** Raise the banner (every channel change does, and every step through a film), and take it down
@@ -2792,6 +2822,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Where the page is served from (MainActivity): a file of its own at this address is read from the app, not fetched. */
+        private const val PAGE_ASSETS = "https://appassets.androidplatform.net/assets/"
         private const val AUDIO_SHIFT_MAX_MS = 3_000
         /** The subtitles' place: how far above the bottom of the picture they stand (#454) - the four the in-page YouTube player offers. */
         private val SUB_POS = floatArrayOf(0.04f, 0.14f, 0.26f, 0.78f)

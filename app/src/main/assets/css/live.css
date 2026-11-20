@@ -144,3 +144,15 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 .ytsignway p{margin:0 0 6px}
 .ytsignin .ytcode{font-size:40px;font-weight:700;letter-spacing:.08em;white-space:nowrap;margin:8px 0 10px}
 .ytsignin .ytqr svg{display:block;width:190px;height:190px;background:#fff;border-radius:10px}
+
+/* ---------- the radio (#477): the stations' marks are drawn for white, so their tiles are white ---------- */
+.radiopage .chlogo{background:#fff}
+.radiopage .chlogo span{color:#1a1d24;font-size:26px}
+/* and a station is a tile - its mark large, its name under it - five to a line on a television */
+html[data-device="tv"] .radiopage .chlist{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
+html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 10px 12px}
+.radiopage .chlogo,html[data-device="tv"] .radiopage .chlogo{height:auto;aspect-ratio:16/10}
+.radiopage .chlogo img,html[data-device="tv"] .radiopage .chlogo img{max-width:78%;max-height:70%}
+.radiopage .chname,.radiopage .chnow,html[data-device="tv"] .radiopage .chmain>.chname{text-align:center;margin:0}
+.radiopage .chnum{color:#1a1d24aa}
+.radiopage .chfoot{display:none}
