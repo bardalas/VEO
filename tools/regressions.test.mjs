@@ -1611,3 +1611,18 @@ test('live TV holds a few seconds before it starts and after a stall: a slow lin
   assert.match(kt, /if \(live\) 2_500 else if \(torrent\) 3_000 else 900,/);
   assert.match(kt, /if \(live\) 5_000 else if \(torrent\) 15_000 else 6_000/);
 });
+
+test("a title's story is its plot section whatever it is called, the wheel shows who is in it and stays in view (#469)", async () => {
+  const he = await readFile(path.join(assets, 'js/data/hebrew.js'), 'utf8');
+  const re = new RegExp(he.match(/const plot = text\.match\(\/(.*)\/m\);/)[1], 'm');
+  const article = 'הכדור השחור הוא סרט דרמה משנת 2026, הוקרן בפסטיבל קאן.\n\n== רקע עלילתי ==\nבספרד של 1932, נגן חצוצרה.\n\n== צוות השחקנים ==\nפנלופה קרוז';
+  assert.equal(article.match(re)?.[1].trim(), 'בספרד של 1932, נגן חצוצרה.');      // "רקע עלילתי" was not on the list: the opening was shown
+  assert.equal('x\n== עלילה ==\nסיפור\n== הפקה ==\ny'.match(re)?.[1].trim(), 'סיפור');
+  assert.equal('x\n== תקציר העלילה ==\nסיפור\n'.match(re)?.[1].trim(), 'סיפור');
+  assert.equal('x\n== הפקה ==\ny'.match(re), null);
+  const reel = await readFile(path.join(assets, 'js/ui/reel.js'), 'utf8');
+  assert.match(reel, /<div class="cast" dir="auto"><\/div>/);
+  assert.match(reel, /tr\('reel\.cast', \{who: cast\.join\(', '\)\}\)/);
+  assert.match(reel, /function showInfo\(el, info\)/);                          // the words under the card are brought into view
+  assert.match(await readFile(path.join(assets, 'css/layouts.css'), 'utf8'), /body\.titlefit \.detail\.movie \.people\{display:block/);
+});

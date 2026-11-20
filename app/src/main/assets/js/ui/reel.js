@@ -184,13 +184,23 @@ function sharpen(art){
   (img.decode ? img.decode() : Promise.resolve()).then(put, () => {});
 }
 
+/* The words under the title in the middle come after it has been reached, and on a television the wide card leaves them
+   below the bottom of the screen - the summary was cut, the cast never seen (#469). Once they are there, the page moves up
+   just enough to show them, never so far that the card itself leaves the top. */
+function showInfo(el, info){
+  if(!info?.isConnected || spot !== el) return;
+  const r = info.getBoundingClientRect(), top = el.getBoundingClientRect().top;
+  const over = Math.min(r.bottom - (innerHeight - 16), top - 12);
+  if(over > 4) scrollBy({top: over, behavior: 'smooth'});
+}
+
 async function paint(el, full){
   const art = el.querySelector('.art');
   if(!art) return;
   /* Under the picture, where a title's name always is - not written over the picture itself. The
      name is already there, in the same place as every other title's; what is added is the line that
      says what this one is, and it is added below it rather than in front of the artwork. */
-  act.innerHTML = `<div class="spotinfo"><div class="facts"></div><p dir="auto"></p></div>`;
+  act.innerHTML = `<div class="spotinfo"><div class="facts"></div><div class="cast" dir="auto"></div><p dir="auto"></p></div>`;
   if(!art.classList.contains('land')) sharpen(art);
   if(!full) return;                                  // a broadcaster's programme: its picture and its name
   const [, , type, idEnc] = el.getAttribute('href').split('/');
@@ -207,6 +217,10 @@ async function paint(el, full){
       yearOf(meta) && `<span>${esc(yearOf(meta))}</span>`, meta.runtime && `<span>${esc(meta.runtime)}</span>`,
       ...(meta.genres || meta.genre || []).slice(0, 1).map(g => `<span>${esc(genreName(g))}</span>`)].filter(Boolean).join('');
     info.querySelector('p').textContent = meta.description || '';
+    // who is in it - the first three names (#469)
+    const cast = [].concat(meta.cast || []).slice(0, 3);
+    info.querySelector('.cast').textContent = cast.length ? tr('reel.cast', {who: cast.join(', ')}) : '';
+    requestAnimationFrame(() => showInfo(el, info));
     // Two seconds from the moment the viewer came to rest - counted from then, not from whenever the
     // add-ons happened to answer, so it is the same wait every time. Quietly: browsing is not watching.
     const waited = performance.now() - restingSince;
@@ -218,6 +232,7 @@ async function paint(el, full){
       const p = info.querySelector('p');
       p.dir = 'rtl'; p.textContent = plot.text;
       if(plot.mt) p.title = plot.original;
+      requestAnimationFrame(() => showInfo(el, info));
     }
   }
 }

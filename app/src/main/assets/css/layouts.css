@@ -44,6 +44,10 @@
 [data-layout="tv"] body.titlefit .detail{margin-top:0;max-width:min(60%,800px)}
 [data-layout="tv"] body.titlefit .desc{-webkit-line-clamp:3}
 [data-layout="tv"] body.titlefit .people{display:none}
+/* a film's page on the television keeps one line of who is in it (#469) - the page must still fit the screen */
+[data-layout="tv"] body.titlefit .detail.movie .people{display:block;margin:4px 0 10px;font-size:16px}
+[data-layout="tv"] body.titlefit .detail.movie .people .pdir{display:none}
+[data-layout="tv"] body.titlefit .detail.movie .people .pcast{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* A film's two ways in: words, not buttons - no fill, no band. The one the remote is on is framed in
    the accent, the way it was drawn; the other is simply text. They sit on one line, at the edge the
    page is read from. */
