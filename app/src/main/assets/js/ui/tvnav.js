@@ -258,6 +258,18 @@ const reclaim = () => {
   focusItem(back);
 };
 addEventListener('blur', () => setTimeout(reclaim, 0), true);
+/* Wherever the focus comes from - a screen restoring itself, a tab keeping the remote, a focus() that asked not to
+   scroll - the control that holds the remote is on the screen: a mark off screen is a remote that seems to do nothing
+   (#506: a tab above, the page showing the channels below). The menu scrolls itself; a frame (a taste) is not ours. */
+addEventListener('focusin', e => {
+  const el = e.target;
+  if(!isTvLayout() || !(el instanceof HTMLElement) || el.closest('#rail') || el.tagName === 'IFRAME') return;
+  requestAnimationFrame(() => {
+    if(document.activeElement !== el || !el.isConnected) return;
+    const r = el.getBoundingClientRect();
+    if(r.height && (r.bottom < 0 || r.top > innerHeight)) focusItem(el);
+  });
+}, true);
 // only while a trailer is on the screen is there a frame that could take the focus away
 setInterval(() => { if(document.querySelector('iframe.taste')) reclaim(); }, 1500);
 

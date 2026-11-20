@@ -173,3 +173,6 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 /* a programme's card has no story under it (that room is the wheel's for films and series, #475): its rows sit close */
 .livepage .strip.reel,[data-layout="tv"] .livepage .strip.reel{padding-top:6px;padding-bottom:14px}
 .livepage .row h2{margin:10px 0 4px;line-height:1.15}
+/* this week's broadcast with a picture of its own still says which channel it was on (#504): the logo in the corner */
+.progcard .chcorner{position:absolute;bottom:8px;inset-inline-start:8px;max-width:28%;max-height:26%;object-fit:contain;
+  background:#000a;border-radius:6px;padding:3px 5px}
