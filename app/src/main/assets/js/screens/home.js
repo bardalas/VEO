@@ -9,7 +9,7 @@ import {KID_GENRES, kidsChild, kidsOn, kidsOwn} from '../data/kids.js';
 import {GENRES, gridFrom, pageFilters, sortActive, sortBar, wireSortBar} from '../data/sort.js';
 import {TASTE_ADDON, becauseTitles, hasTaste} from '../data/taste.js';
 import {TREND_ADDON} from '../data/trending.js';
-import {dismissedContinue, latestPerTitle, progress} from '../data/watch.js';
+import {dismissedContinue, latestPerTitle} from '../data/watch.js';
 import {tr} from '../i18n.js';
 import {originsFor} from '../ui/origins.js';
 import {renderRows} from '../ui/rows.js';

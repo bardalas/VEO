@@ -1,10 +1,6 @@
 /* ---------- The layouts, and the television - they override what came before ---------- */
-/* The layouts: the same content, arranged for a wall, a list or a television. */
-/* Poster wall: no banner, every row wraps into a grid */
-  background:linear-gradient(transparent,#000d);font-size:13px;opacity:0;transition:opacity var(--travel) var(--ease)}
-/* List: compact rows with small art, title and year */
-/* TV: 10-foot UI - larger type, posters and focus for a remote */
-[data-layout="tv"] body{font-size:17px}
+/* TV: 10-foot UI - larger type, posters and focus for a remote. (A fragment of the old Poster wall rule left here swallowed
+   a body font-size rule after it, which therefore never applied; both are gone and the type is what it always was.) */
 [data-layout="tv"]{--poster-w:118px}                      /* a little smaller at arm's length: more of a row in view (#495) */
 [data-layout="tv"] .poster{flex-basis:var(--poster-w)}
 [data-layout="tv"] .grid{grid-template-columns:repeat(auto-fill,minmax(var(--poster-w),1fr))}

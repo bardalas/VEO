@@ -795,7 +795,7 @@ test('on a phone the settings are a list of sections and a page per section with
   assert.match(ui, /data-acc="\$\{id\}" aria-expanded/);
   assert.match(css, /\.setrow\{[^}]*min-height:60px/);
   assert.match(css, /\.setacc\.open>\.setrow \.chev/);
-  assert.match(css, /\.setpage\.phone > h1,\.sphead\{position:sticky;top:0;/);        // the header does not scroll away
+  assert.match(css, /\.setpage\.phone > h1\{position:sticky;top:0;/);        // the header does not scroll away
   assert.match(css, /\.setpage\.phone\{padding-top:0;margin-top:calc\(0px - var\(--topgap,64px\)\)/);
 });
 
@@ -1170,7 +1170,7 @@ test("the side menu shows a release name on one line with its source beneath, an
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /val sub: String\? = null, val tone: \(\(\) -> Int\)\? = null/);
   assert.match(k, /name\.ellipsize = android\.text\.TextUtils\.TruncateAt\.MIDDLE/);
-  assert.match(k, /setStroke\(dp\(1\), tone\)/);
+  assert.match(k, /rounded\(12, stroke = tone\)/);                       // an outlined chip in the state's tone
 });
 
 test("a preview never starts sooner than 4 seconds after arriving (#376)", async () => {

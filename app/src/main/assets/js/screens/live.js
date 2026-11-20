@@ -148,6 +148,7 @@ export async function viewLive(){
    The search box finds a programme by name. The index fills itself in the background (providers/guide.js): a
    first visit shows what has come so far, and the page draws itself again as more comes - unless the viewer
    is already on one of its cards. */
+let offGuide = () => {};
 async function viewProgrammes(keepTab, opened){
   const mine = $('#chs');
   $('#lq').placeholder = tr('guide.search');
@@ -172,8 +173,9 @@ async function viewProgrammes(keepTab, opened){
     draw();
   });
   // more of the index has come: drawn again, unless the viewer is on a card or has a sheet open
-  const off = onGuide(() => {
-    if(!mine.isConnected) return off();
+  offGuide();                                       // one listener at a time: the last visit's goes (it held its page)
+  offGuide = onGuide(() => {
+    if(!mine.isConnected) return offGuide();
     if(!mine.contains(document.activeElement) && !document.querySelector('.sheet')) draw();
   });
   let typing = null;

@@ -1,9 +1,4 @@
 """Navigation QA driver (see docs/qa/navigation.md).
-import sys as _s
-try:
-    _s.stdout.reconfigure(encoding="utf-8")
-except Exception:
-    pass
 
 Presses the remote's keys on the emulator/device over adb and reads the focused element over the WebView's
 DevTools socket, then checks the rules N1-N9. Writes tools/navqa-report.md.
@@ -13,6 +8,12 @@ DevTools socket, then checks the rules N1-N9. Writes tools/navqa-report.md.
 Needs: adb on PATH (or ANDROID_SDK), `pip install websocket-client`, a debug build running, signed in or the
 sign-in screen removable (the driver removes it).
 """
+import sys as _s
+try:
+    _s.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import json, os, subprocess, sys, time, urllib.request
 from websocket import create_connection
 

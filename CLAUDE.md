@@ -24,6 +24,7 @@ app/src/main/assets/
   export.html           read once by the file:// -> https migration (APK only)
   ads/                  the broadcasters' ad marks and countdown digits, read natively by AdSkip.kt
   svc/                  streaming services' logos (svc/g/: one-colour glyphs, tools/svc_glyphs.py)
+  radio/                the radio stations' marks (providers/radio.js STATIONS)
   css/                  one stylesheet per layer, linked in this order - the cascade is the order
     tokens base chrome content title hero live profiles settings player layouts reel focus motion responsive
   js/
@@ -57,6 +58,8 @@ app/src/main/assets/
       youtube.js        YouTube itself: search and the viewer's own account (TV device sign-in, internal TVHTML5 API)
     providers/          other people's catalogues
       kan.js reshet.js mako.js              broadcasters
+      guide.js                              the RaspberryTV guide as a library of programmes (and what Claude says they are)
+      radio.js                              the radio stations
       web.js                                the Magazine: internet programmes, read as YouTube feeds
       live.js rtv.js                        live channels, playlists, RaspberryTV and its archive
     ui/                 pieces of interface, each owning its own DOM
@@ -64,18 +67,18 @@ app/src/main/assets/
       taste.js (a trailer playing in a picture) ytplayer.js (YouTube in the page) player.js update.js torrent.js
       tvnav.js sheets.js (a code typed on screen, a choice from a list) pin.js (the parent code) report.js (a problem, reported; QR)
     screens/            one file per screen, each exporting its view function
-      home.js catalog.js (the library of a type) detail.js search.js library.js (favourites) live.js
+      home.js catalog.js (the library of a type) detail.js search.js library.js (favourites) live.js (TV and radio)
+      programme.js (a programme from the guide: seasons and episodes)
       broadcasters.js web.js youtube.js (the YouTube tab) settings.js addons.js profiles.js signin.js
 ```
 
 A module may use anything from a layer below it (core → data → providers → ui → screens → app.js);
 `app.js` is the only place that knows the whole. (Some modules still reach up - core/screenmem and data/reminders
-into ui/tvnav, data/availability into ui/sources, data/sort and providers/mako into ui/cards, ui/tvnav and two
+into ui/tvnav, data/availability into ui/sources, data/sort into ui/cards, providers/kan and providers/live into ui/player, ui/tvnav and two
 screens into app.js; do not add more.) Nothing is global: what one module needs from
-another it imports. The import lines are kept by hand. **Do not run `tools/rewire.py`** (it was meant to derive
-them): it keeps only the first line of a multi-line header comment, counts locals and object keys as uses, ignores
-destructured exports and resolves duplicate export names (`known`, `rank`, `lines`) to whichever file it read last -
-a run breaks the app. A name imported but only shadowed by a local of the same name is an upward import for nothing;
+another it imports. The import lines are kept by hand (a script that once derived them,
+tools/rewire.py, broke the app on every run and is gone: it lost multi-line header comments, counted locals and object
+keys as uses and confused duplicate export names). A name imported but only shadowed by a local of the same name is an upward import for nothing;
 check with `grep -w` before adding one. State that one
 module keeps and another changes is never assigned across a module boundary (an ES import is
 read-only, which is the point): the owner exports a small setter instead — `setSettings`,
@@ -106,7 +109,8 @@ read-only, which is the point): the owner exports a small setter instead — `se
 - `.github/workflows/` — `build-apk.yml` builds and releases the APK (see Building), `web-release.yml` the
   signed OTA web bundle (`web-v*`), `webos-release.yml` the LG webOS `.ipk` (`webos-v*`).
 - `webos/` — the LG webOS build of the same page (`tools/build_webos.mjs`, bundled with esbuild; `webos/shim.js`
-  stands in for the Android bridge). `supabase/` — the account's backend. `docs/link` — the pairing page.
+  stands in for the Android bridge). `supabase/` — the account's backend: veo_sync.sql (profiles, pairing) and guide_meta.sql, edge functions
+  pair-collect and guide-meta. `docs/link` — the pairing page.
 
 ## Architecture
 
@@ -136,8 +140,8 @@ the list on the side the layout runs from.
 `NAMES` holds names of things add-ons describe in English (genres, types, catalogues): shown as they
 come unless a table has them. `settings.lang` is a different thing: Hebrew vs original *titles and
 summaries* from Wikidata. CSS mirrors physical offsets with `--flip` (1 in RTL, -1 in LTR); the D-pad
-"forward" key is `FWD()` (ArrowLeft in RTL). Still Hebrew-only: the Channels/Live TV pages, the library
-and search pages, the native player's strings and status messages.
+"forward" key is `FWD()` (ArrowLeft in RTL). Still Hebrew-only: the broadcasters' names in search and a few of their error notes, and the native player's strings
+and status messages.
 
 ### What was watched (`js/data/watch.js`)
 `progress[videoId]` holds `{t, d, at, metaId, type, name, poster, done}` and is written by
@@ -198,7 +202,7 @@ channel decides alone; a silent one goes by its channel) - kids, reality, drama,
 dropped), `epNote` keeps an episode number or a film's year. The page is a **library**, not a log: chips per genre,
 a wheel per genre on All, or the genre and a row per channel showing it; only programmes with episodes
 (`hasEpisodes`: 2+ numbered episodes, or on 3+ days) - films and one-offs are found by search alone. Cards are wide
-`guideCard`s with the channel's logo (a film's own picture in search, via `hebrewSearch`, `guideFilm` cache). OK
+`guideCard`s with the channel's logo (or the programme's own picture, from `guide-meta`). OK
 opens the broadcasts, one plays from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים").
 **A programme's page** (#490, `#/prog/<key>`, `screens/programme.js`): a series-like title page - picture (or the channel's
 logo), genre, episode count, channels, a `.seasonbar` and `.eps` of `.epcard`s - each episode once (`episodesOf`: by
@@ -245,7 +249,7 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   `ui/ytplayer.js` with the app's Hebrew captions - signed out, so YouTube's own history never hears of them: the
   history row starts with the profile's `yt:` progress. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
   A screen may name where the remote lands when it arrives from the menu: `[data-land]` (ui/tvnav.js).
-- **The menu**: Home, Movies, Series, **Shows**, Live, YouTube, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
+- **The menu**: Home, Movies, Series, **Shows**, TV and radio (`#/live`: live channels, programmes, radio), YouTube, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
   `screens/broadcasters.js` `viewShows`) holds the broadcasters' programmes (Kan, Keshet, Reshet): tabs over the page,
   All = a wheel of every programme, what aired last and a row per broadcaster. Each broadcaster's tab is laid out
   alike: a wheel of all its programmes, then a row per genre (Kan's sections, `MAKO_GENRES`, Reshet's `Genre` tags).

@@ -223,7 +223,6 @@ class MainActivity : AppCompatActivity() {
 
         /** Which web version is running: a bundle's number, or "built-in". */
         @JavascriptInterface fun webInfo(): String = WebBundle.info(applicationContext)
-        /** The first screen is drawn: the splash can go. */
         /** The page says whether the focus is on a card a long press of OK acts on (rows.js): only then is OK timed here. */
         @JavascriptInterface fun holdable(on: Boolean) { holdable = on }
         /** Settings → Android Auto: what VEO can see of Android Auto, and what Android Auto has asked of VEO's car service (CarDiag). */
@@ -239,6 +238,7 @@ class MainActivity : AppCompatActivity() {
                     }.setNegativeButton("סגירה", null).show()
             }
         }
+        /** The first screen is drawn: the splash can go. */
         @JavascriptInterface fun pageShown() { runOnUiThread { hideSplash(); pageUp = true; deliverLink() } }
 
         /** True on Android TV; the page then defaults to its TV (10-foot) layout. */

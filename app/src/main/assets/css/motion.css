@@ -25,7 +25,6 @@
 .strip > *:nth-child(4),.grid > *:nth-child(4){animation-delay:.09s}
 .strip > *:nth-child(5),.grid > *:nth-child(5){animation-delay:.12s}
 .strip > *:nth-child(n+6),.grid > *:nth-child(n+6){animation-delay:.15s}
-.eplist > *,.eps > *,.chlist > *{animation:fadeIn .3s ease both}
 [data-layout="tv"] .strip > *,[data-layout="tv"] .grid > *,
 [data-layout="tv"] .eplist > *,[data-layout="tv"] .eps > *,[data-layout="tv"] .chlist > *{animation:none}
 [data-layout="tv"] #app.fresh > *{animation-duration:.22s;animation-delay:0s}

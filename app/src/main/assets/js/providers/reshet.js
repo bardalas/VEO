@@ -63,13 +63,15 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-r13]
    every row that wanted it, every search that touched it and every return to the screen - a hundred
    assets from Kaltura, each time. */
 const r13rows = new Map();
-export async function r13row(kind){
+export function r13row(kind){
   const hit = r13rows.get(kind);
   if(hit && Date.now() - hit.at < R13_TTL) return hit.list;
+  // the promise is what is kept: a page of a row per genre asks for the same list at once, and once is enough
   const list = kind === 'series'
-    ? await r13list(`(and asset_type='${R13_SERIES}')`, 'VIEWS_DESC', 100)
-    : await r13list(`(and asset_type='${R13_EPISODE}')`, 'CREATE_DATE_DESC', 30);
+    ? r13list(`(and asset_type='${R13_SERIES}')`, 'VIEWS_DESC', 100)
+    : r13list(`(and asset_type='${R13_EPISODE}')`, 'CREATE_DATE_DESC', 30);
   r13rows.set(kind, {at: Date.now(), list});
+  list.catch(() => r13rows.delete(kind));
   return list;
 }
 /** Reshet 13 live channels (main channel, comedy, reality, holiday) with playable HLS URLs. */

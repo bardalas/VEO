@@ -123,16 +123,21 @@ let ilDay = null;
 /** A day as the guide names it: YYYY-MM-DD in Israel. */
 export const dayOf = ms => (ilDay ||= new Intl.DateTimeFormat('en-CA', {timeZone: IL, year: 'numeric', month: '2-digit', day: '2-digit'})).format(ms);
 /** How far Israel's clock is ahead of GMT at [ms]. */
+let ilFull = null;                                        // made once: a formatter is costly on a TV box, and this runs per day
 function ilOffset(ms){
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: IL, hourCycle: 'h23', year: 'numeric', month: 'numeric',
-    day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'}).formatToParts(ms).map(x => [x.type, +x.value]));
+  const p = Object.fromEntries((ilFull ||= new Intl.DateTimeFormat('en-US', {timeZone: IL, hourCycle: 'h23', year: 'numeric', month: 'numeric',
+    day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'})).formatToParts(ms).map(x => [x.type, +x.value]));
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
 }
 /** A day's first second, and the next day's. */
+const ranges = new Map();
 export function dayRange(day){
+  let r = ranges.get(day);
+  if(r) return r;
   const [y, m, d] = day.split('-').map(Number);
   const at = (dd) => { const g = Date.UTC(y, m - 1, dd); return (g - ilOffset(g - ilOffset(g))) / 1000; };
-  return [at(d), at(d + 1)];
+  ranges.set(day, r = [at(d), at(d + 1)]);
+  return r;
 }
 /** A day already read is read again only while it was not over when it was read, and not more often than this. */
 const REREAD_MS = 3 * 3600e3;
@@ -179,6 +184,10 @@ function save(compact = true){
       p[2] = used.get(name);
     }
     idx.n = n;
+    // a description is kept only for a programme still in the index (and only until Claude has answered for it)
+    const keys = new Set();
+    for(const c of Object.values(idx.ch)) for(const name of new Set(c.p.map(p => idx.n[p[2]]))) keys.add(progKey(name, c.cat === 'movies'));
+    for(const k of Object.keys(idx.desc || {})) if(!keys.has(k)) delete idx.desc[k];
   }
   try{ store.set(KEY, idx); }catch(e){}
   progs = null;
@@ -252,15 +261,18 @@ export function guideProgrammes(){
   if(progs) return progs;
   load();
   const nowS = Date.now() / 1000, by = new Map();
+  const named = new Map();                                  // a name's key and title, worked out once per name, not per broadcast
   for(const [epg, c] of Object.entries(idx.ch)){
     const film = c.cat === 'movies';
     for(const [t, m, k, note, genre] of c.p){
       if(t > nowS) continue;
-      const name = idx.n[k], key = progKey(name, film);
+      const name = idx.n[k], nk = (film ? 'f' : 'p') + k;
+      let kt = named.get(nk);
+      if(!kt) named.set(nk, kt = [progKey(name, film), progTitle(name, film)]);
+      const [key, title] = kt;
       if(!key) continue;
       let g = by.get(key);
       if(!g) by.set(key, g = {key, names: {}, genres: {}, eps: []});
-      const title = progTitle(name, film);
       g.names[title] = (g.names[title] || 0) + 1;
       g.genres[genre] = (g.genres[genre] || 0) + 1;
       g.eps.push({epg, t, to: t + m * 60, name, note: note || ''});
@@ -329,6 +341,8 @@ export async function enrichGuide(){
     // search and needs no answer. Each is asked about once.
     const all = guideProgrammes().filter(p => !metaOf(p.key));
     const want = [...all.filter(hasEpisodes), ...all.filter(p => p.genre === 'movies')];
+    let dropped = false;
+    const notify = () => told.forEach(fn => { try{ fn(); }catch(e){} });
     for(let i = 0; i < want.length; i += META_BATCH){
       const batch = want.slice(i, i + META_BATCH);
       const items = batch.map(p => ({key: p.key, name: p.name, descr: load().desc?.[p.key] || '', channel: chOf(p.eps[0].epg).name || ''}));
@@ -336,13 +350,15 @@ export async function enrichGuide(){
       try{ got = await call('/functions/v1/guide-meta', {method: 'POST', body: {items}, token: signedIn() ? await accessToken() : undefined}); }
       catch(e){ break; }                                   // tried again at the next refresh
       for(const r of got?.items || []) meta[r.key] = {g: r.genre, k: r.kind, p: r.poster || '', t: r.title || ''};
-      try{ store.set(META_KEY, meta); }catch(e){}
+      store.lazy(META_KEY, meta);
       // an answered programme's description is no longer needed on the device
-      for(const p of batch) if(meta[p.key]) delete idx.desc?.[p.key];
-      progs = null;
-      told.forEach(fn => { try{ fn(); }catch(e){} });
+      for(const p of batch) if(meta[p.key] && idx.desc?.[p.key]){ delete idx.desc[p.key]; dropped = true; }
+      progs = null;                                   // every batch: whoever asks next gets what is known (only the drawing waits)
+      // the page is drawn again after the first answers and then every few batches - not 40 cards at a time
+      if(i === 0 || (i / META_BATCH) % 5 === 4) notify();
     }
-    try{ store.set(KEY, idx); }catch(e){}
+    if(want.length) notify();
+    if(dropped) try{ store.set(KEY, idx); }catch(e){}
   }finally{ enriching = false; }
 }
 
@@ -405,11 +421,16 @@ export function guideRows(genre){
   const mine = all.filter(p => p.genre === genre);
   const rows = [{title: tr('guide.g.' + genre), list: mine}];
   // the channels that show most of it, a row each, what each had on last first
-  const count = new Map();
-  for(const p of mine) for(const e of p.eps) count.set(e.epg, (count.get(e.epg) || 0) + 1);
+  // one pass: for each channel, how much of the genre it showed and when each programme was last on it
+  const count = new Map(), lastOn = new Map();
+  for(const p of mine) for(const e of p.eps){
+    count.set(e.epg, (count.get(e.epg) || 0) + 1);
+    let on = lastOn.get(e.epg);
+    if(!on) lastOn.set(e.epg, on = new Map());
+    if(!(on.get(p) >= e.t)) on.set(p, e.t);
+  }
   for(const ch of guideChannels().filter(c => count.has(c.epg)).sort((a, b) => count.get(b.epg) - count.get(a.epg)).slice(0, CHANNEL_ROWS)){
-    const lastOn = p => Math.max(...p.eps.filter(e => e.epg === ch.epg).map(e => e.t));
-    const list = mine.filter(p => p.eps.some(e => e.epg === ch.epg)).map(p => [p, lastOn(p)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const list = [...lastOn.get(ch.epg)].sort((a, b) => b[1] - a[1]).map(x => x[0]);
     rows.push({title: channelName(ch.name), list});
   }
   return trim(rows);
@@ -418,7 +439,13 @@ const trim = rows => rows.filter(r => r.list.length).map(r => ({...r, list: r.li
 /** A programme with episodes: two or more numbered episodes, or - where the guide numbers none - on three days of
     the week or more (a daily show). A film is one thing however often it is on. */
 export const RECUR_DAYS = 3;
+const multi = new WeakMap();                                // per programme object: they are made anew when the index changes
 export function hasEpisodes(p){
+  let v = multi.get(p);
+  if(v === undefined) multi.set(p, v = episodic(p));
+  return v;
+}
+function episodic(p){
   if(p.genre === 'movies' || ['film', 'event', 'filler'].includes(p.kind)) return false;
   if(new Set(p.eps.map(e => epParts(e.note)).filter(x => x.e).map(x => x.s + '|' + x.e)).size >= 2) return true;
   return new Set(p.eps.map(e => dayOf(e.t * 1000))).size >= RECUR_DAYS;

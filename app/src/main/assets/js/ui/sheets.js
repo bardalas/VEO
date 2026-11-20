@@ -79,10 +79,6 @@ export async function openRtvKey(after){
   after ? after() : (location.hash = '#/live');
 }
 
-/**
- * A choice from a list, one line each, the current one marked: resolves with the value picked, or null
- * when the sheet is closed without one. [opts]: [[value, words], ...].
- */
 /** A title's whole summary over the page - a television's title page shows it cut to a few lines (#444). The arrows
     scroll it ([data-scroll], ui/tvnav.js); at its ends they move on as everywhere; Back closes it. */
 export function readSheet(title, text){
@@ -100,6 +96,10 @@ export function readSheet(title, text){
   sheet.querySelector('.readtext').focus();
 }
 
+/**
+ * A choice from a list, one line each, the current one marked: resolves with the value picked, or null
+ * when the sheet is closed without one. [opts]: [[value, words], ...].
+ */
 export function pickFrom(title, opts, current){
   return new Promise(resolve => {
     document.querySelector('.sheet')?.remove();

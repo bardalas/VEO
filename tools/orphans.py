@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """List modules that nothing imports.
 
-A module whose listeners are its whole purpose (the quick view, the remote, the torrent status) is
+A module whose listeners are its whole purpose (the remote, the torrent status) is
 reached by nobody's `import {}` - app.js has to ask for it by name, or it simply never runs. This
 says which ones are in that position, so the list in app.js can be checked against reality.
 """

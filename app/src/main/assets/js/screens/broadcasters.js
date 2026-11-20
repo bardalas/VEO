@@ -1,6 +1,5 @@
 /* One broadcaster at a time: their own catalogues, inside VEO. */
-import {$, esc, lazyBg, showErr} from '../core/dom.js';
-import {isTvLayout, rowMax} from '../core/settings.js';
+import {$, esc} from '../core/dom.js';
 import {store} from '../core/store.js';
 import {kidsOn, liveAllowed} from '../data/kids.js';
 import {KAN, kanBox} from '../providers/kan.js';
@@ -91,7 +90,7 @@ export async function viewShows(which){
   try{ rows = await bcRows(bc); }
   catch(e){
     // Kan's site sometimes turns the app's requests away (403): offer Kan BOX itself in the in-app window.
-    note = `לא ניתן לטעון את הקטלוג של כאן לתוך האפליקציה (${e.message}).`;
+    note = tr('kan.failed', {why: e.message});
     kanSite = true;
   }
   if(me !== showsView) return;
@@ -102,7 +101,7 @@ export async function viewShows(which){
   // live button for the broadcaster (Kan 11 and Reshet 13 have official streams)
   const head = $('#bchead');
   head.innerHTML = (note ? `<p class="note">${esc(note)}</p>` : '') +
-    (kanSite && !kidsOn() ? `<button class="btn primary openbtn" data-site="${KAN}/lobby/kan-box/">פתח את כאן BOX בתוך האפליקציה</button>` : '');
+    (kanSite && !kidsOn() ? `<button class="btn primary openbtn" data-site="${KAN}/lobby/kan-box/">${esc(tr('kan.openSite'))}</button>` : '');
   // the broadcaster's channel, live
   const live = !liveAllowed() ? null : bc.id === 'kan' ? IL_CHANNELS.find(c => c.name === 'Kan 11')
     : bc.id === 'reshet' ? (await r13channels().catch(() => [])).find(c => c.name === 'רשת 13') : null;

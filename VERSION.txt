@@ -1,8 +1,0 @@
-VEO Android v0.40.5
-versionCode: 4005
-applicationId: com.veo.player
-
-Versioning policy:
-0.x.y = development releases
-1.0.0 = first stable release
-versionCode = major*10000 + minor*100 + patch   (0.5.1 -> 501, 1.0.0 -> 10000)

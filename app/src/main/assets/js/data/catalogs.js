@@ -33,7 +33,6 @@ export async function localCatalog(id){
 export const LOCAL_ADDON = {url: 'local:booth', local: localCatalog, manifest: {id: 'org.booth.catalogs', name: 'Booth', version: '1', resources: ['catalog'],
   types: ['movie', 'series'], catalogs: LOCAL_CATALOGS.map(({id, type, name}) => ({id, type, name}))}};
 
-/** Catalog page from an add-on (HTTP) or from the built-in catalogs. */
 /**
  * A catalogue, from the quickest place that has it. Within the session it is asked for once; across
  * sessions the last answer is kept on the device and shown at once, while a fresh one is fetched

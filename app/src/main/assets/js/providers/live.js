@@ -70,10 +70,15 @@ export function playLive(ch){
 
 /** "Now playing" for RaspberryTV channels (programme guide), cached for a few minutes. */
 export const nowCache = {};
-export async function nowPlaying(c){
-  if(!c.epg) return null;
+const nowAsked = new Map();                                  // a redraw of the list asks for what is already on its way: once
+export function nowPlaying(c){
+  if(!c.epg) return Promise.resolve(null);
   const hit = nowCache[c.epg];
-  if(hit && Date.now() - hit.at < 3e5) return hit.p;
+  if(hit && Date.now() - hit.at < 3e5) return Promise.resolve(hit.p);
+  if(!nowAsked.has(c.epg)) nowAsked.set(c.epg, askNow(c).finally(() => nowAsked.delete(c.epg)));
+  return nowAsked.get(c.epg);
+}
+async function askNow(c){
   let p = null;
   try{
     const d = JSON.parse(await fetchText(`http://protected-api.com/epg/current/${encodeURIComponent(c.epg)}?num=1`));

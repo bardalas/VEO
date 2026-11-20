@@ -4,7 +4,6 @@
    with the account it has (data/account.js approvePairing). */
 import {$, esc} from '../core/dom.js';
 import {IS_TV_DEVICE} from '../core/settings.js';
-import {store} from '../core/store.js';
 import {tr} from '../i18n.js';
 import {approvePairing, joinWithNumber, otpSend, otpVerify, pairStart, pairWait, signedIn} from '../data/account.js';
 import {firstSync} from '../data/sync.js';

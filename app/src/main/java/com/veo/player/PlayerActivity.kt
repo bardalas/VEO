@@ -473,7 +473,7 @@ class PlayerActivity : AppCompatActivity() {
         val hint = findViewById<TextView>(R.id.syncHint)
         hint.text = text
         hint.setTextColor(skin.light)
-        hint.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(fade(skin.night, 0xE8)) }
+        hint.background = rounded(20, fade(skin.night, 0xE8))
         hint.setOnClickListener(null)
         hint.isClickable = false
         hint.visibility = View.VISIBLE
@@ -829,10 +829,7 @@ class PlayerActivity : AppCompatActivity() {
        the chosen one marked in the accent colour with a tick. The list is shared with the channel list, so
        the pill is put on when a panel of choices opens and taken off again when it closes (closePanel). */
     private fun dressPanel(list: ListView) {
-        val pill = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dp(10).toFloat()
-            setColor(skin.light)
-        }
+        val pill = rounded(10, skin.light)
         list.selector = android.graphics.drawable.InsetDrawable(pill, dp(10), dp(1), dp(10), dp(1))
         list.dividerHeight = 0
         list.clipToPadding = false
@@ -930,7 +927,7 @@ class PlayerActivity : AppCompatActivity() {
                         value.typeface = android.graphics.Typeface.DEFAULT_BOLD
                         value.setTextColor(tone)
                         value.setPadding(dp(10), dp(3), dp(10), dp(3))
-                        value.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setStroke(dp(1), tone) }
+                        value.background = rounded(12, stroke = tone)
                     } else {
                         value.text = if (on) "✓" else ""
                         value.textSize = 20f
@@ -1327,9 +1324,7 @@ class PlayerActivity : AppCompatActivity() {
         // the bar fills from the side the layout starts from, in the skin's colours (SeekBarView); on live, what
         // has been gone back over is hollow, hatched - a bar that was full and has been emptied to where you are
         findViewById<SeekBarView>(R.id.nowBar).dress(skin.accent, skin.line)
-        findViewById<TextView>(R.id.seekSign).background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dp(18).toFloat(); setColor(fade(skin.night, 0xE0))
-        }
+        findViewById<TextView>(R.id.seekSign).background = rounded(18, fade(skin.night, 0xE0))
         findViewById<TextView>(R.id.osd).apply { setBackgroundColor(fade(skin.night, 0xC8)); setTextColor(skin.light) }
         // The list keeps to the side the layout runs from, so it never covers what the banner says.
         findViewById<ListView>(R.id.chList).apply {
@@ -1431,7 +1426,7 @@ class PlayerActivity : AppCompatActivity() {
         if (behindMs >= 5_000) { chip.visibility = View.GONE; return }       // behind: the arrow on the bar says where
         chip.text = "● שידור חי"
         chip.setTextColor(0xFFFFFFFF.toInt())
-        chip.background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(0xFFD32F2F.toInt()) }
+        chip.background = rounded(14, 0xFFD32F2F.toInt())
         chip.visibility = View.VISIBLE
     }
 
@@ -1529,9 +1524,7 @@ class PlayerActivity : AppCompatActivity() {
     }
     private fun paintSoundArt() {
         val src = sources.getOrNull(index) ?: return
-        findViewById<View>(R.id.soundPlate).background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dp(18).toFloat(); setColor(0xFFFFFFFF.toInt())
-        }
+        findViewById<View>(R.id.soundPlate).background = rounded(18, 0xFFFFFFFF.toInt())
         findViewById<TextView>(R.id.soundName).text = src.name
         findViewById<TextView>(R.id.soundState).text = if (live) "רדיו · שידור חי" else ""
         val bmp = logos[src.logo]
@@ -1589,10 +1582,7 @@ class PlayerActivity : AppCompatActivity() {
             v.text = p.second
             val on = i == lit
             v.setTextColor(if (on) skin.onAccent else skin.light)
-            v.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
-                setColor(if (on) skin.accent else fade(skin.light, 0x30))
-            }
+            v.background = rounded(12, if (on) skin.accent else fade(skin.light, 0x30))
         }
     }
 
@@ -1683,6 +1673,13 @@ class PlayerActivity : AppCompatActivity() {
     private val bannerOpen get() = findViewById<View>(R.id.infobar).visibility == View.VISIBLE
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    /** A rounded plate: [radius] in dp, filled and/or outlined by a 1dp line - what the banner's chips, the panels and the
+     *  hints are all drawn on. */
+    private fun rounded(radius: Int, fill: Int? = null, stroke: Int? = null) = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = dp(radius).toFloat()
+        fill?.let { setColor(it) }
+        stroke?.let { setStroke(dp(1), it) }
+    }
 
     private fun hideChannelBar() {
         actFocus = false; actIdx = 0
@@ -1749,9 +1746,7 @@ class PlayerActivity : AppCompatActivity() {
                 width = (dm.widthPixels * 0.85f).toInt(); height = (dm.heightPixels * 0.85f).toInt()
                 gravity = android.view.Gravity.CENTER
             }
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat(); setColor(fade(skin.night, 0xEE)); setStroke(dp(1), fade(skin.light, 0x22))
-            }
+            background = rounded(18, fade(skin.night, 0xEE), fade(skin.light, 0x22))
         }
         findViewById<View>(R.id.epgPanel).visibility = View.VISIBLE
         drawEpgDays(); drawEpgList(toNow = true)
@@ -1782,9 +1777,7 @@ class PlayerActivity : AppCompatActivity() {
                 textSize = 16f
                 setPadding(dp(18), dp(8), dp(18), dp(8))
                 setTextColor(if (on) skin.onAccent else skin.light)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(12).toFloat(); setColor(if (on) skin.accent else fade(skin.light, 0x24))
-                }
+                background = rounded(12, if (on) skin.accent else fade(skin.light, 0x24))
                 setOnClickListener { switchEpgDay(i) }
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
         }
@@ -2157,7 +2150,6 @@ class PlayerActivity : AppCompatActivity() {
         showBanner()
     }
 
-    /** Step along the line of time: a press ten seconds, a held key thirty. */
     /**
      * A held scan key repeats many times a second. It runs almost linearly: a second at a time at first, then a little
      * more each second it is held, so a short hold moves gently and a long one covers ground - without the big jumps that

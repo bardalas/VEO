@@ -6,7 +6,7 @@ import {CUSTOM_DEFAULTS, IS_TV_DEVICE, SKINS, isTvLayout, resetSettings, setSett
 import {store} from '../core/store.js';
 import {addons, scProviders, setScProviders} from '../data/addons.js';
 import {CATEGORIES, catName} from '../data/catalogs.js';
-import {KID_AGES, hasPin, kidsOn} from '../data/kids.js';
+import {KID_AGES, kidsOn} from '../data/kids.js';
 import {avatar, currentProfile, isOwner, profileName} from '../data/profiles.js';
 import {forgetWatched} from '../data/taste.js';
 import {PROVIDERS, PROVIDERS_MAIN, PROVIDERS_MORE, resetServices, svcMark} from '../data/services.js';
