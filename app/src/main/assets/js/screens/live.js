@@ -145,9 +145,11 @@ async function viewProgrammes(keepTab, opened){
   const mine = $('#chs');
   $('#lq').placeholder = tr('guide.search');
   $('#lq').setAttribute('aria-label', tr('guide.search'));
+  // the playlist names the channels and draws their logos; the programmes themselves are kept on the device, so a
+  // playlist that will not come right now (the service's minute limit) still leaves them to be shown
   let chans = [];
   try{ chans = (await loadRtv()) || []; }
-  catch(err){ if(mine.isConnected) showErr(mine, tr('live.failed'), err, viewLive); return; }
+  catch(err){ if(guideEmpty()){ if(mine.isConnected) showErr(mine, tr('live.failed'), err, viewLive); return; } }
   if(!mine.isConnected) return;
   // a first visit has nothing yet: the guides are read now, and the page drawn when they are in
   if(guideEmpty()){

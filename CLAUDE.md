@@ -180,6 +180,18 @@ back, never the markup. The window stays for five minutes, so every further page
 same-origin `fetch` inside it. `sitePull()` calls it inside the app and runs the very same reader over a
 directly fetched page outside it, so there is one implementation of every extractor.
 
+### Radio and the programmes from the guide (`js/providers/radio.js`, `js/providers/guide.js`)
+The Live page's sources include **Radio** (#477): `STATIONS` in `providers/radio.js`, each address heard playing before
+it was written down, each mark a file of the app's own (`assets/radio/<id>.png`, drawn on white) or a short name on the
+tile. A station plays through `watchChannel` like a channel (Up/Down zap); `PlayerActivity` shows `soundArt` (the mark and
+name) when the tracks have no video, and reads a mark at the page's own address from the bundle/APK (`PAGE_ASSETS`).
+**Programmes** (#478, `#/live` tab `progs`, only with a RaspberryTV key): `guideIdx` (a device key, never synced) holds
+every archived channel's guide - [start, end, name index] per channel. `refreshGuide()` reads again each channel older
+than `GUIDE_STALE_MS` (a guide answers with its whole archive window), merges by start (`mergeGuide`) and prunes to the
+channel's `rec` days: a week with the app closed leaves no gap. `progKey`/`progTitle` group broadcasts by name; a
+programme's sheet plays a broadcast from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים").
+Separate from the broadcasters' VOD by the owner's choice - no preference for it.
+
 ### The wheel and the taste (`js/ui/reel.js`, `js/ui/taste.js`)
 A row of titles is a wheel: the title the remote is on stands still where the row begins, wide, and the row turns
 to bring the next one to it (`spotlight`, `place`, `turn`). Once the remote rests on it the title's own story is

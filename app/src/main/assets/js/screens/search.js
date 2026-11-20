@@ -85,6 +85,8 @@ export async function viewSearch(q){
       .then(ms => { if(heStrip.isConnected) heStrip.innerHTML = ms.map(card).join('') || `<p class="note">${esc(tr('search.none'))}</p>`; })
       .catch(e => { if(heStrip.isConnected) showErr(heStrip, tr('search.heFailed'), e, () => viewSearch(q)); });
   }
+  // where a programme was on is the question a name usually asks: that row stands first (#478)
+  $('#searchRows').prepend($('#sGuide'));
   cats.forEach(async (x, i) => {
     const strip = $('#s' + i);                       // held now: by the time the answer comes it may be gone
     try{

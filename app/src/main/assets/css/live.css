@@ -156,3 +156,4 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 .radiopage .chname,.radiopage .chnow,html[data-device="tv"] .radiopage .chmain>.chname{text-align:center;margin:0}
 .radiopage .chnum{color:#1a1d24aa}
 .radiopage .chfoot{display:none}
+.prog time.when{flex:0 0 auto;min-width:46px;white-space:nowrap}   /* a programme's broadcasts: the day and the hour (#478) */

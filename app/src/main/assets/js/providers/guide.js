@@ -30,13 +30,15 @@ const NOT_A_PROGRAMME = /^(חדשות|מהדורה|מבזק|מבזקי|כותר�
 
 /** The name a programme is known by, whatever the guide wrapped around it: an episode's number, a season, a
     rerun's mark, quotes - so that every broadcast of it falls together. */
-export function progKey(name){
-  return String(name || '').toLowerCase()
-    .replace(/\((ש|ח|שידור חוזר|r|rerun|new|חדש)\)/g, ' ')
+export const progKey = name => progTitle(name).toLowerCase().replace(/["'״׳`.!?]/g, '').replace(/[\s\-–:,|]+/g, ' ').trim();
+/** The same, as it is written: what a programme's tile is called. */
+export function progTitle(name){
+  return String(name || '')
+    .replace(/\((ש|ח|שידור חוזר|r|rerun|new|חדש)\)/gi, ' ')
     .replace(/[-–:,|]?\s*(עונה|ע'|פרק|פ'|season|episode|ep\.?|s\d+\s*e\d+)\s*\d+.*$/i, ' ')
     .replace(/\s+\d+\s*$/, ' ')
-    .replace(/["'״׳`.!?]/g, '')
-    .replace(/[\s\-–:,|]+/g, ' ').trim();
+    .replace(/^["'״]+|["'״]+$/g, '')
+    .replace(/\s+/g, ' ').replace(/[\s\-–:,|]+$/, '').trim();
 }
 
 /** What was kept for a channel, and what its guide said now, as one list: the guide is believed for the span
@@ -133,12 +135,13 @@ export function guideProgrammes(){
     if(!key) continue;
     let g = by.get(key);
     if(!g) by.set(key, g = {key, names: {}, eps: []});
-    g.names[name] = (g.names[name] || 0) + 1;
+    const title = progTitle(name);
+    g.names[title] = (g.names[title] || 0) + 1;
     g.eps.push({epg, t, to, name});
   }
   return progs = [...by.values()].map(g => {
     g.eps.sort((a, b) => b.t - a.t);
-    // the name it is called by most often - not "פרק 12" of it
+    // the name it is called by most often, without an episode's number
     g.name = Object.entries(g.names).sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0];
     g.last = g.eps[0].t;
     delete g.names;
@@ -183,7 +186,7 @@ export function guideTile(p, i, chans){
     <span class="chtop"><span class="chlogo">${logo || `<span>${esc(channelName(c?.name || '').slice(0, 2))}</span>`}</span>
       ${p.eps.length > 1 ? `<span class="chtag">${tr('guide.times', {n: p.eps.length})}</span>` : ''}</span>
     <b class="chname" dir="auto">${esc(p.name)}</b>
-    <small class="chnow">${esc(channelName(c?.name || ''))} · ${esc(whenAired(p.last))}</small></button>`;
+    <small class="chnow">${[c ? channelName(c.name) : '', whenAired(p.last)].filter(Boolean).map(esc).join(' · ')}</small></button>`;
 }
 
 /** A programme's broadcasts, newest first: OK on one plays it from the archive. */
@@ -196,7 +199,7 @@ export async function openProgramme(p){
       <header><b dir="auto">${esc(p.name)}</b><button data-back aria-label="${esc(tr('common.close'))}">✕</button></header>
       <div class="body"><div class="progs">${p.eps.map((e, i) => {
         const c = chans.find(x => x.epg === e.epg);
-        return `<button class="prog" data-e="${i}"><time>${esc(whenAired(e.t))}</time><span dir="auto">${esc(channelName(c?.name || ''))} · ${esc(e.name)}</span></button>`;
+        return `<button class="prog" data-e="${i}"><time class="when">${esc(whenAired(e.t))}</time><span dir="auto">${[c ? channelName(c.name) : '', e.name].filter(Boolean).map(esc).join(' · ')}</span></button>`;
       }).join('')}</div></div></div>`;
   document.body.appendChild(sheet);
   const was = document.activeElement;
