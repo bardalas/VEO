@@ -1170,7 +1170,7 @@ test("the side menu shows a release name on one line with its source beneath, an
   const k = await readFile(path.join(repo, 'app/src/main/java/com/veo/player/PlayerActivity.kt'), 'utf8');
   assert.match(k, /val sub: String\? = null, val tone: \(\(\) -> Int\)\? = null/);
   assert.match(k, /name\.ellipsize = android\.text\.TextUtils\.TruncateAt\.MIDDLE/);
-  assert.match(k, /setStroke\(dp\(1\), tone\)/);
+  assert.match(k, /rounded\(12, stroke = tone\)/);                       // an outlined chip in the state's tone
 });
 
 test("a preview never starts sooner than 4 seconds after arriving (#376)", async () => {

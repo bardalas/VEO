@@ -117,10 +117,15 @@ export function place(){
  */
 function turn(strip, el){
   const wide = strip.clientWidth;                    // the row's own width: the wheel turns inside it
-  const kids = [...strip.children].filter(el => el.classList.contains('poster'));
-  if(!kids.length) return 0;
-  const lo = Math.min(...kids.map(k => k.offsetLeft));
-  const hi = Math.max(...kids.map(k => k.offsetLeft + k.offsetWidth));
+  /* The titles stand in a line in document order, so the row's two ends are its first title and its last: measuring
+     those two, not all of them, is what a press costs - an endless row grows to hundreds of titles. */
+  const first = strip.querySelector(':scope > .poster');
+  if(!first) return 0;
+  let last = strip.lastElementChild;
+  while(last && !last.classList.contains('poster')) last = last.previousElementSibling;
+  const ends = [first, last];
+  const lo = Math.min(...ends.map(k => k.offsetLeft));
+  const hi = Math.max(...ends.map(k => k.offsetLeft + k.offsetWidth));
   if(hi - lo <= wide) return 0;                      // a row that fits has nowhere to turn
   const rtl = document.documentElement.dir === 'rtl';
   const want = rtl ? wide - (el.offsetLeft + el.offsetWidth) : -el.offsetLeft;
