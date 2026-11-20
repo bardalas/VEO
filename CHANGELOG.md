@@ -1,5 +1,13 @@
 # VEO Android changelog
 
+## 0.45.83 — 2026-11-20
+- **The summary under the wheel is seen in full.** On a page whose wheel stands low the words under the wide card were
+  below the screen; the page now moves up just enough to show them.
+- **Summaries tell the story.** A Hebrew Wikipedia plot section is found whatever it is called ("רקע עלילתי" ...) - "הכדור
+  השחור" showed the article's opening about festivals instead.
+- **Who is in it:** the wheel shows the three lead actors ("בכיכוב ..."), and a film's TV title page keeps a line of its
+  cast. (#469)
+
 ## 0.45.82 — 2026-11-18
 - **4K can be chosen.** Every quality a title has gets a button of its own (4K, 1080p, 720p ...), the one that will play
   lit - the single button that stepped through them reached 4K last, so in practice never. (#466)
