@@ -1,5 +1,10 @@
 # VEO Android changelog
 
+## 0.45.88 — 2026-11-20
+- **Back keeps the remote.** Coming back from a Kan, Keshet or Reshet programme put the screen where it was but the
+  remote nowhere, and the next key jumped to the tabs at the top while the screen stayed below. Back now lands on the
+  programme you opened, and a key with nothing focused lands on the row on the screen. (#499)
+
 ## 0.45.87 — 2026-11-20
 - **A programme's page.** A programme from the TV guide opens like a series: its picture, a season bar and its
   episodes - each once, however many times or on however many channels it was broadcast; OK plays its latest
