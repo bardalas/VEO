@@ -19,10 +19,14 @@ export function nextData(html){
   if(to < 0) throw new Error('לא ניתן לקרוא את העמוד');
   return JSON.parse(html.slice(from, to)).props.pageProps;
 }
-export async function makoPrograms(filter){
-  if(makoCache['idx' + filter]) return makoCache['idx' + filter];
-  const pp = nextData(await fetchText(`${MAKO}/mako-vod-index${filter ? '?filter=' + filter : ''}`));
-  return makoCache['idx' + filter] = (pp.programs?.items || []).map(i => ({name: i.title, path: i.pageUrl, img: i.pic}));
+export function makoPrograms(filter){
+  // the promise is kept: a page of a row per genre asks at once, and one answer serves them all
+  const k = 'idx' + filter;
+  if(makoCache[k]) return makoCache[k];
+  const p = makoCache[k] = fetchText(`${MAKO}/mako-vod-index${filter ? '?filter=' + filter : ''}`)
+    .then(html => (nextData(html).programs?.items || []).map(i => ({name: i.title, path: i.pageUrl, img: i.pic})));
+  p.catch(() => { if(makoCache[k] === p) delete makoCache[k]; });
+  return p;
 }
 export const makoPic = v => Array.isArray(v) ? v[0]?.picUrl : (String(v || '').match(/picUrl['"]?\s*:\s*['"]([^'"]+)/) || [])[1] || '';
 export function openSite(url){

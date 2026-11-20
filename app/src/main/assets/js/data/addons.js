@@ -156,9 +156,16 @@ function catalogRaw(a, type, id, extra){
 
 /* ---------- quick view: tap a poster for the synopsis; tap it again (or the button) to open it ---------- */
 export const metaCache = {};
-export async function fetchMeta(type, id){
+const metaAsked = new Map();                                 // what is being asked now: resting on a title and opening it ask once
+export function fetchMeta(type, id){
   const key = type + ':' + id;
-  if(metaCache[key]) return metaCache[key];
+  if(metaCache[key]) return Promise.resolve(metaCache[key]);
+  if(metaAsked.has(key)) return metaAsked.get(key);
+  const p = askMeta(type, id, key).finally(() => metaAsked.delete(key));
+  metaAsked.set(key, p);
+  return p;
+}
+async function askMeta(type, id, key){
   capMap(metaCache, 30);                                     // metas of long series are big
   const providers = addons.filter(a => supports(a.manifest, 'meta', type, id));
   if(!providers.length) return null;

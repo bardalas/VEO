@@ -193,7 +193,7 @@ export async function wdMetas(qids, forceType){
                 poster: `https://images.metahub.space/poster/medium/${id}/img`, releaseInfo: claimYear(e) || ''});
     }
   }
-  store.set('heMeta', heCache);
+  store.lazy('heMeta', capMap(heCache, 4000));               // as everywhere else: written later, and capped
   return out;
 }
 
