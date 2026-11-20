@@ -249,10 +249,12 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   `ui/ytplayer.js` with the app's Hebrew captions - signed out, so YouTube's own history never hears of them: the
   history row starts with the profile's `yt:` progress. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
   A screen may name where the remote lands when it arrives from the menu: `[data-land]` (ui/tvnav.js).
-- **The menu** (#504, after a UI/UX review): Home, Movies, Series, **Channels**, **Shows**, YouTube, Favourites, Settings.
+- **The menu** (#504, #508): Home, Movies, Series, **Channels**, **Radio** (`#/radio`: the same page, its stations alone),
+  **Shows**, Favourites, Settings. YouTube (`#/yt`) has no menu entry any more. Channels' head is `data-sticky`: it stays
+  at the top, and `focusItem` brings rows below it (`stuck()`); a tab switch moves screenmem's address (`noteHash`).
   **Channels** (`#/live/<tab>`, screens/live.js): בשידור חי (RaspberryTV, or the built-in channels without it) · שודר השבוע
   (the guide's programmes: catch-up, wide cards with the channel's logo, never posters - so they are not taken for VOD) ·
-  רדיו · the viewer's playlists. From the menu it always opens on the live channels, the last one watched marked
+  the viewer's playlists. From the menu it always opens on the live channels, the last one watched marked
   `data-land` (Left from the menu lands on it, OK plays it); a tab chosen is in the address, so Back returns to it. A
   programme's page links to the broadcaster's own catalogue when the programme is there (`onDemand`). **Shows** is VOD
   only. **Shows** (`#/shows/<all|kan|keshet|reshet>`,

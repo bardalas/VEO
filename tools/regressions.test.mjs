@@ -820,7 +820,7 @@ test('on a phone: no remote ring after a tap or on arrival, the read-more is sho
 
 test('a focused row is scrolled to its own top, not to the foot of the row above, so its heading is never cut (#242)', async () => {
   const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
-  assert.match(nav, /let want = Math\.max\(0, Math\.round\(top - 14\)\);/);
+  assert.match(nav, /let want = Math\.max\(0, Math\.round\(top - 14 - stuck\(\)\)\);/);   // and below a head that stays put (#508)
   assert.doesNotMatch(nav, /const floor = above/);
 });
 
@@ -1438,7 +1438,8 @@ test('the YouTube tab reads YouTube as its television app does: shelves, tiles a
   assert.deepEqual([pl.kind, pl.browse, pl.pic], ['playlist', 'VLPLx', 'p']);   // a playlist opens as a page
   // wired: a menu entry, a route, a D-pad row; the library leaves out its history shelf; out of every kids profile
   const read = f => readFile(path.join(assets, f), 'utf8');
-  assert.match(await read('booth.html'), /href="#\/yt" data-r="yt"/);
+  assert.doesNotMatch(await read('booth.html'), /data-r="yt"/);              // the tab is reached from search and links; not the menu (#508)
+  assert.match(await read('booth.html'), /href="#\/radio" data-r="radio"/);
   assert.match(await read('js/app.js'), /else if\(r === 'yt'\) viewYouTube\(a, b, c\)/);
   assert.match(await read('js/ui/tvnav.js'), /'\.ytsearch'/);
   assert.doesNotMatch(await read('js/ui/tvnav.js'), /'\.ytbar'/);                // the player's seek bar (.ytbar) is not a row
