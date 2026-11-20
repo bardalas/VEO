@@ -1,5 +1,16 @@
 # VEO Android changelog
 
+## 0.45.85 — 2026-11-20
+- **Programmes from the TV guide.** Live → "תוכניות": everything the channels with an archive broadcast in the past week,
+  laid out like Movies and Series - wheels of what was on today and yesterday, of each kind (kids, films, series, docs,
+  entertainment) and of each channel; a film carries its own picture. A programme opens its broadcasts, and each plays
+  from the archive. Search shows "שודר בערוצים" first - where and when a programme was on. The guide is read a day at a
+  time and only the days missing, so a week without opening the app is filled in by itself. (#478)
+- **Israeli radio.** Live → "רדיו": 26 stations (Kan, Galatz, Galgalatz, 103FM, eco99, 100FM, regional stations ...) as
+  tiles with their logos; the player shows the station where a picture would be, and Up/Down change station. (#477)
+- **Live TV in kids profiles.** (#476)
+- **More room under the wheel's summary.** (#475)
+
 ## 0.45.84 — 2026-11-20
 - **Updates are found again.** "Check for updates" said there was no internet: GitHub's API answers only sixty questions an
   hour for a whole home, and the household's TVs and phones, each asking at every start, used them up. The check now reads
