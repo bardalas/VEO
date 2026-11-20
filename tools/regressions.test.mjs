@@ -1783,3 +1783,8 @@ test("coming back from a broadcaster's programme lands on its card, and a key wi
   const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
   assert.match(nav, /const inView = rows\.find\(r => \$\('#app'\)\?\.contains\(r\)/);             // not the page's first row, far above
 });
+
+test("whatever moves the remote, the control it lands on is brought onto the screen (#506)", async () => {
+  const nav = await readFile(path.join(assets, 'js/ui/tvnav.js'), 'utf8');
+  assert.match(nav, /addEventListener\('focusin', e => \{[\s\S]*?r\.bottom < 0 \|\| r\.top > innerHeight\)\) focusItem\(el\)/);
+});
