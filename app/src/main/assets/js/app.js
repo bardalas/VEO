@@ -84,7 +84,7 @@ export let listHash = '#/';                                 // the list a title 
 export let lastPaint = 0;                                   // when this screen was drawn, so a stale one is redrawn
 /** The screens of the kids profile: its home, Movies and Series, the library, a title, search, favourites,
     settings (which shows only the way out) and the profile picker. A child's has neither live TV nor the
-    broadcasters' own pages; a teenager's has the programmes and the magazine, and from 16 live TV. */
+    broadcasters' own pages; a teenager's has the programmes and the magazine. Live TV is every profile's (#476). */
 const KIDS_ROUTES = ['', 'detail', 'library', 'settings', 'search', 'all', 'who'];
 const TEEN_ROUTES = ['cat', 'genres', 'genre', 'shows', 'web', 'kan', 'r13', 'tv'];   // not Keshet: its episodes are its own site's
 const kidsMay = (r, a) => KIDS_ROUTES.includes(r) || (r === 'cat' && ['movies', 'series'].includes(a))

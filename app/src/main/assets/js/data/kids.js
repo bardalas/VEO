@@ -23,8 +23,8 @@ export const kidsOn = () => settings.kids === 'on';
 export const kidsTeen = () => kidsOn() && kidsAge() >= TEEN_AGE;
 /** The profile is a child's (up to 12): the family genres only, and none of what cannot be judged. */
 export const kidsChild = () => kidsOn() && !kidsTeen();
-/** Live TV has no ratings to judge by: a kids profile has it only from 16. */
-export const liveAllowed = () => !kidsOn() || kidsAge() >= 16;
+/** Live TV and radio are open to every profile, a child's too - the household's choice (#476). */
+export const liveAllowed = () => true;
 
 /* How old the child is (Settings → Kids profile): a title rated for anyone older is not shown. A child's
    title with no rating known (most series, small productions) is judged by its genres alone. */

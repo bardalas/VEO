@@ -103,7 +103,7 @@ export async function viewShows(which){
   const head = $('#bchead');
   head.innerHTML = (note ? `<p class="note">${esc(note)}</p>` : '') +
     (kanSite && !kidsOn() ? `<button class="btn primary openbtn" data-site="${KAN}/lobby/kan-box/">פתח את כאן BOX בתוך האפליקציה</button>` : '');
-  // the broadcaster's channel, live - where the profile has live TV at all (a kids profile only from 16)
+  // the broadcaster's channel, live
   const live = !liveAllowed() ? null : bc.id === 'kan' ? IL_CHANNELS.find(c => c.name === 'Kan 11')
     : bc.id === 'reshet' ? (await r13channels().catch(() => [])).find(c => c.name === 'רשת 13') : null;
   if(live && head.isConnected){

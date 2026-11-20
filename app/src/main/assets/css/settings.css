@@ -151,7 +151,7 @@
   border-radius:999px;padding:0 7px;font:700 10px/1.6 var(--body);letter-spacing:.02em}
 /* a child's profile has neither the broadcasters' programmes nor live TV; a 14-year-old's has no live TV */
 :root[data-kids="child"] .nav a[data-r="yt"],:root[data-kids^="teen"] .nav a[data-r="yt"],
-:root[data-kids="child"] .nav a[data-r="live"],:root[data-kids="child"] .nav a[data-r="shows"],:root[data-kids="teen"] .nav a[data-r="live"]{display:none}
+:root[data-kids="child"] .nav a[data-r="shows"]{display:none}   /* live is everyone's (#476) */
 .kidsno{text-align:center;padding-top:12vh}
 .kidsno .btn{margin-top:18px}
 

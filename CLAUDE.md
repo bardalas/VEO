@@ -239,8 +239,8 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   carries `pid` in its meta so `boothProgress` files it under the right profile.
   `booth.html`'s pre-paint script and `i18n.js` read the active profile's settings, not `booth:settings`.
 - **Ages** (`core/settings.js` `AGE_LEVELS`, `kidsTier`; `data/kids.js`): 6/9/12 are a child's profile (family genres
-  only, no Shows/Live - `kidsChild()`); 14/16/18 are a teenager's (`kidsTeen()`): judged by rating alone, Shows and
-  the Magazine allowed, Live from 16 (`liveAllowed()`, also checked in `watchChannel`); never Keshet/mako or any web
+  only, no Shows - `kidsChild()`); 14/16/18 are a teenager's (`kidsTeen()`): judged by rating alone, Shows and
+  the Magazine allowed; Live TV and radio are every profile's (#476, `liveAllowed()` is kept as the one gate); never Keshet/mako or any web
   page (openSite). `html[data-kids]` is `off|child|teen|teen16`. Ratings (`data/ratings.js`) are the STRICTER of IMDb's
   Israeli and US certificates (IL is far looser; IL "PG" is ignored), through native `postText` - IMDb answers only with
   `x-imdb-client-name` - then Wikidata. A failed IMDb ask leaves titles unknown (asked again), never cached as -1.
@@ -279,7 +279,7 @@ The **kids profile** (`settings.kids`) is enforced in a few places, not per scre
 passes `forKids` inside `catalogFetch` (a film: family, or animation beside a child's genre; a series:
 family or the `SERIES` list; never the `DENY` genres or the `BLOCK` list); the sources are the streaming
 services only (`originsFor`); `route()` keeps it to `KIDS_ROUTES`; a title page checks `kidsMayOpen`; search
-judges each result by its own meta. Live TV, the broadcasters, YouTube, web pages and updates are out of
+judges each result by its own meta. The broadcasters, YouTube, web pages and updates are out of
 reach (JS, and natively: `MainActivity.kidsProfile()` reads the `kids` pref `syncNativeTheme` writes).
 Leaving it needs the four-digit code (salted hash, five tries then a five-minute lock) or a grown-up's
 sum; a reset keeps the profile on. **Age ratings** (`data/ratings.js`): the stricter of IMDb's Israeli and US
