@@ -1647,3 +1647,58 @@ test("the update check reads the releases' feed, not GitHub's API, whose hourly 
   assert.deepEqual([...asked], ['https://github.com/bardalas/VEO/releases.atom']);   // the API was not asked
   assert.match(cards[0].innerHTML, /0\.45\.83/);                                     // the newest app release, not the web bundle
 });
+
+test('the programmes the channels broadcast: one name per programme, and an index that fills every gap it can (#478)', async () => {
+  const now = Math.floor(Date.now() / 1000), H = 3600, D = 86400;
+  const plain = x => JSON.parse(JSON.stringify(x));          // the module's arrays are another realm's
+  let window = [];                                         // what a channel's guide answers: its whole archive window
+  const asked = [];
+  const mem = memStore();
+  const g = await mini('providers/guide.js', {
+    'core/bridge.js': {fetchText: async url => { asked.push(url); return JSON.stringify(window); }},
+    'core/dom.js': {esc: s => String(s)},
+    'core/store.js': {store: mem.store},
+    'data/known.js': {score: (q, n) => n.toLowerCase().includes(q) ? 0 : -1},
+    'data/names.js': {channelName: n => n},
+    'i18n.js': {tr: k => k},
+    'providers/live.js': {playLive(){}},
+    'providers/rtv.js': {RTV_EPG: id => 'epg:' + id, hhmm: () => '20:00', loadRtv: async () => [{name: 'Kan 11', epg: 'k11', rec: 7}, {name: 'Live only', epg: 'x', rec: 0}], rtvArchiveProbe: async () => ''},
+  }, {document: {documentElement: {lang: 'he'}}});
+  // every broadcast of a programme is one programme, whatever the guide wrapped around its name
+  for(const n of ['הישרדות - פרק 12', 'הישרדות (ש)', 'הישרדות עונה 3 פרק 4', '"הישרדות"']) assert.equal(g.progKey(n), 'הישרדות');
+  // a promo, the news on the hour and the future are not programmes to look for
+  assert.deepEqual(plain(g.guideEntries([{time: now - 2 * H, time_to: now - 2 * H + 120, name: 'פרומו'}, {time: now - H, time_to: now, name: 'חדשות'},
+    {time: now - H, time_to: now, name: 'הישרדות'}]).map(e => e[2])), ['הישרדות']);
+  // what was kept fills the time before the guide's answer; older than the archive goes
+  assert.deepEqual(plain(g.mergeGuide([[100, 200, 'a'], [300, 400, 'b'], [500, 600, 'old']], [[500, 600, 'c']], 150)), [[100, 200, 'a'], [300, 400, 'b'], [500, 600, 'c']]);
+  assert.deepEqual(plain(g.mergeGuide([[100, 140, 'a']], [], 150)), []);
+
+  // the first reading: only channels with an archive are asked
+  window = [{time: now - 3 * D, time_to: now - 3 * D + H, name: 'הישרדות - פרק 1'}, {time: now - D, time_to: now - D + H, name: 'הישרדות - פרק 2'}];
+  assert.equal(await g.refreshGuide(), true);
+  assert.deepEqual(asked, ['epg:k11']);
+  // not stale yet: nothing is asked again
+  assert.equal(await g.refreshGuide(), false);
+  assert.equal(asked.length, 1);
+  // a week later (the index's clock turned back): the guide's window has moved on, and what was kept from
+  // before it stays as long as the archive holds it
+  const idx = mem.store.get('guideIdx');
+  idx.ch.k11.at -= 8 * D * 1000;
+  mem.store.set('guideIdx', idx);
+  window = [{time: now - 2 * D, time_to: now - 2 * D + H, name: 'הישרדות - פרק 3'}, {time: now - H, time_to: now, name: 'הישרדות - פרק 4'}];
+  const fresh = await mini('providers/guide.js', {
+    'core/bridge.js': {fetchText: async url => { asked.push(url); return JSON.stringify(window); }},
+    'core/dom.js': {esc: s => String(s)}, 'core/store.js': {store: mem.store},
+    'data/known.js': {score: (q, n) => n.toLowerCase().includes(q) ? 0 : -1}, 'data/names.js': {channelName: n => n}, 'i18n.js': {tr: k => k},
+    'providers/live.js': {playLive(){}},
+    'providers/rtv.js': {RTV_EPG: id => 'epg:' + id, hhmm: () => '20:00', loadRtv: async () => [{name: 'Kan 11', epg: 'k11', rec: 7}], rtvArchiveProbe: async () => ''},
+  }, {document: {documentElement: {lang: 'he'}}});
+  assert.equal(await fresh.refreshGuide(), true);
+  const [p] = fresh.guideProgrammes();
+  assert.equal(p.key, 'הישרדות');
+  assert.deepEqual(plain(p.eps.map(e => e.name)), ['הישרדות - פרק 4', 'הישרדות - פרק 3', 'הישרדות - פרק 1']);   // newest first; the kept one before the window stays
+  assert.equal(fresh.guideSearch('הישרד').length, 1);
+  // the index is the device's own: never a profile's key, so it is never sent to the account
+  const store = await readFile(path.join(assets, 'js/core/store.js'), 'utf8');
+  assert.doesNotMatch(store.match(/PROFILE_KEYS\s*=\s*\[[^\]]*\]/)?.[0] || '', /guideIdx/);
+});

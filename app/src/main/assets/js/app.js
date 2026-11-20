@@ -15,6 +15,7 @@ import {loadServices} from './data/services.js';
 import {learnFromHistory} from './data/taste.js';
 import {indexProgress, progress, pruneProgress, undismiss} from './data/watch.js';
 import {tr} from './i18n.js';
+import {GUIDE_STALE_MS, refreshGuide} from './providers/guide.js';
 import {viewKanProgram} from './providers/kan.js';
 import {liveChannels, watchChannel} from './providers/live.js';
 import {viewMakoProgram} from './providers/mako.js';
@@ -238,7 +239,9 @@ export async function boot(){
   const takeFromAccount = () => signedIn() && sync().then(r => { if(!r.changed) return; if(r.reload && !sessionStorage.getItem('veo:synced')){ sessionStorage.setItem('veo:synced', '1'); location.reload(); } else if(['', '#/', '#'].includes(location.hash)) route(); }).catch(() => {});
   setTimeout(takeFromAccount, 4000);
   addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') takeFromAccount(); });
-  setTimeout(learnFromHistory, 12000);                 // a profile from before the app learnt tastes: from its history
+  setTimeout(learnFromHistory, 12000);
+  // the programmes the channels broadcast: the guides read again where they are stale, and every six hours (#478)
+  if(store.get('rtvKey', '')){ setTimeout(refreshGuide, 20000); setInterval(refreshGuide, GUIDE_STALE_MS); }                 // a profile from before the app learnt tastes: from its history
   if(kidsOn()) return;                                 // no offers to install, no reminders of grown-up titles
   // nothing is offered over the picker: not an update, and not a reminder of a profile not yet chosen
   setTimeout(() => needsPicker() || checkUpdate(true), 2500);

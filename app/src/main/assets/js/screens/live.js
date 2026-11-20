@@ -10,7 +10,8 @@ import {store} from '../core/store.js';
 import {channelName, groupName} from '../data/names.js';
 import {tr} from '../i18n.js';
 import {liveChannels, liveSources, nowPlaying, watchChannel} from '../providers/live.js';
-import {ARCH_KEY, hhmm, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
+import {guideEmpty, guideProgrammes, guideSearch, guideTile, openProgramme, refreshGuide} from '../providers/guide.js';
+import {ARCH_KEY, hhmm, loadRtv, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
 import {openRtvKey} from '../ui/sheets.js';
 import {lastMoveAt} from '../ui/tvnav.js';
 
@@ -46,6 +47,7 @@ export async function viewLive(){
     $(`[data-pl="${CSS.escape(b.dataset.pl)}"]`)?.focus();     // the remote stays on the tab it chose
   });
 
+  if(sel === 'progs') return viewProgrammes(keepTab, opened);
   // The channels of the source that was chosen: another may have been chosen since, and a list that
   // arrives late must not be painted over the one the viewer is now looking at.
   const mine = $('#chs');
@@ -134,4 +136,36 @@ export async function viewLive(){
   const a = document.activeElement;
   const parked = !a || a === document.body || !a.isConnected || (a.matches('.livetabs .on') && !keepTab && lastMoveAt < opened);
   if(isTvLayout() && parked && !document.querySelector('.sheet')) ($('#chs .chmain.last') || $('#chs .chmain'))?.focus();
+}
+
+/* ---------- the programmes the channels broadcast (#478) ----------
+   A tile per programme from the guide of every channel that keeps its past, the one on most recently first;
+   OK opens its broadcasts, and one of them plays from the archive. The search box finds a programme by name. */
+async function viewProgrammes(keepTab, opened){
+  const mine = $('#chs');
+  $('#lq').placeholder = tr('guide.search');
+  $('#lq').setAttribute('aria-label', tr('guide.search'));
+  let chans = [];
+  try{ chans = (await loadRtv()) || []; }
+  catch(err){ if(mine.isConnected) showErr(mine, tr('live.failed'), err, viewLive); return; }
+  if(!mine.isConnected) return;
+  // a first visit has nothing yet: the guides are read now, and the page drawn when they are in
+  if(guideEmpty()){
+    mine.innerHTML = `<p class="note">${tr('guide.building')}</p>`;
+    await refreshGuide();
+    if(!mine.isConnected) return;
+  } else refreshGuide().then(changed => { if(changed && mine.isConnected && !$('#lq').value.trim()) draw(); });
+  const draw = () => {
+    const q = $('#lq').value.trim();
+    const list = (q ? guideSearch(q) : guideProgrammes()).slice(0, 300);
+    mine.innerHTML = list.length ? `<div class="chlist progtiles">${list.map((p, i) => guideTile(p, i, chans)).join('')}</div>`
+      : `<p class="note">${tr(q ? 'guide.none' : 'guide.empty')}</p>`;
+    mine.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => openProgramme(list[b.dataset.gp]));
+  };
+  let typing = null;
+  $('#lq').oninput = () => { clearTimeout(typing); typing = setTimeout(draw, 200); };
+  draw();
+  const a = document.activeElement;
+  const parked = !a || a === document.body || !a.isConnected || (a.matches('.livetabs .on') && !keepTab && lastMoveAt < opened);
+  if(isTvLayout() && parked && !document.querySelector('.sheet')) $('#chs .chmain')?.focus();
 }
