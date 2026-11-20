@@ -1648,56 +1648,76 @@ test("the update check reads the releases' feed, not GitHub's API, whose hourly 
   assert.match(cards[0].innerHTML, /0\.45\.83/);                                     // the newest app release, not the web bundle
 });
 
-test('the programmes the channels broadcast: one name per programme, and an index that fills every gap it can (#478)', async () => {
-  const now = Math.floor(Date.now() / 1000), H = 3600, D = 86400;
+test('the programmes the channels broadcast: one name per programme, read a day at a time, only the days missing (#478)', async () => {
   const plain = x => JSON.parse(JSON.stringify(x));          // the module's arrays are another realm's
-  let window = [];                                         // what a channel's guide answers: its whole archive window
+  const now = Date.now(), H = 3600, D = 86400;
+  const at = (daysAgo, hour) => { const d = new Date(now - daysAgo * 864e5); d.setHours(hour, 0, 0, 0); return d.getTime() / 1000; };
+  let guide = [];                                          // everything the server would answer, by day
   const asked = [];
   const mem = memStore();
-  const g = await mini('providers/guide.js', {
-    'core/bridge.js': {fetchText: async url => { asked.push(url); return JSON.stringify(window); }},
+  const make = () => mini('providers/guide.js', {
+    'core/bridge.js': {fetchText: async url => {
+      asked.push(url);
+      const day = url.split('?date=')[1], [y, m, d] = day.split('-').map(Number);
+      const from = new Date(y, m - 1, d).getTime() / 1000, to = new Date(y, m - 1, d + 1).getTime() / 1000;
+      return JSON.stringify(guide.filter(g => g.time >= from && g.time < to));
+    }},
     'core/dom.js': {esc: s => String(s)},
     'core/store.js': {store: mem.store},
+    'data/hebrew.js': {hebrewSearch: async () => []},
     'data/known.js': {score: (q, n) => n.toLowerCase().includes(q) ? 0 : -1},
     'data/names.js': {channelName: n => n},
     'i18n.js': {tr: k => k},
     'providers/live.js': {playLive(){}},
-    'providers/rtv.js': {RTV_EPG: id => 'epg:' + id, hhmm: () => '20:00', loadRtv: async () => [{name: 'Kan 11', epg: 'k11', rec: 7}, {name: 'Live only', epg: 'x', rec: 0}], rtvArchiveProbe: async () => ''},
-  }, {document: {documentElement: {lang: 'he'}}});
+    'providers/rtv.js': {RTV_EPG: id => `epg:${id}?date=`, hhmm: () => '20:00', rtvArchiveProbe: async () => '',
+      loadRtv: async () => [{name: 'HOP HD', epg: 'hop', rec: 7}, {name: 'Sport 5 HD', epg: 's5', rec: 7}, {name: 'Live only', epg: 'x', rec: 0}]},
+  }, {document: {documentElement: {lang: 'he'}}, CSS: {escape: s => s}});
+  const g = await make();
   // every broadcast of a programme is one programme, whatever the guide wrapped around its name
   for(const n of ['הישרדות - פרק 12', 'הישרדות (ש)', 'הישרדות עונה 3 פרק 4', '"הישרדות"']) assert.equal(g.progKey(n), 'הישרדות');
-  // a promo, the news on the hour and the future are not programmes to look for
-  assert.deepEqual(plain(g.guideEntries([{time: now - 2 * H, time_to: now - 2 * H + 120, name: 'פרומו'}, {time: now - H, time_to: now, name: 'חדשות'},
-    {time: now - H, time_to: now, name: 'הישרדות'}]).map(e => e[2])), ['הישרדות']);
-  // what was kept fills the time before the guide's answer; older than the archive goes
-  assert.deepEqual(plain(g.mergeGuide([[100, 200, 'a'], [300, 400, 'b'], [500, 600, 'old']], [[500, 600, 'c']], 150)), [[100, 200, 'a'], [300, 400, 'b'], [500, 600, 'c']]);
-  assert.deepEqual(plain(g.mergeGuide([[100, 140, 'a']], [], 150)), []);
+  assert.equal(g.epNote('פרק 71. ביום גשום בבית'), 'פרק 71');
+  assert.equal(g.epNote('קומדיית אקשן. עם: אידריס אלבה. ארה״ב, 2025.'), '2025');
+  // a channel's name says what it shows; sport is not read
+  assert.equal(g.channelCat('HOP HD'), 'kids');
+  assert.equal(g.channelCat('Yes Movies Action HD'), 'movies');
+  assert.equal(g.channelCat('Sport 5 HD'), 'sport');
+  assert.equal(g.channelCat('Kan 11 HD'), 'general');
+  // a promo and the news on the hour are not programmes
+  assert.deepEqual(plain(g.guideEntries([{time: 1000, time_to: 1120, name: 'פרומו'}, {time: 2000, time_to: 5600, name: 'חדשות'},
+    {time: 2000, time_to: 5600, name: 'הישרדות', descr: 'פרק 3.'}])), [[2000, 60, 'הישרדות', 'פרק 3']]);
+  // a day's answer is believed for its own hours, the rest is kept
+  assert.deepEqual(plain(g.mergeDay([[100, 1, 'a'], [300, 1, 'old'], [500, 1, 'b']], [[300, 1, 'c']], 200, 400)), [[100, 1, 'a'], [300, 1, 'c'], [500, 1, 'b']]);
 
-  // the first reading: only channels with an archive are asked
-  window = [{time: now - 3 * D, time_to: now - 3 * D + H, name: 'הישרדות - פרק 1'}, {time: now - D, time_to: now - D + H, name: 'הישרדות - פרק 2'}];
+  guide = [3, 2, 1, 0].map(d => ({time: at(d, 8), time_to: at(d, 9), name: 'טרוטרו וזאזא', descr: `פרק ${70 - d}.`}));
   assert.equal(await g.refreshGuide(), true);
-  assert.deepEqual(asked, ['epg:k11']);
-  // not stale yet: nothing is asked again
+  // only the channel with an archive that is not sport, a day each - today and the week back
+  assert.ok(asked.length === 8 && asked.every(u => u.startsWith('epg:hop?date=')));
+  const [p] = g.guideProgrammes();
+  assert.equal(p.name, 'טרוטרו וזאזא');
+  assert.equal(p.cat, 'kids');
+  assert.deepEqual(plain(p.eps.map(e => e.note)), ['פרק 70', 'פרק 69', 'פרק 68', 'פרק 67']);
+  // nothing missing: nothing asked
+  asked.length = 0;
   assert.equal(await g.refreshGuide(), false);
-  assert.equal(asked.length, 1);
-  // a week later (the index's clock turned back): the guide's window has moved on, and what was kept from
-  // before it stays as long as the archive holds it
+  assert.equal(asked.length, 0);
+  // the app stayed closed for a while: the days it missed are asked for, the days it has are not
   const idx = mem.store.get('guideIdx');
-  idx.ch.k11.at -= 8 * D * 1000;
+  for(const d of Object.keys(idx.ch.hop.days).sort().slice(-3)) delete idx.ch.hop.days[d];
   mem.store.set('guideIdx', idx);
-  window = [{time: now - 2 * D, time_to: now - 2 * D + H, name: 'הישרדות - פרק 3'}, {time: now - H, time_to: now, name: 'הישרדות - פרק 4'}];
-  const fresh = await mini('providers/guide.js', {
-    'core/bridge.js': {fetchText: async url => { asked.push(url); return JSON.stringify(window); }},
-    'core/dom.js': {esc: s => String(s)}, 'core/store.js': {store: mem.store},
-    'data/known.js': {score: (q, n) => n.toLowerCase().includes(q) ? 0 : -1}, 'data/names.js': {channelName: n => n}, 'i18n.js': {tr: k => k},
-    'providers/live.js': {playLive(){}},
-    'providers/rtv.js': {RTV_EPG: id => 'epg:' + id, hhmm: () => '20:00', loadRtv: async () => [{name: 'Kan 11', epg: 'k11', rec: 7}], rtvArchiveProbe: async () => ''},
-  }, {document: {documentElement: {lang: 'he'}}});
-  assert.equal(await fresh.refreshGuide(), true);
-  const [p] = fresh.guideProgrammes();
-  assert.equal(p.key, 'הישרדות');
-  assert.deepEqual(plain(p.eps.map(e => e.name)), ['הישרדות - פרק 4', 'הישרדות - פרק 3', 'הישרדות - פרק 1']);   // newest first; the kept one before the window stays
-  assert.equal(fresh.guideSearch('הישרד').length, 1);
+  const again = await make();
+  assert.equal(await again.refreshGuide(), true);
+  assert.equal(asked.length, 3);
+  assert.equal(again.guideSearch('טרוטרו').length, 1);
+  assert.ok(again.guideRows('kids').some(r => r.list.length));
+  // a long first reading saves as it goes, and every name still belongs to its own broadcasts afterwards
+  mem.store.set('guideIdx', null);
+  guide = [];
+  for(let d = 0; d < 7; d++) for(let h = 0; h < 20; h++) guide.push({time: at(d, h), time_to: at(d, h) + 1800, name: `תוכנית ${'אבגדהוזחטיכלמנסעפצקרש'[h]}${d}`});
+  asked.length = 0;
+  const many = await make();
+  await many.refreshGuide();
+  for(const p of many.guideProgrammes()) assert.ok(p.eps.every(e => e.name === p.name), p.name);
+  assert.equal(many.guideProgrammes().length, guide.filter(x => x.time <= Date.now() / 1000).length);   // each its own programme (the future is not one yet)
   // the index is the device's own: never a profile's key, so it is never sent to the account
   const store = await readFile(path.join(assets, 'js/core/store.js'), 'utf8');
   assert.doesNotMatch(store.match(/PROFILE_KEYS\s*=\s*\[[^\]]*\]/)?.[0] || '', /guideIdx/);

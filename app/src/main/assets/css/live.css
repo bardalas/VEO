@@ -157,3 +157,11 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 .radiopage .chnum{color:#1a1d24aa}
 .radiopage .chfoot{display:none}
 .prog time.when{flex:0 0 auto;min-width:46px;white-space:nowrap}   /* a programme's broadcasts: the day and the hour (#478) */
+/* a programme from the guide (#478): a wide card with its channel's logo on a plate - the guide has no pictures -
+   or a film's own picture once it is found */
+.progcard .art{position:relative}
+.progcard .logoart{display:flex;align-items:center;justify-content:center;background-color:#ffffff12}
+.progcard .logoart img{max-width:44%;max-height:46%;object-fit:contain}
+.progcard .filmart{background-size:cover,contain;background-position:center;background-repeat:no-repeat}
+.progcard .filmart img{display:none}
+.progcard .chtag{top:8px;inset-inline-end:8px}

@@ -8,9 +8,8 @@ import {score} from '../data/known.js';
 import {typeName} from '../data/names.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
-import {guideSearch, guideTile, openProgramme} from '../providers/guide.js';
+import {guideCard, guideSearch, wireCards} from '../providers/guide.js';
 import {r13card, r13row} from '../providers/reshet.js';
-import {loadRtv} from '../providers/rtv.js';
 import {tr} from '../i18n.js';
 import {card, skeletons} from '../ui/cards.js';
 import {reel} from '../ui/rows.js';
@@ -49,15 +48,13 @@ async function searchChannels(q, host){
 }
 
 /** The programmes the channels broadcast in the past week whose name answers (#478): where it was on and
-    when, from the index the device keeps (providers/guide.js) - no request but the playlist, which is held. */
-async function searchGuide(q, host){
+    when, from the index the device keeps (providers/guide.js) - no request at all. */
+function searchGuide(q, host){
   if(!store.get('rtvKey', '')) return;
-  const found = guideSearch(q).slice(0, 12);
-  if(!found.length) return;
-  const chans = (await loadRtv().catch(() => null)) || [];
-  if(!host.isConnected) return;
-  host.innerHTML = `<div class="row"><h2>${esc(tr('guide.row'))}</h2><div class="chlist progtiles">${found.map((p, i) => guideTile(p, i, chans)).join('')}</div></div>`;
-  host.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => openProgramme(found[b.dataset.gp]));
+  const found = guideSearch(q).slice(0, 20);
+  if(!found.length || !host.isConnected) return;
+  host.innerHTML = `<div class="row"><h2>${esc(tr('guide.row'))}</h2>${reel(found.map(guideCard).join(''))}</div>`;
+  wireCards(host, found);
 }
 
 /** What a search finds carries no genres: in the kids profile each title is judged by its own page. */

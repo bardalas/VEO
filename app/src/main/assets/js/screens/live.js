@@ -10,9 +10,10 @@ import {store} from '../core/store.js';
 import {channelName, groupName} from '../data/names.js';
 import {tr} from '../i18n.js';
 import {liveChannels, liveSources, nowPlaying, watchChannel} from '../providers/live.js';
-import {guideEmpty, guideProgrammes, guideSearch, guideTile, openProgramme, refreshGuide} from '../providers/guide.js';
-import {ARCH_KEY, hhmm, loadRtv, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
+import {GUIDE_CATS, guideBusy, guideCard, guideEmpty, guideRows, guideSearch, onGuide, refreshGuide, wireCards} from '../providers/guide.js';
+import {ARCH_KEY, hhmm, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
 import {openRtvKey} from '../ui/sheets.js';
+import {reel} from '../ui/rows.js';
 import {lastMoveAt} from '../ui/tvnav.js';
 
 /** The mark of a channel that keeps its past: a clock turning back. */
@@ -139,35 +140,44 @@ export async function viewLive(){
 }
 
 /* ---------- the programmes the channels broadcast (#478) ----------
-   A tile per programme from the guide of every channel that keeps its past, the one on most recently first;
-   OK opens its broadcasts, and one of them plays from the archive. The search box finds a programme by name. */
+   Laid out like Movies and Series: a wheel per row (what was on today, yesterday, a row of each kind and of each
+   channel), the kinds as chips over the page; OK opens a programme's broadcasts, and one plays from the archive.
+   The search box finds a programme by name. The index fills itself in the background (providers/guide.js): a
+   first visit shows what has come so far, and the page draws itself again as more comes - unless the viewer
+   is already on one of its cards. */
 async function viewProgrammes(keepTab, opened){
   const mine = $('#chs');
   $('#lq').placeholder = tr('guide.search');
   $('#lq').setAttribute('aria-label', tr('guide.search'));
-  // the playlist names the channels and draws their logos; the programmes themselves are kept on the device, so a
-  // playlist that will not come right now (the service's minute limit) still leaves them to be shown
-  let chans = [];
-  try{ chans = (await loadRtv()) || []; }
-  catch(err){ if(guideEmpty()){ if(mine.isConnected) showErr(mine, tr('live.failed'), err, viewLive); return; } }
-  if(!mine.isConnected) return;
-  // a first visit has nothing yet: the guides are read now, and the page drawn when they are in
-  if(guideEmpty()){
-    mine.innerHTML = `<p class="note">${tr('guide.building')}</p>`;
-    await refreshGuide();
-    if(!mine.isConnected) return;
-  } else refreshGuide().then(changed => { if(changed && mine.isConnected && !$('#lq').value.trim()) draw(); });
+  let cat = store.get('guideCat', '');
+  if(cat && !GUIDE_CATS.includes(cat)) cat = '';
+  $('#lg').hidden = false;
+  $('#lg').innerHTML = [['', tr('src.all')], ...GUIDE_CATS.map(c => [c, tr('guide.cat.' + c)])].map(([v, n]) =>
+    `<button class="chip ${cat === v ? 'on' : ''}" data-g="${v}">${esc(n)}</button>`).join('');
   const draw = () => {
+    if(!mine.isConnected) return;
     const q = $('#lq').value.trim();
-    const list = (q ? guideSearch(q) : guideProgrammes()).slice(0, 300);
-    mine.innerHTML = list.length ? `<div class="chlist progtiles">${list.map((p, i) => guideTile(p, i, chans)).join('')}</div>`
-      : `<p class="note">${tr(q ? 'guide.none' : 'guide.empty')}</p>`;
-    mine.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => openProgramme(list[b.dataset.gp]));
+    const rows = q ? [{title: tr('guide.results'), list: guideSearch(q).slice(0, 40)}].filter(r => r.list.length) : guideRows(cat);
+    mine.innerHTML = rows.length ? rows.map(r => `<div class="row"><h2>${esc(r.title)}</h2>${reel(r.list.map(guideCard).join(''))}</div>`).join('')
+      : `<p class="note">${tr(q ? 'guide.none' : guideBusy() || guideEmpty() ? 'guide.building' : 'guide.empty')}</p>`;
+    mine.querySelectorAll('.row').forEach((row, i) => wireCards(row, rows[i].list));
   };
+  $('#lg').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+    cat = b.dataset.g;
+    store.set('guideCat', cat);
+    $('#lg').querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x === b));
+    draw();
+  });
+  // more of the index has come: drawn again, unless the viewer is on a card or has a sheet open
+  const off = onGuide(() => {
+    if(!mine.isConnected) return off();
+    if(!mine.contains(document.activeElement) && !document.querySelector('.sheet')) draw();
+  });
   let typing = null;
-  $('#lq').oninput = () => { clearTimeout(typing); typing = setTimeout(draw, 200); };
+  $('#lq').oninput = () => { clearTimeout(typing); typing = setTimeout(draw, 250); };
   draw();
+  refreshGuide();
   const a = document.activeElement;
   const parked = !a || a === document.body || !a.isConnected || (a.matches('.livetabs .on') && !keepTab && lastMoveAt < opened);
-  if(isTvLayout() && parked && !document.querySelector('.sheet')) $('#chs .chmain')?.focus();
+  if(isTvLayout() && parked && !document.querySelector('.sheet')) $('#chs .poster')?.focus();
 }
