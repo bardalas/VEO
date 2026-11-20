@@ -1,6 +1,5 @@
 /* One broadcaster at a time: their own catalogues, inside VEO. */
-import {$, esc, lazyBg, showErr} from '../core/dom.js';
-import {isTvLayout, rowMax} from '../core/settings.js';
+import {$, esc} from '../core/dom.js';
 import {store} from '../core/store.js';
 import {kidsOn, liveAllowed} from '../data/kids.js';
 import {KAN, kanBox} from '../providers/kan.js';

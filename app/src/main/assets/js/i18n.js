@@ -1,5 +1,4 @@
 /* ---------- interface language ----------
-import {settings} from './core/settings.js';
    Everything the app itself writes (menus, buttons, messages) comes from STRINGS; what add-ons and
    broadcasters send is shown as delivered. Adding a language = one table here + one row in UI_LANGS.
    Values are trusted markup: escape any {vars} that came from outside before passing them to tr().
@@ -40,7 +39,7 @@ he: {
   'acct.link': 'התחברות עם קוד QR', 'acct.linkNote': '',
   'acct.wait': 'מכינים קוד…', 'acct.scan': 'סרקו עם הטלפון', 'acct.expired': 'הקוד פג. לחצו שוב לקוד חדש.',
   'acct.profiles': 'פרופילים', 'acct.syncing': 'מסנכרן…', 'acct.done': 'עודכן', 'acct.fail': 'לא הצלחנו להתחבר. בדקו את החיבור ונסו שוב.',
-  'set.tab.live': 'ערוצים חיים', 'set.tab.kids': 'פרופיל ילדים', 'set.tab.about': 'מידע ואיפוס',
+  'set.tab.live': 'ערוצים חיים', 'set.tab.kids': 'פרופיל ילדים',
   'set.sec.play': 'ניגון', 'set.sec.subs': 'כתוביות', 'set.sec.sources': 'מקורות', 'set.sec.data': 'נתונים',
   'set.confirm': 'לחץ שוב לאישור',
   'set.uilang.title': 'שפת הממשק',
@@ -163,7 +162,7 @@ he: {
   'src.noService': 'לא בשירותים',
   'row.forYou': 'מומלץ בשבילך', 'row.forYouMovies': 'סרטים שמומלצים לך', 'row.forYouSeries': 'סדרות שמומלצות לך',
   'row.because': 'כי צפית ב־{name}',
-  'row.new': 'חדשים', 'row.trending': 'פופולרי עכשיו',
+ 
   'row.hotNow': 'הכי מעניין עכשיו', 'row.newHot': 'חדש ולוהט', 'row.docsHot': 'דוקו חם', 'row.rising': 'סדרות בעלייה',
   'row.nfxIL': 'טופ 10 של נטפליקס בישראל', 'row.ilNow': 'ישראלי עכשיו', 'row.ilSeries': 'סדרות ישראליות', 'row.ilMovies': 'סרטים ישראליים',
   'lib.count': '{n} כותרים · מיון: {by}', 'lib.hintCard': 'לחיצה פותחת את כרטיס הכותר', 'lib.hintOpen': 'לחיצה פותחת את התוכנית',
@@ -171,7 +170,7 @@ he: {
   'cat.israeli': 'ישראלי', 'cat.kids': 'ילדים', 'cat.docs': 'תיעודי',
   'cat.row.animation': 'אנימציה', 'cat.row.family': 'לכל המשפחה', 'cat.row.docs': 'תיעודיים',
   'cat.row.docsPop': 'תיעודיים פופולריים', 'cat.row.docsMore': 'עוד תיעודיים',
-  'row.popular': 'פופולריים', 'row.best': 'הכי טובים', 'row.popularMovies': 'סרטים פופולריים', 'row.popularSeries': 'סדרות פופולריות',
+  'row.popular': 'פופולריים', 'row.best': 'הכי טובים',
   'row.streamingMovies': 'סרטים בשירותי הסטרימינג', 'row.streamingSeries': 'סדרות בשירותי הסטרימינג', 'row.continue': 'המשך צפייה',
   'cont.removeQ': 'להסיר את "{name}" מהמשך הצפייה?',
   'row.none': 'אין כרגע.', 'row.empty': 'הקטלוג ריק.', 'row.all': 'לכל התכנים',
@@ -217,7 +216,7 @@ en: {
   'acct.link': 'Sign in with a QR code', 'acct.linkNote': '',
   'acct.wait': 'Getting a code…', 'acct.scan': 'Scan with your phone', 'acct.expired': 'The code ran out. Press again for a new one.',
   'acct.profiles': 'profiles', 'acct.syncing': 'Syncing…', 'acct.done': 'Up to date', 'acct.fail': 'Could not connect. Check the connection and try again.',
-  'set.tab.live': 'Live TV', 'set.tab.kids': 'Kids profile', 'set.tab.about': 'About & reset',
+  'set.tab.live': 'Live TV', 'set.tab.kids': 'Kids profile',
   'set.sec.play': 'Playing', 'set.sec.subs': 'Subtitles', 'set.sec.sources': 'Sources', 'set.sec.data': 'Data',
   'set.confirm': 'Press again to confirm',
   'set.uilang.title': 'Interface language',
@@ -340,7 +339,7 @@ en: {
   'src.noService': 'Not streaming',
   'row.forYou': 'Recommended for you', 'row.forYouMovies': 'Movies for you', 'row.forYouSeries': 'Series for you',
   'row.because': 'Because you watched {name}',
-  'row.new': 'New', 'row.trending': 'Trending now',
+ 
   'row.hotNow': 'Most interesting now', 'row.newHot': 'New and hot', 'row.docsHot': 'Hot documentaries', 'row.rising': 'Series on the rise',
   'row.nfxIL': 'Netflix Top 10 in Israel', 'row.ilNow': 'Israeli now', 'row.ilSeries': 'Israeli series', 'row.ilMovies': 'Israeli films',
   'lib.count': '{n} titles · sort: {by}', 'lib.hintCard': 'Press OK to open its page', 'lib.hintOpen': 'Press OK to open the programme',
@@ -348,7 +347,7 @@ en: {
   'cat.israeli': 'Israeli', 'cat.kids': 'Kids', 'cat.docs': 'Documentaries',
   'cat.row.animation': 'Animation', 'cat.row.family': 'For the whole family', 'cat.row.docs': 'Documentaries',
   'cat.row.docsPop': 'Popular documentaries', 'cat.row.docsMore': 'More documentaries',
-  'row.popular': 'Popular', 'row.best': 'Top rated', 'row.popularMovies': 'Popular movies', 'row.popularSeries': 'Popular series',
+  'row.popular': 'Popular', 'row.best': 'Top rated',
   'row.streamingMovies': 'Movies on streaming services', 'row.streamingSeries': 'Series on streaming services', 'row.continue': 'Continue watching',
   'cont.removeQ': 'Remove "{name}" from Continue Watching?',
   'row.none': 'Nothing right now.', 'row.empty': 'The catalogue is empty.', 'row.all': 'See all',
@@ -390,4 +389,5 @@ const missingStrings = () => { const all = new Set(Object.values(STRINGS).flatMa
 /** The key that moves forward along a row: ArrowLeft in right-to-left, ArrowRight in left-to-right. */
 const FWD = () => document.documentElement.dir === 'rtl' ? 'left' : 'right';
 applyUiLang();
-export {UI_LANGS, STRINGS, UI, setUiLang, tr, applyUiLang, missingStrings, FWD};
+window.missingStrings = missingStrings;     // in the console: the keys one language lacks (CLAUDE.md)
+export {UI_LANGS, STRINGS, UI, setUiLang, tr, applyUiLang, FWD};

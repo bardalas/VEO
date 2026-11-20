@@ -7,7 +7,6 @@
 import {fetchText} from '../core/bridge.js';
 import {known, translatable, translateTexts} from '../data/translate.js';
 import {esc} from '../core/dom.js';
-import {store} from '../core/store.js';
 import {UI, tr} from '../i18n.js';
 
 /** Each genre, and its programmes: [channel id, name] - names in the language they go by. */

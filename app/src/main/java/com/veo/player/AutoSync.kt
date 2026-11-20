@@ -42,8 +42,6 @@ object AutoSync {
     /** A minute with less than this much speech, or fewer lines than this in the subtitle, says nothing. */
     const val MIN_SPEECH_S = 6.0
     const val MIN_EVENTS = 5
-    /** A stretch counts only if this much of it was actually heard (a seek leaves holes). */
-    const val MIN_COVERAGE = 0.85
 
     const val TAG = "VEO-autosync"
 }
@@ -175,13 +173,6 @@ class SpeechTimeline {
     /** [from, to) as it stands: 0..100, or -1 for a step nothing was heard in. */
     fun slice(from: Int, to: Int): ByteArray = synchronized(lock) {
         ByteArray(max(0, to - from)) { i -> val b = from + i; if (b in bins.indices) bins[b] else -1 }
-    }
-
-    /** The share of [from, to) that was heard at all. */
-    fun coverage(from: Int, to: Int): Double = synchronized(lock) {
-        var n = 0
-        for (b in from until to) if (b in bins.indices && bins[b] >= 0) n++
-        n.toDouble() / max(1, to - from)
     }
 }
 
