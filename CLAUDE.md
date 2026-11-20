@@ -191,11 +191,15 @@ minutes, name index, note]]}. The guide answers per channel per day (`RTV_EPG(id
 `dayOf`/`dayRange` use Asia/Jerusalem whatever the device clock). `refreshGuide()` reads only `dueDays` - never read, or
 read before the day ended - today first, 3 at a time, saving every 60 days without renumbering names (`save(false)`;
 renumbering mid-reading gave programmes each other's names); a full first fill is ~900 small requests, under 2 minutes.
-`channelCat` sorts channels by name into kids/movies/series/docu/life/general; sport, news and music are not read.
-`progKey`/`progTitle` group broadcasts by name, `epNote` keeps an episode number or a film's year. The page is wheels
-(`guideRows`: today, yesterday, a row per kind or per channel) of wide `guideCard`s with the channel's logo; a film's
-card takes its picture from `hebrewSearch` by name and year (`guideFilm` cache). OK opens the broadcasts, one plays
-from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים"). Separate from the broadcasters' VOD.
+`channelCat` sorts channels by name (kids, movies, docu, life, series, general); sport, news and music are not read.
+Each broadcast gets a genre from its own words (`genreOf`: name + description, first matching rule; a kids or film
+channel decides alone; a silent one goes by its channel) - kids, reality, drama, comedy, news, talk, docu, life, other
+(#486). `progKey`/`progTitle` group broadcasts by name (an episode's title after " - " dropped, not for films; "חדש!"
+dropped), `epNote` keeps an episode number or a film's year. The page is a **library**, not a log: chips per genre,
+a wheel per genre on All, or the genre and a row per channel showing it; only programmes with episodes
+(`hasEpisodes`: 2+ numbered episodes, or on 3+ days) - films and one-offs are found by search alone. Cards are wide
+`guideCard`s with the channel's logo (a film's own picture in search, via `hebrewSearch`, `guideFilm` cache). OK
+opens the broadcasts, one plays from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים"). Separate from the broadcasters' VOD.
 
 ### The wheel and the taste (`js/ui/reel.js`, `js/ui/taste.js`)
 A row of titles is a wheel: the title the remote is on stands still where the row begins, wide, and the row turns

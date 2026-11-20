@@ -19,7 +19,7 @@ import {tr} from '../i18n.js';
 import {playLive} from './live.js';
 import {RTV_EPG, hhmm, loadRtv, rtvArchiveProbe} from './rtv.js';
 
-const KEY = 'guideIdx', VERSION = 2;
+const KEY = 'guideIdx', VERSION = 3;
 /** How often the index is looked at again while the app is open. */
 export const GUIDE_STALE_MS = 3 * 3600e3;
 /** How many days are asked for at once - the guide's server is the same one the player's banner asks. */
@@ -27,7 +27,7 @@ const AT_ONCE = 3;
 /** Shorter than this is not a programme: a promo, a break, a headline. */
 const MIN_S = 8 * 60;
 /** What is on every channel every hour and is not looked for by name. */
-const NOT_A_PROGRAMME = /^(חדשות|מהדורה|מבזק|מבזקי|כותרות|תשדיר|פרסומות|הפסקה|סוף שידורים|שידורי ניסיון|לוח שידורים|news|headlines|weather|teleshopping|close ?down)(?![\p{L}\p{N}])/iu;   // \b knows no Hebrew letters
+const NOT_A_PROGRAMME = /^(חדשות|מהדורה|מבזק|מבזקי|כותרות|תשדיר|פרסומות|הפסקה|סוף שידורים|נשוב לשדר|נחזור לשדר|שידורי ניסיון|לוח שידורים|news|headlines|weather|teleshopping|close ?down)(?![\p{L}\p{N}])/iu;   // \b knows no Hebrew letters
 
 /* ---------- what a channel is ----------
    The guide says nothing of genre, but the channels do: a channel's name says what it shows. First match wins
@@ -43,20 +43,48 @@ const CATS = [
   ['series', /series|yes\+\s*(diamonds|dark|love)|\btv (action|comedy|drama)|turkish|telenovela|viva|drama|comedy|humor|yam ti|vamos|zone|hot [38]\b|yes israeli|savri|nehederet|channel 24/i],
 ];
 export const channelCat = name => (CATS.find(([, re]) => re.test(name || '')) || ['general'])[0];
-/** The categories a viewer chooses between, in order. */
-export const GUIDE_CATS = ['kids', 'movies', 'series', 'docu', 'life'];
 const SKIP = new Set(['sport', 'news', 'music']);
+
+/* ---------- what a programme is (#486) ----------
+   Its genre, read from its own words - the guide's description and its name - since the guide gives none: the
+   first rule that matches wins. A children's channel's programmes are children's and a film channel's are films,
+   whatever they say; what says nothing goes by its channel (a comedy channel's is a comedy). */
+const GENRE_RULES = [
+  ['music', /קליפ|להיטי|לקט שירים|מיטב השירים/],
+  ['comedy', /סברי מרנן|ארץ נהדרת|זהו זה|קופה ראשית|קומדי|סיטקום|מערכונ|סאטיר/],
+  ['reality', /ריאליטי|מתמודד|שעשועון|הדח|השופטים|במסכה|האח הגדול|הישרדות|חתונה ממבט|יתחרו|תחרות|מתחר|טריוויה/],
+  ['news', /אקטואליה|חדשות|מהדורה|כותרות|פרשנ|תחקיר|פוליטי|כלכל|בורסה|שוק ההון|השוק|עסקים|נדל.?ן|ביטחוני|סדר היום|אירועי היום|יומן הבוקר|הכתבות|מגזין/],
+  ['drama', /דרמה|מותחן|פשע|בלש|טלנובלה|תקופתית|סדרת מתח|רומנטית|רצח/],
+  ['docu', /תיעוד|תעודה|דוקו|היסטורי|טבע|בעלי חיים|חיות|החוקרת|מדע|ארכיאולוג|סיפורם של|סיפורה של|מסע /],
+  ['life', /בישול|מתכון|מטבח|שף |אוכל|עיצוב|שיפוץ|טיול|יעדים|בריאות|אופנה|יופי|לייפסטייל|וולנס|כושר|גינ|נסיע/],
+  ['talk', /אירוח|בשיחה עם|מארח|ריאיון|ראיון|בידור|רכילות|הנחיית|בהגשת|טוק|סלבס/],
+];
+const GENRE_BY_CHANNEL = [['comedy', /comedy|humor|nehederet|savri/i], ['drama', /drama|turkish|telenovela|viva|vamos|yes\+|zone|yam ti|indian/i]];
+export function genreOf(name, descr, channel){
+  const c = channelCat(channel);
+  if(c === 'kids' || c === 'movies') return c;
+  const words = name + ' ' + (descr || '');
+  return (GENRE_RULES.find(([, re]) => re.test(words)) || GENRE_BY_CHANNEL.find(([, re]) => re.test(channel || ''))
+    || [{docu: 'docu', life: 'life', series: 'drama'}[c] || 'other'])[0];
+}
+/** The genres a viewer chooses between, in order (music is not shown: clips between programmes; films are found
+    by search - one film is not a programme with episodes). */
+export const GUIDE_GENRES = ['kids', 'reality', 'drama', 'comedy', 'news', 'talk', 'docu', 'life', 'other'];
 
 /** The name a programme is known by, whatever the guide wrapped around it: an episode's number, a season, a
     rerun's mark, quotes - so that every broadcast of it falls together. */
-export const progKey = name => progTitle(name).toLowerCase().replace(/["'״׳`.!?]/g, '').replace(/[\s\-–:,|]+/g, ' ').trim();
-/** The same, as it is written: what a programme's tile is called. */
-export function progTitle(name){
-  return String(name || '')
-    .replace(/\((ש|ח|שידור חוזר|r|rerun|new|חדש)\)/gi, ' ')
+export const progKey = (name, film) => progTitle(name, film).toLowerCase().replace(/["'״׳`.!?]/g, '').replace(/[\s\-–:,|]+/g, ' ').trim();
+/** The same, as it is written: what a programme's tile is called. What follows a dash is the episode's own
+    title ("הזמר במסכה - האירוע החריג") - but not a film's: a film's name is the whole of it. */
+export function progTitle(name, film = false){
+  let s = String(name || '').replace(/\((ש|ח|ש\.ח\.|שידור חוזר|r|rerun|new|חדש)\)/gi, ' ');
+  s = s.replace(/^\s*(חדש|בכורה|new)\s*(!|[-–:])\s*[-–:]?\s*/i, '');   // "חדש! מחכה לאביב" is "מחכה לאביב" (but "חדשות" is itself)
+  if(!film) s = s.split(/\s[-–]\s/)[0];
+  return s
     .replace(/[-–:,|]?\s*(עונה|ע'|פרק|פ'|season|episode|ep\.?|s\d+\s*e\d+)\s*\d+.*$/i, ' ')
     .replace(/\s+\d+\s*$/, ' ')
     .replace(/^["'״]+|["'״]+$/g, '')
+    .replace(/[\s,]*(חדש|בכורה|new)\s*!\s*$/i, '')                         // "ארה"ב מלמעלה, חדש!" too
     .replace(/\s+/g, ' ').replace(/[\s\-–:,|]+$/, '').trim();
 }
 /** What tells one broadcast of a programme from another: its episode, or a film's year (the guide ends a film's
@@ -69,10 +97,12 @@ export function epNote(descr){
   return y ? y[1] : '';
 }
 
-/** The guide's answer as [start, minutes, name, note] - only what is a programme. */
-export function guideEntries(json){
-  return (Array.isArray(json) ? json : []).map(g => [+g.time, Math.round((+g.time_to - +g.time) / 60), String(g.name || '').trim(), epNote(g.descr)])
-    .filter(([t, m, n]) => t > 0 && m * 60 >= MIN_S && n && !NOT_A_PROGRAMME.test(n));
+/** The guide's answer for [channel] as [start, minutes, name, note, genre] - only what is a programme. */
+export function guideEntries(json, channel = ''){
+  return (Array.isArray(json) ? json : []).map(g => {
+    const name = String(g.name || '').trim();
+    return [+g.time, Math.round((+g.time_to - +g.time) / 60), name, epNote(g.descr), genreOf(name, g.descr, channel)];
+  }).filter(([t, m, n]) => t > 0 && m * 60 >= MIN_S && n && !NOT_A_PROGRAMME.test(n));
 }
 
 /* ---------- days ---------- */
@@ -174,13 +204,13 @@ export function refreshGuide(){
       while(next < jobs.length){
         const {c, day} = jobs[next++];
         try{
-          const got = guideEntries(JSON.parse(await fetchText(RTV_EPG(c.epg) + day)));
+          const got = guideEntries(JSON.parse(await fetchText(RTV_EPG(c.epg) + day)), c.name);
           const ch = idx.ch[c.epg], [from, to] = dayRange(day);
-          const kept = ch.p.map(p => [p[0], p[1], idx.n[p[2]], p[3] || '']);
-          ch.p = mergeDay(kept, got, from, to).map(([t, m, name, note]) => {
+          const kept = ch.p.map(p => [p[0], p[1], idx.n[p[2]], p[3] || '', p[4] || '']);
+          ch.p = mergeDay(kept, got, from, to).map(([t, m, name, note, genre]) => {
             let k = nameAt.get(name);
             if(k === undefined){ k = idx.n.length; idx.n.push(name); nameAt.set(name, k); }
-            return note ? [t, m, k, note] : [t, m, k];
+            return [t, m, k, note || '', genre || 'other'];
           });
           ch.days[day] = Date.now();
           changed = true;
@@ -196,29 +226,33 @@ export function refreshGuide(){
 export const guideBusy = () => !!running;
 
 let progs = null;
-/** The programmes, the one aired most recently first: [{key, name, cat, last, eps: [{epg, t, to, name, note}]}],
+/** The programmes, the one aired most recently first: [{key, name, genre, last, eps: [{epg, t, to, name, note}]}],
     newest broadcast first. Only what has already begun - the past is what can be played. */
 export function guideProgrammes(){
   if(progs) return progs;
   load();
   const nowS = Date.now() / 1000, by = new Map();
-  for(const [epg, c] of Object.entries(idx.ch)) for(const [t, m, k, note] of c.p){
-    if(t > nowS) continue;
-    const name = idx.n[k], key = progKey(name);
-    if(!key) continue;
-    let g = by.get(key);
-    if(!g) by.set(key, g = {key, names: {}, eps: []});
-    const title = progTitle(name);
-    g.names[title] = (g.names[title] || 0) + 1;
-    g.eps.push({epg, t, to: t + m * 60, name, note: note || ''});
+  for(const [epg, c] of Object.entries(idx.ch)){
+    const film = c.cat === 'movies';
+    for(const [t, m, k, note, genre] of c.p){
+      if(t > nowS) continue;
+      const name = idx.n[k], key = progKey(name, film);
+      if(!key) continue;
+      let g = by.get(key);
+      if(!g) by.set(key, g = {key, names: {}, genres: {}, eps: []});
+      const title = progTitle(name, film);
+      g.names[title] = (g.names[title] || 0) + 1;
+      g.genres[genre] = (g.genres[genre] || 0) + 1;
+      g.eps.push({epg, t, to: t + m * 60, name, note: note || ''});
+    }
   }
   return progs = [...by.values()].map(g => {
     g.eps.sort((a, b) => b.t - a.t);
     // the name it is called by most often, without an episode's number
     g.name = Object.entries(g.names).sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0];
     g.last = g.eps[0].t;
-    g.cat = idx.ch[g.eps[0].epg]?.cat || 'general';
-    delete g.names;
+    g.genre = Object.entries(g.genres).sort((a, b) => b[1] - a[1])[0][0];   // what most of its broadcasts say it is
+    delete g.names; delete g.genres;
     return g;
   }).sort((a, b) => b.last - a.last);
 }
@@ -256,7 +290,7 @@ export function whenAired(t){
 const chOf = epg => load().ch[epg] || {};
 export function guideCard(p, i){
   const c = chOf(p.eps[0].epg);
-  const film = p.cat === 'movies';
+  const film = p.genre === 'movies';
   return `<button class="poster wide progcard" data-gp="${i}" data-id="guide:${esc(p.key)}"${film ? ` data-film="${esc(p.key)}"` : ''}>
     <div class="art logoart">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
       ${p.eps.length > 1 ? `<span class="chtag">${tr('guide.times', {n: p.eps.length})}</span>` : ''}</div>
@@ -326,23 +360,31 @@ export function openProgramme(p){
 }
 
 /* ---------- the page's rows ----------
-   Like Movies and Series: what was on today and yesterday first, then (on All) a row of each kind and a row of
-   each general channel, or (on a kind's tab) what was on most this week and a row of each of its channels. */
-const ROW_MAX = 30, CHANNEL_ROWS = 24;
-export function guideRows(cat){
-  const all = guideProgrammes(), today = dayRange(dayOf(Date.now()))[0], yesterday = today - 86400;
-  const mine = cat ? all.filter(p => p.cat === cat) : all;
-  const rows = [
-    {title: tr('guide.today'), list: mine.filter(p => p.last >= today)},
-    {title: tr('guide.yesterday'), list: mine.filter(p => p.last >= yesterday && p.last < today)},
-  ];
-  if(!cat) for(const c of GUIDE_CATS) rows.push({title: tr('guide.cat.' + c), list: all.filter(p => p.cat === c)});
-  else rows.push({title: tr('guide.most'), list: [...mine].sort((a, b) => b.eps.length - a.eps.length || b.last - a.last)});
-  // a row of each channel, what it had on last first
-  for(const ch of guideChannels().filter(c => c.cat === (cat || 'general')).slice(0, CHANNEL_ROWS)){
+   A library of programmes, not a log of broadcasts (#486): only what has several episodes - a series, a daily or
+   weekly show - a row of each genre on All, or on a genre's chip the whole genre and a row of each channel that
+   shows it. A one-off (an event, a film) is not browsed; search finds it. */
+const ROW_MAX = 40, CHANNEL_ROWS = 8;
+export function guideRows(genre){
+  const all = guideProgrammes().filter(p => hasEpisodes(p) && GUIDE_GENRES.includes(p.genre));
+  if(!genre) return trim(GUIDE_GENRES.map(g => ({title: tr('guide.g.' + g), list: all.filter(p => p.genre === g)})));
+  const mine = all.filter(p => p.genre === genre);
+  const rows = [{title: tr('guide.g.' + genre), list: mine}];
+  // the channels that show most of it, a row each, what each had on last first
+  const count = new Map();
+  for(const p of mine) for(const e of p.eps) count.set(e.epg, (count.get(e.epg) || 0) + 1);
+  for(const ch of guideChannels().filter(c => count.has(c.epg)).sort((a, b) => count.get(b.epg) - count.get(a.epg)).slice(0, CHANNEL_ROWS)){
     const lastOn = p => Math.max(...p.eps.filter(e => e.epg === ch.epg).map(e => e.t));
-    const list = all.filter(p => p.eps.some(e => e.epg === ch.epg)).map(p => [p, lastOn(p)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const list = mine.filter(p => p.eps.some(e => e.epg === ch.epg)).map(p => [p, lastOn(p)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     rows.push({title: channelName(ch.name), list});
   }
-  return rows.filter(r => r.list.length).map(r => ({...r, list: r.list.slice(0, ROW_MAX)}));
+  return trim(rows);
+}
+const trim = rows => rows.filter(r => r.list.length).map(r => ({...r, list: r.list.slice(0, ROW_MAX)}));
+/** A programme with episodes: two or more numbered episodes, or - where the guide numbers none - on three days of
+    the week or more (a daily show). A film is one thing however often it is on. */
+export const RECUR_DAYS = 3;
+export function hasEpisodes(p){
+  if(p.genre === 'movies') return false;
+  if(new Set(p.eps.map(e => e.note).filter(n => /^פרק/.test(n))).size >= 2) return true;
+  return new Set(p.eps.map(e => dayOf(e.t * 1000))).size >= RECUR_DAYS;
 }

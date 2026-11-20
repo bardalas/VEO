@@ -10,7 +10,7 @@ import {store} from '../core/store.js';
 import {channelName, groupName} from '../data/names.js';
 import {tr} from '../i18n.js';
 import {liveChannels, liveSources, nowPlaying, watchChannel} from '../providers/live.js';
-import {GUIDE_CATS, guideBusy, guideCard, guideEmpty, guideRows, guideSearch, onGuide, refreshGuide, wireCards} from '../providers/guide.js';
+import {GUIDE_GENRES, guideBusy, guideCard, guideEmpty, guideRows, guideSearch, onGuide, refreshGuide, wireCards} from '../providers/guide.js';
 import {ARCH_KEY, hhmm, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
 import {openRtvKey} from '../ui/sheets.js';
 import {reel} from '../ui/rows.js';
@@ -149,10 +149,10 @@ async function viewProgrammes(keepTab, opened){
   const mine = $('#chs');
   $('#lq').placeholder = tr('guide.search');
   $('#lq').setAttribute('aria-label', tr('guide.search'));
-  let cat = store.get('guideCat', '');
-  if(cat && !GUIDE_CATS.includes(cat)) cat = '';
+  let cat = store.get('guideGenre', '');
+  if(cat && !GUIDE_GENRES.includes(cat)) cat = '';
   $('#lg').hidden = false;
-  $('#lg').innerHTML = [['', tr('src.all')], ...GUIDE_CATS.map(c => [c, tr('guide.cat.' + c)])].map(([v, n]) =>
+  $('#lg').innerHTML = [['', tr('src.all')], ...GUIDE_GENRES.map(c => [c, tr('guide.g.' + c)])].map(([v, n]) =>
     `<button class="chip ${cat === v ? 'on' : ''}" data-g="${v}">${esc(n)}</button>`).join('');
   const draw = () => {
     if(!mine.isConnected) return;
@@ -164,7 +164,7 @@ async function viewProgrammes(keepTab, opened){
   };
   $('#lg').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
     cat = b.dataset.g;
-    store.set('guideCat', cat);
+    store.set('guideGenre', cat);
     $('#lg').querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x === b));
     draw();
   });
