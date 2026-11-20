@@ -1,5 +1,12 @@
 # VEO Android changelog
 
+## 0.45.89 — 2026-11-20
+- **Channels and Shows.** After a UI/UX review the menu has ערוצים (live, שודר השבוע, radio) and תוכניות (the
+  broadcasters' VOD and the Magazine). Channels always opens on the live channels, the last channel watched where the
+  remote lands - OK plays it. This week's programmes keep wide cards with their channel's logo, so they are not taken
+  for VOD, and a programme's page links to all its episodes in the broadcaster's catalogue when it is there. (#504)
+- **The remote's mark never sits off screen**: whatever moves the focus, the page brings it into view. (#506)
+
 ## 0.45.88 — 2026-11-20
 - **Back keeps the remote.** Coming back from a Kan, Keshet or Reshet programme put the screen where it was but the
   remote nowhere, and the next key jumped to the tabs at the top while the screen stayed below. Back now lands on the
