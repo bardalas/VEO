@@ -144,3 +144,7 @@ button.poster{background:none;border:0;padding:0;color:inherit;text-align:start;
 .ytsignway p{margin:0 0 6px}
 .ytsignin .ytcode{font-size:40px;font-weight:700;letter-spacing:.08em;white-space:nowrap;margin:8px 0 10px}
 .ytsignin .ytqr svg{display:block;width:190px;height:190px;background:#fff;border-radius:10px}
+
+/* ---------- the radio (#477): the stations' marks are drawn for white, so their tiles are white ---------- */
+.radiopage .chlogo{background:#fff}
+.radiopage .chlogo span{color:#1a1d24;font-size:26px}

@@ -27,7 +27,7 @@ export async function viewLive(){
   let sel = store.get('livePl', sources[0].key);
   if(!sources.some(x => x.key === sel)) sel = sources[0].key;
   const hasRtv = !!store.get('rtvKey', '');
-  app.innerHTML = `<div class="page livepage">
+  app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
     <div class="livehead"><h1>${tr('nav.live')}</h1>
       ${sources.length > 1 ? `<div class="srctabs livetabs" role="tablist">${sources.map(x =>
         `<button class="srctab${x.key === sel ? ' on' : ''}" role="tab" aria-selected="${x.key === sel}" data-pl="${esc(x.key)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
@@ -79,7 +79,7 @@ export async function viewLive(){
 
   const last = store.get('lastChannel', null);
   const lastName = last && last.src === sel ? last.name : null;
-  const initials = c => esc(channelName(c.name).replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2));
+  const initials = c => esc(c.mark || channelName(c.name).replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2));   // a station without a mark: its short name (providers/radio.js)
   const numbers = new Map(chans.map((c, i) => [c, i + 1]));   // the channel's number, as the player zaps through them
   let nowIo = null;
   const draw = () => {

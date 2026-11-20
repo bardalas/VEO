@@ -2,6 +2,7 @@
 import {fetchText} from '../core/bridge.js';
 import {store} from '../core/store.js';
 import {r13channels} from './reshet.js';
+import {radioStations} from './radio.js';
 import {RTV_EPG, loadRtv, rtvArchiveTemplate} from './rtv.js';
 import {liveAllowed} from '../data/kids.js';
 import {channelName} from '../data/names.js';
@@ -84,12 +85,13 @@ export async function nowPlaying(c){
   return p;
 }
 
-/** Everything the Live TV page can show: RaspberryTV (if a key is set), official channels, own playlists. */
+/** Everything the Live TV page can show: RaspberryTV (if a key is set), official channels, the radio, own playlists. */
 export function liveSources(){
   return [...(store.get('rtvKey', '') ? [{key: 'rtv', name: 'RaspberryTV'}] : []),
-          {key: 'il', name: tr('live.il')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
+          {key: 'il', name: tr('live.il')}, {key: 'radio', name: tr('live.radio')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
 }
 export async function liveChannels(key){
+  if(key === 'radio') return radioStations();
   if(key === 'il'){
     const r13ch = await r13channels().catch(() => []);
     const main = r13ch.filter(c => c.name === 'רשת 13'), extra = r13ch.filter(c => c.name !== 'רשת 13');
@@ -110,7 +112,7 @@ export function watchChannel(list, i, sourceKey){
       // the player's banner and list say it as the page does
       name: twice.has(shown[n]) ? c.name : shown[n], url: c.url, ua: c.ua || '', referer: c.referer || '',
       num: n + 1, logo: c.logo || '', epg: c.epg ? RTV_EPG(c.epg) : '',
-      arch: rtvArchiveTemplate(c), rec: c.rec || 0
+      arch: rtvArchiveTemplate(c), rec: c.rec || 0, mark: c.mark || ''
     }))), i);
   else playLive(list[i]);
 }
