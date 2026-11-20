@@ -249,9 +249,12 @@ sorted and from which sources; a genre also pulls Cinemeta's popular/top-rated t
   `ui/ytplayer.js` with the app's Hebrew captions - signed out, so YouTube's own history never hears of them: the
   history row starts with the profile's `yt:` progress. Its strings are `ytab.*` (`yt.*` are the player's). Not in kids profiles.
   A screen may name where the remote lands when it arrives from the menu: `[data-land]` (ui/tvnav.js).
-- **The menu**: Home, Movies, Series, **Shows**, TV and radio (`#/live`: live channels, programmes, radio), YouTube, Favourites, Settings. **Shows** (`#/shows/<all|kan|keshet|reshet>`,
-  `screens/broadcasters.js` `viewShows`) holds the broadcasters' programmes (Kan, Keshet, Reshet): tabs over the page,
-  All = a wheel of every programme, what aired last and a row per broadcaster. Each broadcaster's tab is laid out
+- **The menu**: Home, Movies, Series, TV and radio, YouTube, Favourites, Settings. **TV and radio** (`#/live/<tab>`, the tab
+  in the address so Back returns to it) has the tabs: live channels (RaspberryTV, or the built-in Israeli channels
+  without it), programmes (the guide), Kan, Keshet, Reshet, the Magazine, radio, and the viewer's playlists
+  (`liveSources`). The broadcasters' and the Magazine's tabs are drawn by `screens/broadcasters.js` `viewBroadcaster`
+  under the page's head (#502; they were a menu entry, Shows, of their own - `#/shows/<id>` and `#/tv/<id>` lead to the
+  tab); not a child's, and Keshet not a kids profile's. Each broadcaster's tab is laid out
   alike: a wheel of all its programmes, then a row per genre (Kan's sections, `MAKO_GENRES`, Reshet's `Genre` tags).
   The **Magazine** tab (`providers/web.js`, `screens/web.js`, `#/web/<channel>`): hand-picked internet programmes by
   genre, each a programme with its latest *full* episodes (the channel's long-form list, `UULF…`, read as a feed -

@@ -12,6 +12,7 @@ import {tr} from '../i18n.js';
 import {liveChannels, liveSources, nowPlaying, watchChannel} from '../providers/live.js';
 import {GUIDE_GENRES, guideBusy, guideCard, guideEmpty, guideRows, guideSearch, onGuide, refreshGuide, wireCards} from '../providers/guide.js';
 import {ARCH_KEY, hhmm, openChannel, rtvArchiveProbe} from '../providers/rtv.js';
+import {viewBroadcaster} from './broadcasters.js';
 import {openRtvKey} from '../ui/sheets.js';
 import {reel} from '../ui/rows.js';
 import {lastMoveAt} from '../ui/tvnav.js';
@@ -21,35 +22,43 @@ const PAST = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 
 /** A source tab was chosen: the remote stays on it while its channels come. */
 let onTab = false;
-export async function viewLive(){
+export async function viewLive(tab){
   const app = $('#app');
   const opened = performance.now(), keepTab = onTab;
   onTab = false;
   const sources = liveSources();
-  let sel = store.get('livePl', sources[0].key);
+  // the tab is in the address (#/live/<tab>), so Back from a programme comes back to it; without one, the last chosen
+  let sel = tab || store.get('livePl', sources[0].key);
   if(!sources.some(x => x.key === sel)) sel = sources[0].key;
+  store.set('livePl', sel);
+  const bc = sources.find(x => x.key === sel)?.bc;
   const hasRtv = !!store.get('rtvKey', '');
   const search = `<input class="field" id="lq" type="search" placeholder="${esc(tr('live.search'))}" aria-label="${esc(tr('live.search'))}">`;
-  app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
-    <div class="livehead"><h1>${tr('nav.live')}</h1>
-      ${/* the search box stands at the end of the tabs' line - one row for the remote: Left from the last tab reaches it,
-           Down from either goes on to the page (#493) */ ''}
+  // the search box stands at the end of the tabs' line - one row for the remote: Left from the last tab reaches it, Down
+  // from either goes on to the page (#493). A broadcaster's tab has no list to search: there is none.
+  const find = bc ? '' : search;
+  const head = `<div class="livehead"><h1>${tr('nav.live')}</h1>
       ${sources.length > 1 ? `<div class="srctabs livetabs" role="tablist">${sources.map(x =>
-        `<button class="srctab${x.key === sel ? ' on' : ''}" role="tab" aria-selected="${x.key === sel}" data-pl="${esc(x.key)}">${esc(x.name)}</button>`).join('')}${search}</div>`
-        : `<div class="livesearch">${search}</div>`}</div>
+        `<button class="srctab${x.key === sel ? ' on' : ''}" role="tab" aria-selected="${x.key === sel}" data-pl="${esc(x.key)}">${esc(x.name)}</button>`).join('')}${find}</div>`
+        : `<div class="livesearch">${find}</div>`}</div>`;
+  const wireTabs = () => app.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => {
+    if(b.classList.contains('on')) return;
+    store.set('liveGroup', '');
+    onTab = true;
+    history.replaceState(null, '', '#/live/' + encodeURIComponent(b.dataset.pl));
+    viewLive(b.dataset.pl);
+    $(`[data-pl="${CSS.escape(b.dataset.pl)}"]`)?.focus();     // the remote stays on the tab it chose
+  });
+  if(bc) return viewBroadcaster(sel, `<div class="page livepage bcpage">${head}</div>`, wireTabs);
+  app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
+    ${head}
     <div class="live-groups" id="lg" role="group" hidden></div>
     <div id="chs"><p class="note">${tr('live.loading')}</p></div>
     <p class="snote livehint" id="lhint" hidden></p>
     ${hasRtv ? '' : `<div class="slines liveadd"><button class="sline" id="rtvOpen">
       <span class="st"><b>${tr('live.rtv.title')}</b></span><span class="sv"><span></span></span></button></div>`}</div>`;
   if($('#rtvOpen')) $('#rtvOpen').onclick = () => openRtvKey(viewLive);
-  app.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => {
-    if(b.classList.contains('on')) return;
-    store.set('livePl', b.dataset.pl); store.set('liveGroup', '');
-    onTab = true;
-    viewLive();
-    $(`[data-pl="${CSS.escape(b.dataset.pl)}"]`)?.focus();     // the remote stays on the tab it chose
-  });
+  wireTabs();
 
   if(sel === 'progs') return viewProgrammes(keepTab, opened);
   // The channels of the source that was chosen: another may have been chosen since, and a list that

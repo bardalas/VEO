@@ -6,7 +6,7 @@ import {openPlayer} from '../ui/player.js';
 
 export async function viewWebShow(id){
   const show = webShow(id);
-  if(!show){ location.hash = '#/shows/web'; return; }
+  if(!show){ location.hash = '#/live/web'; return; }
   $('#app').innerHTML = `<div class="page"><div class="showhead"><div><h1 dir="auto">${esc(show.name)}</h1><p>${esc(webGenreName(show.genre))}</p></div></div>
     <div class="eplist" id="eps"><p class="note">${tr('common.loading')}</p></div></div>`;
   const box = $('#eps');

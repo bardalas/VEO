@@ -22,7 +22,7 @@ import {viewMakoProgram} from './providers/mako.js';
 import {viewR13Series} from './providers/reshet.js';
 import {openChannel} from './providers/rtv.js';
 import {viewAddons} from './screens/addons.js';
-import {viewShows, viewTv} from './screens/broadcasters.js';
+import {showsTab} from './screens/broadcasters.js';
 import {viewAll} from './screens/catalog.js';
 import {viewDetail} from './screens/detail.js';
 import {viewCategory, viewGenre, viewGenres, viewHome} from './screens/home.js';
@@ -107,21 +107,21 @@ export async function route(){
   document.body.classList.toggle('who', r === 'who');   // the picker has the screen to itself (screens/profiles.js)
   // the menu lights the place you are in; a title or a search keeps the one it was opened from
   markNav(r === '' ? 'home' : r === 'cat' ? (['movies', 'series'].includes(a) ? a : '') : r === 'all' ? (a === 'movie' ? 'movies' : 'series')
-    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : ['live', 'yt', 'library', 'settings', 'who'].includes(r) ? r
+    : r === 'web' ? 'live' : ['live', 'yt', 'library', 'settings', 'who'].includes(r) ? r
     : r === 'profile' || r === 'report' ? 'settings' : '');
-  if(['', 'cat', 'all', 'genres', 'genre', 'search', 'library', 'shows', 'tv'].includes(r)) listHash = location.hash || '#/';
+  if(['', 'cat', 'all', 'genres', 'genre', 'search', 'library', 'live'].includes(r)) listHash = location.hash || '#/';
   if(r === 'genres') viewGenres();
   else if(r === 'genre') viewGenre(a);
   else if(r === 'r13') viewR13Series(a, b);
   else if(r === 'kan') viewKanProgram(a, b);
-  else if(r === 'tv') viewTv(a);
-  else if(r === 'shows') viewShows(a);
+  // Shows was a menu entry of its own: its old addresses lead to the TV and radio page's tabs (#502)
+  else if(r === 'tv' || r === 'shows'){ history.replaceState(null, '', '#/live/' + showsTab(a)); return route(); }
   else if(r === 'web') viewWebShow(a);
   else if(r === 'yt') viewYouTube(a, b, c);
   else if(r === 'mako') viewMakoProgram(a, b);
   else if(r === 'cat') viewCategory(a);
   else if(r === 'all') viewAll(a);
-  else if(r === 'live') viewLive();
+  else if(r === 'live') viewLive(a);
   else if(r === 'prog') viewProgramme(a);
   else if(r === 'search') viewSearch(a);
   else if(r === 'detail') viewDetail(a, b, c);

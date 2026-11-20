@@ -4,7 +4,7 @@ import {store} from '../core/store.js';
 import {r13channels} from './reshet.js';
 import {radioStations} from './radio.js';
 import {RTV_EPG, loadRtv, rtvArchiveTemplate} from './rtv.js';
-import {liveAllowed} from '../data/kids.js';
+import {kidsChild, kidsOn, liveAllowed} from '../data/kids.js';
 import {channelName} from '../data/names.js';
 import {tr} from '../i18n.js';
 import {openPlayer} from '../ui/player.js';
@@ -94,9 +94,13 @@ async function askNow(c){
 export function liveSources(){
   // what the channels with an archive broadcast, by programme (providers/guide.js, #478), beside their channels
   // the built-in Israeli channels only where there is no subscription: RaspberryTV has them all (#484)
+  // and the broadcasters' own catalogues and the Magazine (screens/broadcasters.js, #502): not a child's, and Keshet not
+  // a kids profile's at all (its episodes open its own site)
   const rtv = !!store.get('rtvKey', '');
+  const bcs = kidsChild() ? [] : [['kan', 'origin.kan'], ['keshet', 'origin.mako'], ['reshet', 'origin.r13'], ['web', 'web.tab']]
+    .filter(([k]) => k !== 'keshet' || !kidsOn()).map(([key, name]) => ({key, name: tr(name), bc: true}));
   return [...(rtv ? [{key: 'rtv', name: tr('live.channels')}, {key: 'progs', name: tr('guide.tab')}] : [{key: 'il', name: tr('live.il')}]),
-          {key: 'radio', name: tr('live.radio')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
+          ...bcs, {key: 'radio', name: tr('live.radio')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
 }
 export async function liveChannels(key){
   if(key === 'radio') return radioStations();
