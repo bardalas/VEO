@@ -1626,3 +1626,24 @@ test("a title's story is its plot section whatever it is called, the wheel shows
   assert.match(reel, /function showInfo\(el, info\)/);                          // the words under the card are brought into view
   assert.match(await readFile(path.join(assets, 'css/layouts.css'), 'utf8'), /body\.titlefit \.detail\.movie \.people\{display:block/);
 });
+
+test("the update check reads the releases' feed, not GitHub's API, whose hourly count a household used up (#472)", async () => {
+  const atom = '<feed><entry><link rel="alternate" type="text/html" href="https://github.com/bardalas/VEO/releases/tag/web-v0.46.1"/></entry>'
+    + '<entry><link rel="alternate" type="text/html" href="https://github.com/bardalas/VEO/releases/tag/v0.45.83"/></entry>'
+    + '<entry><link rel="alternate" type="text/html" href="https://github.com/bardalas/VEO/releases/tag/v0.45.82"/></entry></feed>';
+  const asked = [];
+  const cards = [];
+  const el = () => ({className: '', innerHTML: '', remove(){}, querySelector: () => null, focus(){}});
+  const document = {querySelector: () => null, createElement: () => el(), body: {appendChild: c => cards.push(c)}};
+  const BoothAndroid = {appVersion: () => '0.45.80', openExternal(){}, updateApp(){}};
+  const u = await mini('ui/update.js', {
+    'core/bridge.js': {fetchText: async url => { asked.push(url); return atom; }},
+    'core/dom.js': {$: () => ({focus(){}, set onclick(f){}}), esc: s => s, getJSON: async () => { asked.push('api'); throw new Error('403'); }},
+    'core/settings.js': {isTvLayout: () => false},
+    'core/store.js': {store: memStore().store},
+    'i18n.js': {tr: (k, v) => k + (v ? JSON.stringify(v) : '')},
+  }, {window: {BoothAndroid}, BoothAndroid, document});
+  assert.equal(await u.checkUpdate(true), 'found');
+  assert.deepEqual([...asked], ['https://github.com/bardalas/VEO/releases.atom']);   // the API was not asked
+  assert.match(cards[0].innerHTML, /0\.45\.83/);                                     // the newest app release, not the web bundle
+});

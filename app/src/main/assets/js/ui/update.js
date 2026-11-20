@@ -1,4 +1,5 @@
 /* A newer version of the app. */
+import {fetchText} from '../core/bridge.js';
 import {$, esc, getJSON} from '../core/dom.js';
 import {isTvLayout} from '../core/settings.js';
 import {store} from '../core/store.js';
@@ -9,6 +10,18 @@ import {tr} from '../i18n.js';
    offers it (just that, no release notes); "עדכן" hands the APK to Android's own downloader and installer, which asks before it
    installs. Nothing is downloaded or installed behind the viewer's back. */
 export const RELEASES = 'https://api.github.com/repos/bardalas/VEO/releases/latest';
+/* The releases' feed, read natively: GitHub's API answers sixty questions an hour for a whole home, and a household of
+   televisions and phones, each asking at every start, used them up - every check after that failed and said "no
+   internet" (#472). The feed is a page, not the API: it has no such count. The API is asked only when the feed fails. */
+export const RELEASES_FEED = 'https://github.com/bardalas/VEO/releases.atom';
+/** The newest app release's version ('0.45.83'): the feed's newest vX.Y.Z (not the web-v / webos-v bundles), else the API's. */
+async function latestVersion(){
+  try{
+    const tags = [...(await fetchText(RELEASES_FEED, 10000)).matchAll(/\/releases\/tag\/v(\d+\.\d+\.\d+)"/g)].map(m => m[1]);
+    if(tags.length) return tags.reduce((a, b) => isNewer(b, a) ? b : a);
+  }catch(e){}
+  return ((await getJSON(RELEASES, 8000)).tag_name || '').replace(/^v/, '');
+}
 export const APK_URL = 'https://github.com/bardalas/VEO/releases/latest/download/VEO.apk';
 export const APP_VERSION = (() => { try{ return window.BoothAndroid?.appVersion?.() || ''; }catch(e){ return ''; } })();
 
@@ -38,10 +51,9 @@ async function runCheck(force){
   if(up) return up.querySelector('#updGo') ? 'found' : 'busy';          // card is not an update
   // a cold start always checks; returning to the foreground re-checks at most twice an hour
   if(!force && Date.now() - (store.get('updCheck', 0) || 0) < 30 * 60e3) return 'latest';
-  let rel;
-  try{ rel = await getJSON(RELEASES, 8000); }catch(e){ return 'offline'; }
+  let tag;
+  try{ tag = await latestVersion(); }catch(e){ return 'offline'; }
   store.set('updCheck', Date.now());
-  const tag = (rel.tag_name || '').replace(/^v/, '');
   if(!tag || !isNewer(tag, APP_VERSION) || store.get('updSkip', '') === tag) return 'latest';
   const card = document.createElement('div');
   card.className = 'update';
