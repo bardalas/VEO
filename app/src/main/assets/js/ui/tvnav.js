@@ -1,6 +1,7 @@
 /* The remote control: what the arrows reach, and the marker that follows them. */
 import {listHash, route} from '../app.js';
 import {$} from '../core/dom.js';
+import {store} from '../core/store.js';
 import {IS_TV_DEVICE, isTvLayout, settings} from '../core/settings.js';
 import {chosen} from '../data/profiles.js';
 import {FWD} from '../i18n.js';
@@ -218,7 +219,7 @@ export function focusItem(el){
     const top = row.getBoundingClientRect().top + scrollY;
     // (the row's own top, not the foot of the one above: a wheel's wrapper reaches 24px into its neighbours, so that foot can stand
     // below the heading and cut it - #242)
-    let want = Math.max(0, Math.round(top - 14));
+    let want = Math.max(0, Math.round(top - 14 - stuck()));
     if(prev && !prev.classList.contains('row')){
       const bottom = Math.max(el.getBoundingClientRect().bottom, row.querySelector('.spotact')?.getBoundingClientRect().bottom || 0) + scrollY;
       want = Math.max(0, Math.round(Math.min(top - 14, bottom - innerHeight + 12)));
@@ -234,8 +235,15 @@ export function focusItem(el){
     return;
   }
   const r = el.getBoundingClientRect();
-  if(r.top < 20 || r.bottom > innerHeight - 20) el.scrollIntoView({block: 'center', behavior: how});
+  if(r.top < stuck() + 20 || r.bottom > innerHeight - 20) el.scrollIntoView({block: 'center', behavior: how});
 }
+/** How much of the top of the screen a page's head that stays put covers (#508: Channels' bar) - a row brought into view
+    goes below it, not under it. Nothing, while the head is where it began or its own control holds the remote. */
+const stuck = () => {
+  const h = document.querySelector('#app [data-sticky]');
+  if(!h || h.contains(document.activeElement)) return 0;
+  return Math.max(0, h.getBoundingClientRect().bottom);
+};
 /* The page draws its own focus (see css/focus.css), so the browser's ring is taken off. */
 document.body.classList.add('motion');
 
@@ -492,6 +500,8 @@ export function parentHash(){
   const r = (location.hash.split('/')[1] || '').split('?')[0];
   if(!r) return null;                                                  // home
   if(['r13', 'kan', 'mako', 'web'].includes(r)) return listHash;   // a programme goes back to the list it was opened from
+  // a programme of this week's guide, to the Channels tab it was opened from - or the search it was found by (#508)
+  if(r === 'prog') return listHash.startsWith('#/live') ? '#/live/' + store.get('livePl', 'progs') : listHash;
   if(r === 'who') return chosen() ? '#/' : null;                    // the picker the app starts on: Back leaves the app
   if(r === 'profile') return '#/settings/profiles';
   if(r === 'report') return '#/settings/general';

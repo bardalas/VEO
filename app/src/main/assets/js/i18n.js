@@ -9,7 +9,7 @@ const STRINGS = {
 he: {
   'common.close': 'סגור', 'common.cancel': 'ביטול', 'common.retry': 'נסה שוב', 'common.loading': 'טוען…',
   'common.remove': 'הסר', 'common.add': 'הוסף', 'common.removed': 'הוסר.',
-  'nav.live': 'ערוצים', 'nav.library': 'מועדפים', 'nav.settings': 'הגדרות',
+  'nav.live': 'ערוצים', 'nav.radio': 'רדיו', 'nav.library': 'מועדפים', 'nav.settings': 'הגדרות',
   'nav.movies': 'סרטים', 'nav.series': 'סדרות',
   'nav.homeAria': 'VEO – דף הבית', 'nav.aria': 'תפריט ראשי', 'nav.menuAria': 'תפריט',
   'search.placeholder': 'חיפוש', 'search.all': 'חפש "{q}" בכל מקום', 'search.aria': 'חיפוש',
@@ -187,7 +187,7 @@ he: {
 en: {
   'common.close': 'Close', 'common.cancel': 'Cancel', 'common.retry': 'Try again', 'common.loading': 'Loading…',
   'common.remove': 'Remove', 'common.add': 'Add', 'common.removed': 'Removed.',
-  'nav.live': 'Channels', 'nav.library': 'Favourites', 'nav.settings': 'Settings',
+  'nav.live': 'Channels', 'nav.radio': 'Radio', 'nav.library': 'Favourites', 'nav.settings': 'Settings',
   'nav.movies': 'Movies', 'nav.series': 'Series',
   'nav.homeAria': 'VEO – Home', 'nav.aria': 'Main menu', 'nav.menuAria': 'Menu',
   'search.placeholder': 'Search', 'search.all': 'Search everything for "{q}"', 'search.aria': 'Search',

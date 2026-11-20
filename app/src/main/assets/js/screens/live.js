@@ -6,6 +6,7 @@
    OK on it opens that week's guide. */
 import {$, esc, showErr} from '../core/dom.js';
 import {isTvLayout} from '../core/settings.js';
+import {noteHash} from '../core/screenmem.js';
 import {store} from '../core/store.js';
 import {channelName, groupName} from '../data/names.js';
 import {tr} from '../i18n.js';
@@ -21,11 +22,12 @@ const PAST = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 
 /** A source tab was chosen: the remote stays on it while its channels come. */
 let onTab = false;
-export async function viewLive(tab){
+export async function viewLive(tab, radio = false){
   const app = $('#app');
   const opened = performance.now(), keepTab = onTab;
   onTab = false;
-  const sources = liveSources();
+  // Radio has a menu entry of its own (#508): this page with its stations alone - and Channels has no radio tab
+  const sources = liveSources().filter(x => (x.key === 'radio') === radio);
   /* Coming from the menu, Channels opens on the live channels, whatever tab was last (#504: live TV is what is watched
      most, and how to reach it must not depend on where the viewer was before). A tab is in the address (#/live/<tab>), so
      Back from a programme comes back to it. */
@@ -35,7 +37,7 @@ export async function viewLive(tab){
   const hasRtv = !!store.get('rtvKey', '');
   const search = `<input class="field" id="lq" type="search" placeholder="${esc(tr('live.search'))}" aria-label="${esc(tr('live.search'))}">`;
   app.innerHTML = `<div class="page livepage${sel === 'radio' ? ' radiopage' : ''}">
-    <div class="livehead"><h1>${tr('nav.live')}</h1>
+    <div class="livehead" data-sticky><h1>${tr(radio ? 'nav.radio' : 'nav.live')}</h1>
       ${/* the search box stands at the end of the tabs' line - one row for the remote: Left from the last tab reaches it,
            Down from either goes on to the page (#493) */ ''}
       ${sources.length > 1 ? `<div class="srctabs livetabs" role="tablist">${sources.map(x =>
@@ -52,6 +54,7 @@ export async function viewLive(tab){
     store.set('liveGroup', '');
     onTab = true;
     history.replaceState(null, '', '#/live/' + encodeURIComponent(b.dataset.pl));
+    noteHash(location.hash);
     viewLive(b.dataset.pl);
     $(`[data-pl="${CSS.escape(b.dataset.pl)}"]`)?.focus();     // the remote stays on the tab it chose
   });

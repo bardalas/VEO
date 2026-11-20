@@ -9,6 +9,9 @@ export let lastOpened = null;
 
 /** A title was opened from a list: coming back out lands on it, not at the top of the screen. */
 export function noteOpened(hash, id){ lastOpened = {hash, id}; }
+/** A screen changed its own address without going anywhere (a tab, by replaceState): where it is remembered moves with
+    it, or coming back would look for the place under the address it had before (#508). */
+export function noteHash(hash){ memHash = hash; }
 export function rememberScreen(){
   const card = document.activeElement?.closest?.('.poster, .epcard, .chmain');
   const opened = lastOpened?.hash === memHash ? lastOpened.id : null;

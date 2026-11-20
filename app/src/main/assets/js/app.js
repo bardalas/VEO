@@ -90,7 +90,7 @@ export let lastPaint = 0;                                   // when this screen 
 const KIDS_ROUTES = ['', 'detail', 'library', 'settings', 'search', 'all', 'who'];
 const TEEN_ROUTES = ['cat', 'genres', 'genre', 'shows', 'web', 'kan', 'r13', 'tv'];   // not Keshet: its episodes are its own site's
 const kidsMay = (r, a) => KIDS_ROUTES.includes(r) || (r === 'cat' && ['movies', 'series'].includes(a))
-  || (kidsTeen() && TEEN_ROUTES.includes(r)) || ((r === 'live' || r === 'prog') && liveAllowed());
+  || (kidsTeen() && TEEN_ROUTES.includes(r)) || ((r === 'live' || r === 'radio' || r === 'prog') && liveAllowed());
 export async function route(){
   invalidateView();                                 // cancel work from the previous view before rendering
   const [, r0 = '', a0] = location.hash.split('/').map(decodeURIComponent);
@@ -107,7 +107,7 @@ export async function route(){
   document.body.classList.toggle('who', r === 'who');   // the picker has the screen to itself (screens/profiles.js)
   // the menu lights the place you are in; a title or a search keeps the one it was opened from
   markNav(r === '' ? 'home' : r === 'cat' ? (['movies', 'series'].includes(a) ? a : '') : r === 'all' ? (a === 'movie' ? 'movies' : 'series')
-    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : r === 'prog' ? 'live' : ['live', 'yt', 'library', 'settings', 'who'].includes(r) ? r
+    : r === 'shows' || r === 'web' || r === 'tv' ? 'shows' : r === 'prog' ? 'live' : ['live', 'radio', 'yt', 'library', 'settings', 'who'].includes(r) ? r
     : r === 'profile' || r === 'report' ? 'settings' : '');
   if(['', 'cat', 'all', 'genres', 'genre', 'search', 'library', 'shows', 'tv', 'live'].includes(r)) listHash = location.hash || '#/';
   if(r === 'genres') viewGenres();
@@ -122,6 +122,7 @@ export async function route(){
   else if(r === 'cat') viewCategory(a);
   else if(r === 'all') viewAll(a);
   else if(r === 'live') viewLive(a);
+  else if(r === 'radio') viewLive('radio', true);   // Radio is a menu entry of its own (#508): the same page, its stations alone
   else if(r === 'prog') viewProgramme(a);
   else if(r === 'search') viewSearch(a);
   else if(r === 'detail') viewDetail(a, b, c);
