@@ -1,5 +1,15 @@
 # VEO Android changelog
 
+## 0.45.86 — 2026-11-20
+- **TV and radio.** The page is called "טלוויזיה ורדיו"; RaspberryTV's tab is "ערוצים חיים"; the built-in Israeli channels'
+  tab is gone where there is a subscription, and the tabs fit one line. (#484)
+- **Programmes are a library by genre.** Chips: kids, reality, drama, comedy, current affairs, talk, docs, lifestyle; only
+  programmes with several episodes are shown - films and one-off events are found by search. An episode's own title no
+  longer splits a programme in two. (#486)
+- **Claude says what a programme is.** The household's server asks Claude once per programme for its genre and kind, and
+  IMDb for its picture: every device and every profile gets the same answer, and the cards show the programme's own
+  picture. (#487)
+
 ## 0.45.85 — 2026-11-20
 - **Programmes from the TV guide.** Live → "תוכניות": everything the channels with an archive broadcast in the past week,
   laid out like Movies and Series - wheels of what was on today and yesterday, of each kind (kids, films, series, docs,
