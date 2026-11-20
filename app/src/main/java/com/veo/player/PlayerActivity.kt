@@ -2150,7 +2150,6 @@ class PlayerActivity : AppCompatActivity() {
         showBanner()
     }
 
-    /** Step along the line of time: a press ten seconds, a held key thirty. */
     /**
      * A held scan key repeats many times a second. It runs almost linearly: a second at a time at first, then a little
      * more each second it is held, so a short hold moves gently and a long one covers ground - without the big jumps that

@@ -101,11 +101,6 @@ function rtvArchiveUrls(c, file, from){
   const seen = new Set();
   return [...first, ...shapes].map(([, url]) => url).filter(u => !seen.has(u) && seen.add(u));
 }
-/**
- * Which of those addresses this service actually answers to is not something its playlist says, so the
- * app asks: the first one that gives back a playlist is the one used, and which of them it was is
- * remembered for the next programme.
- */
 /** How long a viewer waits for an archive to be found before being told it was not. */
 const ARCHIVE_DEADLINE = 12e3;
 /** How far from the minute asked for an archive may begin and still be that programme. */

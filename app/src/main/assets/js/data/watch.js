@@ -30,11 +30,11 @@ export function dismissContinue(metaId){
 
 
 export let progressIdx = new Map();
-/** A title shows the newest thing watched under it (a series: its last episode). */
 /** A dismissed title played again: the dismissal no longer applies to what is about to become a new entry. */
 export function undismiss(metaId){
   if(metaId in dismissedContinue){ delete dismissedContinue[metaId]; store.set('dismissedContinue', dismissedContinue); }
 }
+/** A title shows the newest thing watched under it (a series: its last episode). */
 export function indexProgress(){
   progressIdx = new Map();
   for(const x of Object.values(progress).sort((a, b) => (a.at || 0) - (b.at || 0))) progressIdx.set(x.metaId, x);

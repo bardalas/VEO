@@ -73,6 +73,7 @@ he: {
   'guide.gone': 'התוכנית כבר לא בלוח השידורים של השבוע.', 'guide.eps': '{n} פרקים', 'guide.otherEps': 'פרקים נוספים', 'guide.epN': 'פרק {n}',
   'guide.tab': 'תוכניות', 'guide.search': 'חיפוש תוכנית', 'guide.building': 'אוסף את לוחות השידורים של הערוצים… בפעם הראשונה זה לוקח כמה דקות, והתוכניות מופיעות תוך כדי.',
   'guide.empty': 'אין עדיין תוכניות בלוחות השידורים.', 'guide.none': 'לא נמצאה תוכנית בשם הזה בשבוע האחרון.', 'guide.times': '{n} שידורים', 'guide.row': 'שודר בערוצים',
+  'kan.failed': 'לא ניתן לטעון את הקטלוג של כאן לתוך האפליקציה ({why}).', 'kan.openSite': 'פתח את כאן BOX בתוך האפליקציה',
   'live.radio': 'רדיו', 'live.channels': 'ערוצים חיים', 'radio.g.kan': 'כאן', 'radio.g.glz': 'גלי צה"ל', 'radio.g.music': 'מוזיקה', 'radio.g.region': 'אזוריות',
   'live.il': 'ערוצים ישראליים', 'live.search': 'חיפוש ערוץ', 'live.all': 'הכל ({n})', 'live.loading': 'טוען ערוצים…',
   'live.failed': 'לא ניתן לטעון את הערוצים', 'live.none': 'אין ערוצים שמתאימים.', 'live.last': 'צפית לאחרונה',
@@ -250,6 +251,7 @@ en: {
   'guide.gone': 'This programme is not in this week’s guide any more.', 'guide.eps': '{n} episodes', 'guide.otherEps': 'More episodes', 'guide.epN': 'Episode {n}',
   'guide.tab': 'Programmes', 'guide.search': 'Find a programme', 'guide.building': 'Gathering the channel guides… the first time takes a few minutes; programmes appear as they come.',
   'guide.empty': 'No programmes in the guides yet.', 'guide.none': 'No programme by that name in the past week.', 'guide.times': '{n} broadcasts', 'guide.row': 'On the channels',
+  'kan.failed': 'The Kan catalogue could not be loaded into the app ({why}).', 'kan.openSite': 'Open Kan BOX inside the app',
   'live.radio': 'Radio', 'live.channels': 'Live channels', 'radio.g.kan': 'Kan', 'radio.g.glz': 'IDF Radio', 'radio.g.music': 'Music', 'radio.g.region': 'Regional',
   'live.il': 'Israeli channels', 'live.search': 'Find a channel', 'live.all': 'All ({n})', 'live.loading': 'Loading channels…',
   'live.failed': 'Could not load the channels', 'live.none': 'No channels match.', 'live.last': 'Watched last',
@@ -368,7 +370,6 @@ function tr(key, vars){
   const s = STRINGS[UI]?.[key] ?? STRINGS.he[key] ?? key;
   return vars ? s.replace(/\{(\w+)\}/g, (m, k) => k in vars ? vars[k] : m) : s;
 }
-/** Set lang and direction, and fill in the static markup (data-i18n, data-i18n-ph, data-i18n-aria). */
 /**
  * Switch the language the page speaks.
  *
@@ -377,6 +378,7 @@ function tr(key, vars){
  * That is what switching the language used to do: throw, and change nothing.
  */
 function setUiLang(l){ if(!STRINGS[l] || l === UI) return; UI = l; applyUiLang(); }
+/** Set lang and direction, and fill in the static markup (data-i18n, data-i18n-ph, data-i18n-aria). */
 function applyUiLang(){
   const r = document.documentElement;
   r.lang = UI; r.dir = dirOf(UI);
