@@ -1675,8 +1675,17 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   const g = await make();
   // every broadcast of a programme is one programme, whatever the guide wrapped around its name
   for(const n of ['הישרדות - פרק 12', 'הישרדות (ש)', 'הישרדות עונה 3 פרק 4', '"הישרדות"']) assert.equal(g.progKey(n), 'הישרדות');
-  assert.equal(g.epNote('פרק 71. ביום גשום בבית'), 'פרק 71');
-  assert.equal(g.epNote('קומדיית אקשן. עם: אידריס אלבה. ארה״ב, 2025.'), '2025');
+  // a broadcast's season, episode and episode title, from its name and words; a film's year (#490)
+  assert.equal(g.epNote('פרק 71. ביום גשום בבית'), '|71|');
+  assert.equal(g.epNote('קומדיית אקשן. עם: אידריס אלבה. ארה״ב, 2025.', 'ראשי מדינות', true), '2025');
+  assert.equal(g.epNote('סדרה היסטורית', 'הבלתי חשובים 4 - 4. מהפכה בקיבוץ'), '4|4|מהפכה בקיבוץ');
+  assert.equal(g.epNote('פרק 12. בודה', 'כבאי קליפורניה 3'), '3|12|');
+  assert.equal(g.epNote('', 'הזמר במסכה - האירוע החריג'), '||האירוע החריג');
+  // each episode once, however often and wherever it was on; the newest finished broadcast is the one played
+  const twice = g.episodesOf({eps: [{epg: 'a', t: 100, to: 200, note: '3|12|'}, {epg: 'b', t: 300, to: 400, note: '3|12|'},
+    {epg: 'a', t: 500, to: 600, note: '3|13|'}, {epg: 'a', t: 50, to: 90, note: '2|1|'}]});
+  assert.deepEqual(plain(twice.seasons), [2, 3]);
+  assert.deepEqual(plain(twice.of(3).map(e => [e.e, e.all.length, e.b.t])), [[12, 2, 300], [13, 1, 500]]);
   // a channel's name says what it shows; sport is not read
   assert.equal(g.channelCat('HOP HD'), 'kids');
   assert.equal(g.channelCat('Yes Movies Action HD'), 'movies');
@@ -1698,7 +1707,7 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   assert.equal(g.genreOf('ללא תיאור', '', 'HOT Comedy HD'), 'comedy');
   // a promo and the news on the hour are not programmes
   assert.deepEqual(plain(g.guideEntries([{time: 1000, time_to: 1120, name: 'פרומו'}, {time: 2000, time_to: 5600, name: 'חדשות'},
-    {time: 2000, time_to: 5600, name: 'הישרדות', descr: 'פרק 3. ריאליטי'}], 'Keshet 12 HD')), [[2000, 60, 'הישרדות', 'פרק 3', 'reality']]);
+    {time: 2000, time_to: 5600, name: 'הישרדות', descr: 'פרק 3. ריאליטי'}], 'Keshet 12 HD')), [[2000, 60, 'הישרדות', '|3|', 'reality']]);
   // a day's answer is believed for its own hours, the rest is kept
   assert.deepEqual(plain(g.mergeDay([[100, 1, 'a'], [300, 1, 'old'], [500, 1, 'b']], [[300, 1, 'c']], 200, 400)), [[100, 1, 'a'], [300, 1, 'c'], [500, 1, 'b']]);
 
@@ -1709,7 +1718,7 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   const [p] = g.guideProgrammes();
   assert.equal(p.name, 'טרוטרו וזאזא');
   assert.equal(p.genre, 'kids');
-  assert.deepEqual(plain(p.eps.map(e => e.note)), ['פרק 70', 'פרק 69', 'פרק 68', 'פרק 67']);
+  assert.deepEqual(plain(p.eps.map(e => e.note)), ['|70|', '|69|', '|68|', '|67|']);
   // nothing missing: nothing asked
   asked.length = 0;
   assert.equal(await g.refreshGuide(), false);
@@ -1726,7 +1735,7 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   // the page is a library of programmes with episodes: a one-off (a film, an event) is found by search alone
   assert.equal(again.hasEpisodes({genre: 'movies', eps: [{note: '2025', t: at(1, 20)}, {note: '2025', t: at(2, 20)}, {note: '2025', t: at(3, 20)}]}), false);
   assert.equal(again.hasEpisodes({genre: 'news', eps: [{note: '', t: at(0, 20)}]}), false);
-  assert.equal(again.hasEpisodes({genre: 'drama', eps: [{note: 'פרק 3', t: at(0, 20)}, {note: 'פרק 4', t: at(0, 21)}]}), true);
+  assert.equal(again.hasEpisodes({genre: 'drama', eps: [{note: '1|3|', t: at(0, 20)}, {note: '1|4|', t: at(0, 21)}]}), true);
   assert.equal(again.hasEpisodes({genre: 'talk', eps: [0, 1, 2].map(d => ({note: '', t: at(d, 20)}))}), true);
   // a long first reading saves as it goes, and every name still belongs to its own broadcasts afterwards
   mem.store.set('guideIdx', null);

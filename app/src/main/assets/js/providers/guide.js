@@ -19,7 +19,7 @@ import {tr} from '../i18n.js';
 import {playLive} from './live.js';
 import {RTV_EPG, hhmm, loadRtv, rtvArchiveProbe} from './rtv.js';
 
-const KEY = 'guideIdx', VERSION = 3;
+const KEY = 'guideIdx', VERSION = 4;
 /** How often the index is looked at again while the app is open. */
 export const GUIDE_STALE_MS = 3 * 3600e3;
 /** How many days are asked for at once - the guide's server is the same one the player's banner asks. */
@@ -89,19 +89,30 @@ export function progTitle(name, film = false){
 }
 /** What tells one broadcast of a programme from another: its episode, or a film's year (the guide ends a film's
     words with "country, year."). */
-export function epNote(descr){
-  const d = String(descr || '');
-  const ep = d.match(/פרק\s*(\d+)/);
-  if(ep) return 'פרק ' + ep[1];
-  const y = d.match(/(?:^|[\s,])((?:19|20)\d\d)\.?\s*$/);
-  return y ? y[1] : '';
+export function epNote(descr, name = '', film = false){
+  const d = String(descr || ''), n = String(name || '');
+  if(film){ const y = d.match(/(?:^|[\s,])((?:19|20)\d\d)\.?\s*$/); return y ? y[1] : ''; }
+  // the episode's own title: what follows the dash in the name ("הזמר במסכה - האירוע החריג"), without its number
+  const after = (n.split(/\s[-–]\s/)[1] || '').trim();
+  const ep = (d.match(/פרק\s*(\d+)/) || n.match(/פרק\s*(\d+)/) || after.match(/^(\d+)\s*[.:]/) || [])[1] || '';
+  // the season: "עונה 3", or the number the programme's name ends with before the dash ("כבאי קליפורניה 3", "סברי מרנן 5 - ...")
+  const season = ((n + ' ' + d).match(/עונה\s*(\d+)/) || n.split(/\s[-–]\s/)[0].match(/\s(\d{1,2})\s*$/) || [])[1] || '';
+  const title = after.replace(/^\d+\s*[.:]\s*/, '').replace(/^(פרק|עונה)\s*\d+\s*[-–:,]?\s*/, '').replace(/\((ש|ש\.ח\.)\)/g, '').trim().slice(0, 60);
+  return season || ep || title ? `${season}|${ep}|${title}` : '';
+}
+/** A broadcast's note as {s, e, t} (season, episode, episode title) or {y} (a film's year). */
+export function epParts(note){
+  const n = String(note || '');
+  if(/^\d{4}$/.test(n)) return {y: n};
+  const [s = '', e = '', t = ''] = n.split('|');
+  return {s: s ? +s : 0, e: e ? +e : 0, t};
 }
 
 /** The guide's answer for [channel] as [start, minutes, name, note, genre] - only what is a programme. */
 export function guideEntries(json, channel = ''){
   return (Array.isArray(json) ? json : []).map(g => {
     const name = String(g.name || '').trim();
-    return [+g.time, Math.round((+g.time_to - +g.time) / 60), name, epNote(g.descr), genreOf(name, g.descr, channel)];
+    return [+g.time, Math.round((+g.time_to - +g.time) / 60), name, epNote(g.descr, name, channelCat(channel) === 'movies'), genreOf(name, g.descr, channel)];
   }).filter(([t, m, n]) => t > 0 && m * 60 >= MIN_S && n && !NOT_A_PROGRAMME.test(n));
 }
 
@@ -302,7 +313,10 @@ export function whenAired(t){
    function ask about what is new. Its rules stand in until an answer comes. */
 const META_BATCH = 40;
 let meta = null;
-const metaOf = key => (meta ||= store.get('guideMeta', {}))[key];
+// 'guideMeta2': the first answers (guessed from a name alone) are asked again (#490)
+const META_KEY = 'guideMeta2';
+try{ if(store.get('guideMeta', null)) store.set('guideMeta', null); }catch(e){}   // the first answers' place, let go
+const metaOf = key => (meta ||= store.get(META_KEY, {}))[key];
 let enriching = false;
 export async function enrichGuide(){
   if(enriching) return;
@@ -322,7 +336,7 @@ export async function enrichGuide(){
       try{ got = await call('/functions/v1/guide-meta', {method: 'POST', body: {items}, token: signedIn() ? await accessToken() : undefined}); }
       catch(e){ break; }                                   // tried again at the next refresh
       for(const r of got?.items || []) meta[r.key] = {g: r.genre, k: r.kind, p: r.poster || '', t: r.title || ''};
-      try{ store.set('guideMeta', meta); }catch(e){}
+      try{ store.set(META_KEY, meta); }catch(e){}
       // an answered programme's description is no longer needed on the device
       for(const p of batch) if(meta[p.key]) delete idx.desc?.[p.key];
       progs = null;
@@ -351,24 +365,33 @@ export function wireCards(host, list){
   host.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => openProgramme(list[b.dataset.gp]));
 }
 
-/** A programme's broadcasts, newest first: OK on one plays it from the archive. */
-export function openProgramme(p){
-  document.querySelector('.sheet')?.remove();
-  const sheet = document.createElement('div');
-  sheet.className = 'sheet';
-  sheet.innerHTML = `<div role="dialog" aria-modal="true" aria-label="${esc(p.name)}">
-      <header><b dir="auto">${esc(p.name)}</b><button data-back aria-label="${esc(tr('common.close'))}">✕</button></header>
-      <div class="body"><div class="progs">${p.eps.map((e, i) => {
-        const c = chOf(e.epg);
-        return `<button class="prog" data-e="${i}"><time class="when">${esc(whenAired(e.t))}</time><span dir="auto">${[c.name ? channelName(c.name) : '', e.note || (e.name !== p.name ? e.name : '')].filter(Boolean).map(esc).join(' · ')}</span></button>`;
-      }).join('')}</div></div></div>`;
-  document.body.appendChild(sheet);
-  const was = document.activeElement;
-  const close = () => { sheet.remove(); if(was?.isConnected) was.focus(); };
-  sheet.querySelector('[data-back]').onclick = close;
-  sheet.onclick = e => { if(e.target === sheet) close(); };
-  sheet.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { close(); playBroadcast(p.eps[b.dataset.e]); });
-  sheet.querySelector('[data-e]')?.focus();
+/** A programme opens its own page (screens/programme.js): its seasons and episodes. */
+export function openProgramme(p){ location.hash = '#/prog/' + encodeURIComponent(p.key); }
+export const programmeByKey = key => guideProgrammes().find(p => p.key === key) || null;
+
+/* ---------- a programme's episodes (#490) ----------
+   Each episode once, however often and on however many channels it was on: an episode is its season and number, or
+   failing those its own title, or failing that the broadcast itself (a daily show). The broadcast it plays is the
+   newest that has finished - or the newest, if none has. */
+export function episodesOf(p){
+  const nowS = Date.now() / 1000, by = new Map();
+  for(const b of p.eps){
+    const x = epParts(b.note);
+    const id = x.e ? `${x.s}|${x.e}` : x.t ? `t|${x.t}` : `b|${b.epg}|${b.t}`;
+    let ep = by.get(id);
+    if(!ep) by.set(id, ep = {id, s: x.s || 0, e: x.e || 0, title: x.t || '', all: []});
+    if(!ep.title && x.t) ep.title = x.t;
+    ep.all.push(b);
+  }
+  const eps = [...by.values()].map(ep => {
+    ep.all.sort((a, b) => b.t - a.t);
+    ep.b = ep.all.find(b => b.to <= nowS) || ep.all[0];
+    return ep;
+  });
+  const seasons = [...new Set(eps.map(ep => ep.s))].sort((a, b) => (a === 0) - (b === 0) || a - b);
+  const of = s => eps.filter(ep => ep.s === s)
+    .sort((a, b) => a.e && b.e ? a.e - b.e : b.b.t - a.b.t);      // numbered in order; a daily show newest first
+  return {seasons, of};
 }
 
 /* ---------- the page's rows ----------
@@ -397,6 +420,6 @@ const trim = rows => rows.filter(r => r.list.length).map(r => ({...r, list: r.li
 export const RECUR_DAYS = 3;
 export function hasEpisodes(p){
   if(p.genre === 'movies' || ['film', 'event', 'filler'].includes(p.kind)) return false;
-  if(new Set(p.eps.map(e => e.note).filter(n => /^פרק/.test(n))).size >= 2) return true;
+  if(new Set(p.eps.map(e => epParts(e.note)).filter(x => x.e).map(x => x.s + '|' + x.e)).size >= 2) return true;
   return new Set(p.eps.map(e => dayOf(e.t * 1000))).size >= RECUR_DAYS;
 }

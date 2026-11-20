@@ -41,10 +41,13 @@ For every item return:
   movies (feature films), other (religion, sport, music clips, anything else).
 - kind: series (scripted, with episodes), show (a recurring non-scripted programme), film, event (a one-off broadcast),
   filler (clips, promos, station breaks).
-- imdb_query: the title as IMDb lists it - the English title of a foreign programme or film, or the transliterated
-  Hebrew title of an Israeli one (e.g. "Ramzor", "Hisardut"). Empty string if it is not something IMDb would list.
-- year: the first year of the series or the film's year, if you know it; otherwise null.
-Use the description, the channel and your own knowledge. Return one entry per item, with the same key.`
+- imdb_query: the title as IMDb lists it - the original (usually English) title of a foreign programme or film, or the
+  transliterated Hebrew title of an Israeli one (e.g. "Ramzor", "Hisardut"). Israeli channels give foreign series loose
+  Hebrew names ("כבאי קליפורניה" is Fire Country, not Station 19; "השריף של קליפורניה" is Sheriff Country): identify the
+  programme from its description - its characters, places and story - not from the Hebrew name alone. If you are not sure
+  which programme it is, return an empty string: no picture is better than the wrong one.
+- year: the first year of the series or the film's year, if you are sure of it; otherwise null.
+Return one entry per item, with the same key.`
 
 let anthropic: Anthropic | null = null
 
@@ -57,8 +60,14 @@ async function imdb(query: string, kind: string, year: number | null) {
     if (!r.ok) return null
     const want = kind === 'film' ? ['movie', 'tvMovie'] : ['tvSeries', 'tvMiniSeries', 'tvSpecial', 'tvShort']
     const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
-    const hit = ((await r.json()).d || []).find((x: any) => String(x.id).startsWith('tt') && want.includes(x.qid)
-      && (year ? Math.abs((x.y || 0) - year) <= 1 : norm(x.l || '') === norm(query)))
+    // the name it asked for, and its year when it gave one (the US Masked Singer is not the Israeli one); a year alone is
+    // never enough, nor a name merely close without one
+    const q = norm(query)
+    const all = ((await r.json()).d || []).filter((x: any) => String(x.id).startsWith('tt') && want.includes(x.qid))
+    const yearOk = (x: any) => Math.abs((x.y || 0) - (year || 0)) <= 1
+    const near = (x: any) => norm(x.l || '').includes(q) || q.includes(norm(x.l || ''))
+    const hit = year ? all.find((x: any) => norm(x.l || '') === q && yearOk(x)) || all.find((x: any) => near(x) && yearOk(x))
+                     : all.find((x: any) => norm(x.l || '') === q)
     if (!hit) return null
     const img = hit.i?.imageUrl ? String(hit.i.imageUrl).replace(/\._V1_.*\.(jpg|png)$/i, '._V1_SX400.$1') : null
     return { imdb: hit.id as string, poster: img, title: hit.l as string, year: (hit.y as number) || year }
@@ -100,7 +109,7 @@ Deno.serve(async (req) => {
         max_tokens: 16000,
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
-        output_config: { effort: 'low', format: betaZodOutputFormat(Answer) },
+        output_config: { effort: 'medium', format: betaZodOutputFormat(Answer) },
         system: SYSTEM,
         messages: [{ role: 'user', content: JSON.stringify(ask) }],
       })
