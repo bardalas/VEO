@@ -1682,9 +1682,23 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   assert.equal(g.channelCat('Yes Movies Action HD'), 'movies');
   assert.equal(g.channelCat('Sport 5 HD'), 'sport');
   assert.equal(g.channelCat('Kan 11 HD'), 'general');
+  // an episode's own title after a dash is not the programme's; a film's whole name is
+  assert.equal(g.progTitle('הזמר במסכה - האירוע החריג'), 'הזמר במסכה');
+  assert.equal(g.progTitle('חדש ! המלך שאמאן'), 'המלך שאמאן');
+  assert.equal(g.progTitle('חדש! - מחכה לאביב'), 'מחכה לאביב');
+  assert.equal(g.progTitle('חדשות הערב'), 'חדשות הערב');
+  assert.equal(g.progTitle("ארה''ב מלמעלה, חדש! - פרק 7"), "ארה''ב מלמעלה");
+  assert.equal(g.progTitle('משימה בלתי אפשרית - נפילה', true), 'משימה בלתי אפשרית - נפילה');
+  // a programme's genre, from its own words; a children's or film channel decides by itself (#486)
+  assert.equal(g.genreOf('הזירה 3', 'עונה 3 של הזירה. 64 משתתפים יתחרו ביניהם', 'Kan 11 HD'), 'reality');
+  assert.equal(g.genreOf('חלום החופש', 'דרמה תקופתית ספרדית. פרק 74', 'Kan 11 HD'), 'drama');
+  assert.equal(g.genreOf('גואטה ואסנהיים', 'תכנית אקטואליה שבועית.', 'Kan 11 HD'), 'news');
+  assert.equal(g.genreOf('סברי מרנן', '', 'Keshet 12 HD'), 'comedy');
+  assert.equal(g.genreOf('משהו', 'דרמה', 'HOP HD'), 'kids');
+  assert.equal(g.genreOf('ללא תיאור', '', 'HOT Comedy HD'), 'comedy');
   // a promo and the news on the hour are not programmes
   assert.deepEqual(plain(g.guideEntries([{time: 1000, time_to: 1120, name: 'פרומו'}, {time: 2000, time_to: 5600, name: 'חדשות'},
-    {time: 2000, time_to: 5600, name: 'הישרדות', descr: 'פרק 3.'}])), [[2000, 60, 'הישרדות', 'פרק 3']]);
+    {time: 2000, time_to: 5600, name: 'הישרדות', descr: 'פרק 3. ריאליטי'}], 'Keshet 12 HD')), [[2000, 60, 'הישרדות', 'פרק 3', 'reality']]);
   // a day's answer is believed for its own hours, the rest is kept
   assert.deepEqual(plain(g.mergeDay([[100, 1, 'a'], [300, 1, 'old'], [500, 1, 'b']], [[300, 1, 'c']], 200, 400)), [[100, 1, 'a'], [300, 1, 'c'], [500, 1, 'b']]);
 
@@ -1694,7 +1708,7 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   assert.ok(asked.length === 8 && asked.every(u => u.startsWith('epg:hop?date=')));
   const [p] = g.guideProgrammes();
   assert.equal(p.name, 'טרוטרו וזאזא');
-  assert.equal(p.cat, 'kids');
+  assert.equal(p.genre, 'kids');
   assert.deepEqual(plain(p.eps.map(e => e.note)), ['פרק 70', 'פרק 69', 'פרק 68', 'פרק 67']);
   // nothing missing: nothing asked
   asked.length = 0;
@@ -1709,6 +1723,11 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   assert.equal(asked.length, 3);
   assert.equal(again.guideSearch('טרוטרו').length, 1);
   assert.ok(again.guideRows('kids').some(r => r.list.length));
+  // the page is a library of programmes with episodes: a one-off (a film, an event) is found by search alone
+  assert.equal(again.hasEpisodes({genre: 'movies', eps: [{note: '2025', t: at(1, 20)}, {note: '2025', t: at(2, 20)}, {note: '2025', t: at(3, 20)}]}), false);
+  assert.equal(again.hasEpisodes({genre: 'news', eps: [{note: '', t: at(0, 20)}]}), false);
+  assert.equal(again.hasEpisodes({genre: 'drama', eps: [{note: 'פרק 3', t: at(0, 20)}, {note: 'פרק 4', t: at(0, 21)}]}), true);
+  assert.equal(again.hasEpisodes({genre: 'talk', eps: [0, 1, 2].map(d => ({note: '', t: at(d, 20)}))}), true);
   // a long first reading saves as it goes, and every name still belongs to its own broadcasts afterwards
   mem.store.set('guideIdx', null);
   guide = [];
