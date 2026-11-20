@@ -180,6 +180,23 @@ back, never the markup. The window stays for five minutes, so every further page
 same-origin `fetch` inside it. `sitePull()` calls it inside the app and runs the very same reader over a
 directly fetched page outside it, so there is one implementation of every extractor.
 
+### Radio and the programmes from the guide (`js/providers/radio.js`, `js/providers/guide.js`)
+The Live page's sources include **Radio** (#477): `STATIONS` in `providers/radio.js`, each address heard playing before
+it was written down, each mark a file of the app's own (`assets/radio/<id>.png`, drawn on white) or a short name on the
+tile. A station plays through `watchChannel` like a channel (Up/Down zap); `PlayerActivity` shows `soundArt` (the mark and
+name) when the tracks have no video, and reads a mark at the page's own address from the bundle/APK (`PAGE_ASSETS`).
+**Programmes** (#478, `#/live` tab `progs`, only with a RaspberryTV key): `guideIdx` (a device key, never synced, ~1MB for
+~110 channels) holds every archived channel's guide - per channel {name, logo, cat, rec, days: {day: read at}, p: [[start,
+minutes, name index, note]]}. The guide answers per channel per day (`RTV_EPG(id) + 'YYYY-MM-DD'`, Israel's day:
+`dayOf`/`dayRange` use Asia/Jerusalem whatever the device clock). `refreshGuide()` reads only `dueDays` - never read, or
+read before the day ended - today first, 3 at a time, saving every 60 days without renumbering names (`save(false)`;
+renumbering mid-reading gave programmes each other's names); a full first fill is ~900 small requests, under 2 minutes.
+`channelCat` sorts channels by name into kids/movies/series/docu/life/general; sport, news and music are not read.
+`progKey`/`progTitle` group broadcasts by name, `epNote` keeps an episode number or a film's year. The page is wheels
+(`guideRows`: today, yesterday, a row per kind or per channel) of wide `guideCard`s with the channel's logo; a film's
+card takes its picture from `hebrewSearch` by name and year (`guideFilm` cache). OK opens the broadcasts, one plays
+from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים"). Separate from the broadcasters' VOD.
+
 ### The wheel and the taste (`js/ui/reel.js`, `js/ui/taste.js`)
 A row of titles is a wheel: the title the remote is on stands still where the row begins, wide, and the row turns
 to bring the next one to it (`spotlight`, `place`, `turn`). Once the remote rests on it the title's own story is

@@ -1,5 +1,6 @@
 /* Search results. */
 import {$, esc, showErr} from '../core/dom.js';
+import {store} from '../core/store.js';
 import {addons, catalogFetch, fetchMeta} from '../data/addons.js';
 import {hasHebrew, hebrewSearch} from '../data/hebrew.js';
 import {kidsChild, kidsOn, kidsPick} from '../data/kids.js';
@@ -7,6 +8,7 @@ import {score} from '../data/known.js';
 import {typeName} from '../data/names.js';
 import {kanBox, kanCard} from '../providers/kan.js';
 import {makoCard, makoPrograms} from '../providers/mako.js';
+import {guideCard, guideSearch, wireCards} from '../providers/guide.js';
 import {r13card, r13row} from '../providers/reshet.js';
 import {tr} from '../i18n.js';
 import {card, skeletons} from '../ui/cards.js';
@@ -45,6 +47,16 @@ async function searchChannels(q, host){
   host.innerHTML = rows.map(r => `<div class="row"><h2>${esc(r.name)}</h2>${reel(r.html)}</div>`).join('');
 }
 
+/** The programmes the channels broadcast in the past week whose name answers (#478): where it was on and
+    when, from the index the device keeps (providers/guide.js) - no request at all. */
+function searchGuide(q, host){
+  if(!store.get('rtvKey', '')) return;
+  const found = guideSearch(q).slice(0, 20);
+  if(!found.length || !host.isConnected) return;
+  host.innerHTML = `<div class="row"><h2>${esc(tr('guide.row'))}</h2>${reel(found.map(guideCard).join(''))}</div>`;
+  wireCards(host, found);
+}
+
 /** What a search finds carries no genres: in the kids profile each title is judged by its own page. */
 async function kidsOnly(ms){
   const full = await Promise.all(ms.slice(0, 12).map(m => /^tt\d+$/.test(m.id) ? fetchMeta(m.type, m.id).catch(() => null) : null));
@@ -56,10 +68,11 @@ export async function viewSearch(q){
   $('#q').value = q;
   const app = $('#app');
   const cats = addons.flatMap(a => (a.manifest.catalogs||[]).filter(c => (c.extra||[]).some(e => e.name === 'search') || (c.extraSupported||[]).includes('search')).map(c => ({a, c})));
-  app.innerHTML = `<div class="page searchpage"><h1>${esc(tr('search.results', {q}))}</h1><div class="searchrows" id="searchRows"><div id="sChan"></div>${cats.map((x,i) => `<div class="row"><h2>${esc(typeName(x.c.type))} ${esc(x.a.manifest.name)}</h2>${reel(skeletons(6), 's' + i)}</div>`).join('') || `<p class="note">${esc(tr('search.noAddons'))}</p>`}</div></div>`;
+  app.innerHTML = `<div class="page searchpage"><h1>${esc(tr('search.results', {q}))}</h1><div class="searchrows" id="searchRows"><div id="sChan"></div><div id="sGuide"></div>${cats.map((x,i) => `<div class="row"><h2>${esc(typeName(x.c.type))} ${esc(x.a.manifest.name)}</h2>${reel(skeletons(6), 's' + i)}</div>`).join('') || `<p class="note">${esc(tr('search.noAddons'))}</p>`}</div></div>`;
   // the broadcasters answer from lists already in hand, so their row comes up first
   // the kids profile searches only what can be judged: the broadcasters' programmes carry no genres
   if(!kidsChild()) searchChannels(q, $('#sChan'));
+  searchGuide(q, $('#sGuide'));
   if(hasHebrew(q)){
     $('#searchRows').insertAdjacentHTML('afterbegin', `<div class="row"><h2>${esc(tr('search.hebrew'))} </h2>${reel(skeletons(6), 'sHe')}</div>`);
     // the strip this query built: a later query builds its own, and an answer to this one must not
@@ -69,6 +82,8 @@ export async function viewSearch(q){
       .then(ms => { if(heStrip.isConnected) heStrip.innerHTML = ms.map(card).join('') || `<p class="note">${esc(tr('search.none'))}</p>`; })
       .catch(e => { if(heStrip.isConnected) showErr(heStrip, tr('search.heFailed'), e, () => viewSearch(q)); });
   }
+  // where a programme was on is the question a name usually asks: that row stands first (#478)
+  $('#searchRows').prepend($('#sGuide'));
   cats.forEach(async (x, i) => {
     const strip = $('#s' + i);                       // held now: by the time the answer comes it may be gone
     try{
