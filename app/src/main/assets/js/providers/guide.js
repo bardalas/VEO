@@ -12,7 +12,7 @@
 import {fetchText} from '../core/bridge.js';
 import {esc} from '../core/dom.js';
 import {store} from '../core/store.js';
-import {hebrewSearch} from '../data/hebrew.js';
+import {accessToken, call, signedIn} from '../data/account.js';
 import {score} from '../data/known.js';
 import {channelName} from '../data/names.js';
 import {tr} from '../i18n.js';
@@ -150,7 +150,9 @@ let idx = null;
 const load = () => {
   if(idx) return idx;
   const s = store.get(KEY, null);
-  return idx = s?.v === VERSION ? s : {v: VERSION, ch: {}, n: []};
+  idx = s?.v === VERSION ? s : {v: VERSION, ch: {}, n: []};
+  idx.desc ||= {};
+  return idx;
 };
 const told = new Set();
 /** [fn] is told whenever the index has grown or changed (a page showing it draws itself again). */
@@ -204,7 +206,14 @@ export function refreshGuide(){
       while(next < jobs.length){
         const {c, day} = jobs[next++];
         try{
-          const got = guideEntries(JSON.parse(await fetchText(RTV_EPG(c.epg) + day)), c.name);
+          const raw = JSON.parse(await fetchText(RTV_EPG(c.epg) + day));
+          const got = guideEntries(raw, c.name);
+          // a line of what each programme is, kept until Claude has said what it is (enrichGuide)
+          const film = channelCat(c.name) === 'movies';
+          for(const e of Array.isArray(raw) ? raw : []){
+            const key = progKey(String(e.name || ''), film);
+            if(key && e.descr && !idx.desc[key] && !metaOf(key)) idx.desc[key] = String(e.descr).slice(0, 240);
+          }
           const ch = idx.ch[c.epg], [from, to] = dayRange(day);
           const kept = ch.p.map(p => [p[0], p[1], idx.n[p[2]], p[3] || '', p[4] || '']);
           ch.p = mergeDay(kept, got, from, to).map(([t, m, name, note, genre]) => {
@@ -221,7 +230,7 @@ export function refreshGuide(){
     await Promise.all(Array.from({length: AT_ONCE}, worker));
     if(changed) save();
     return changed;
-  })().finally(() => { running = null; });
+  })().finally(() => { running = null; enrichGuide(); });   // and what the new programmes are (#487)
 }
 export const guideBusy = () => !!running;
 
@@ -252,6 +261,8 @@ export function guideProgrammes(){
     g.name = Object.entries(g.names).sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0];
     g.last = g.eps[0].t;
     g.genre = Object.entries(g.genres).sort((a, b) => b[1] - a[1])[0][0];   // what most of its broadcasts say it is
+    const m = metaOf(g.key);                                  // what Claude said it is, when it has said (#487)
+    if(m){ g.genre = m.g || g.genre; g.kind = m.k; g.poster = m.p; }
     delete g.names; delete g.genres;
     return g;
   }).sort((a, b) => b.last - a.last);
@@ -283,60 +294,61 @@ export function whenAired(t){
   return `${day} ${hhmm(t)}`;
 }
 
+/* ---------- what a programme is, from Claude (#487) ----------
+   The household's Supabase function guide-meta answers, once per programme for every device, what a programme is:
+   its genre (better than the rules above), its kind (series, show, film, event, filler) and its picture (IMDb's).
+   The device keeps the answers ('guideMeta'); what it has no answer for is sent a batch at a time, in the
+   background. Every device and profile gets what the household already knows; a signed-in device also makes the
+   function ask about what is new. Its rules stand in until an answer comes. */
+const META_BATCH = 40;
+let meta = null;
+const metaOf = key => (meta ||= store.get('guideMeta', {}))[key];
+let enriching = false;
+export async function enrichGuide(){
+  if(enriching) return;
+  // a device that is not signed in only collects what others asked: twice a day is enough
+  if(!signedIn() && Date.now() - store.get('guideMetaAnon', 0) < 12 * 3600e3) return;
+  if(!signedIn()) store.set('guideMetaAnon', Date.now());
+  enriching = true;
+  try{
+    // only what the page shows - programmes with episodes - and films (for their pictures); a one-off is found by
+    // search and needs no answer. Each is asked about once.
+    const all = guideProgrammes().filter(p => !metaOf(p.key));
+    const want = [...all.filter(hasEpisodes), ...all.filter(p => p.genre === 'movies')];
+    for(let i = 0; i < want.length; i += META_BATCH){
+      const batch = want.slice(i, i + META_BATCH);
+      const items = batch.map(p => ({key: p.key, name: p.name, descr: load().desc?.[p.key] || '', channel: chOf(p.eps[0].epg).name || ''}));
+      let got;
+      try{ got = await call('/functions/v1/guide-meta', {method: 'POST', body: {items}, token: signedIn() ? await accessToken() : undefined}); }
+      catch(e){ break; }                                   // tried again at the next refresh
+      for(const r of got?.items || []) meta[r.key] = {g: r.genre, k: r.kind, p: r.poster || '', t: r.title || ''};
+      try{ store.set('guideMeta', meta); }catch(e){}
+      // an answered programme's description is no longer needed on the device
+      for(const p of batch) if(meta[p.key]) delete idx.desc?.[p.key];
+      progs = null;
+      told.forEach(fn => { try{ fn(); }catch(e){} });
+    }
+    try{ store.set(KEY, idx); }catch(e){}
+  }finally{ enriching = false; }
+}
+
 /* ---------- a programme's card ----------
-   A wide card in a wheel, like a broadcaster's episode: the channel's logo on its plate (the guide has no
-   pictures), the programme's name, and where and when it was on. A film's card takes the film's own picture,
-   found by its Hebrew name and year (data/hebrew.js) and kept on the device ('guideFilm'). */
+   A wide card in a wheel, like a broadcaster's episode: the programme's picture where it has one (shown whole, over
+   a blurred copy of itself), otherwise the channel's logo on its plate; its name, and where and when it was on. */
 const chOf = epg => load().ch[epg] || {};
 export function guideCard(p, i){
   const c = chOf(p.eps[0].epg);
-  const film = p.genre === 'movies';
-  return `<button class="poster wide progcard" data-gp="${i}" data-id="guide:${esc(p.key)}"${film ? ` data-film="${esc(p.key)}"` : ''}>
-    <div class="art logoart">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
-      ${p.eps.length > 1 ? `<span class="chtag">${tr('guide.times', {n: p.eps.length})}</span>` : ''}</div>
+  const tag = p.eps.length > 1 ? `<span class="chtag">${tr('guide.times', {n: p.eps.length})}</span>` : '';
+  const art = p.poster
+    ? `<div class="art picart" style="--pic:url(&quot;${esc(p.poster)}&quot;)">${tag}</div>`
+    : `<div class="art logoart">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ''}${tag}</div>`;
+  return `<button class="poster wide progcard" data-gp="${i}" data-id="guide:${esc(p.key)}">${art}
     <div class="t" dir="auto">${esc(p.name)}</div>
     <div class="y">${[c.name ? channelName(c.name) : '', whenAired(p.last)].filter(Boolean).map(esc).join(' · ')}</div></button>`;
 }
-/** [host]'s cards, opened as a programme's broadcasts; a film's card dressed in its picture. */
+/** [host]'s cards, opened as a programme's broadcasts. */
 export function wireCards(host, list){
   host.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => openProgramme(list[b.dataset.gp]));
-  dressFilms(host, list);
-}
-let films = null;
-const filmQueue = [];
-let filmBusy = false;
-function dressFilms(host, list){
-  films ||= store.get('guideFilm', {});
-  host.querySelectorAll('[data-film]').forEach(b => {
-    const p = list[b.dataset.gp], known = films[p.key];
-    if(known) return paintFilm(b, known);
-    if(known === undefined) filmQueue.push({b, p});
-  });
-  pumpFilms();
-}
-function paintFilm(b, id){
-  const art = b.querySelector('.art');
-  if(!art || art.classList.contains('filmart')) return;
-  art.classList.add('filmart');
-  art.style.backgroundImage = `url("https://images.metahub.space/background/medium/${id}/img"), url("https://images.metahub.space/poster/medium/${id}/img")`;
-}
-/** One question at a time, only for cards still on the screen, each answer kept - so a film is looked for once. */
-async function pumpFilms(){
-  if(filmBusy) return;
-  filmBusy = true;
-  while(filmQueue.length){
-    const {b, p} = filmQueue.shift();
-    if(!b.isConnected || films[p.key] !== undefined){ if(films[p.key]) paintFilm(b, films[p.key]); continue; }
-    const year = p.eps.map(e => e.note).find(n => /^\d{4}$/.test(n)) || '';
-    try{
-      const found = (await hebrewSearch(p.name)).filter(m => m.type === 'movie');
-      const hit = found.find(m => year && String(m.releaseInfo).startsWith(year)) || (!year && found[0]) || null;
-      films[p.key] = hit?.id || '';
-    }catch(e){ continue; }                               // not answered: asked again another time
-    store.set('guideFilm', films);
-    if(films[p.key]) document.querySelectorAll(`[data-film="${CSS.escape(p.key)}"]`).forEach(x => paintFilm(x, films[p.key]));
-  }
-  filmBusy = false;
 }
 
 /** A programme's broadcasts, newest first: OK on one plays it from the archive. */
@@ -384,7 +396,7 @@ const trim = rows => rows.filter(r => r.list.length).map(r => ({...r, list: r.li
     the week or more (a daily show). A film is one thing however often it is on. */
 export const RECUR_DAYS = 3;
 export function hasEpisodes(p){
-  if(p.genre === 'movies') return false;
+  if(p.genre === 'movies' || ['film', 'event', 'filler'].includes(p.kind)) return false;
   if(new Set(p.eps.map(e => e.note).filter(n => /^פרק/.test(n))).size >= 2) return true;
   return new Set(p.eps.map(e => dayOf(e.t * 1000))).size >= RECUR_DAYS;
 }

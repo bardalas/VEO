@@ -199,7 +199,16 @@ dropped), `epNote` keeps an episode number or a film's year. The page is a **lib
 a wheel per genre on All, or the genre and a row per channel showing it; only programmes with episodes
 (`hasEpisodes`: 2+ numbered episodes, or on 3+ days) - films and one-offs are found by search alone. Cards are wide
 `guideCard`s with the channel's logo (a film's own picture in search, via `hebrewSearch`, `guideFilm` cache). OK
-opens the broadcasts, one plays from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים"). Separate from the broadcasters' VOD.
+opens the broadcasts, one plays from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים").
+**What a programme is, from Claude** (#487): the Supabase edge function `guide-meta` (supabase/functions, deployed with
+verify_jwt off - it checks the caller itself) answers per programme key its genre, kind (series/show/film/event/filler)
+and picture: Claude (`claude-opus-5-5`, effort low, structured output) reads name + description + channel, IMDb's
+suggestion search gives the picture; answers live in `guide_meta` (supabase/guide_meta.sql) for the whole household.
+Anyone reads what is known; only a signed-in account's token makes it ask Claude, capped at `DAILY_MAX` a day. The
+Anthropic key is in Supabase Vault (`anthropic_api_key`, read by the service-role-only `anthropic_key()`), never in the
+repo. The app (`enrichGuide`, after each refresh) sends only browsed programmes (with episodes) and films, 40 at a time,
+keeps answers in the device key `guideMeta` (every profile), and keeps a description per programme (`idx.desc`) only
+until it is answered. The answer's genre beats `genreOf`; its picture fills the card (`picart`). Separate from the broadcasters' VOD.
 
 ### The wheel and the taste (`js/ui/reel.js`, `js/ui/taste.js`)
 A row of titles is a wheel: the title the remote is on stands still where the row begins, wide, and the row turns

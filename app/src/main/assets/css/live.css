@@ -162,6 +162,7 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 .progcard .art{position:relative}
 .progcard .logoart{display:flex;align-items:center;justify-content:center;background-color:#ffffff12}
 .progcard .logoart img{max-width:44%;max-height:46%;object-fit:contain}
-.progcard .filmart{background-size:cover,contain;background-position:center;background-repeat:no-repeat}
-.progcard .filmart img{display:none}
 .progcard .chtag{top:8px;inset-inline-end:8px}
+/* a programme's own picture (#487): whole, over a dim blurred copy of itself */
+.progcard .picart{background:var(--pic) center/contain no-repeat;overflow:hidden;isolation:isolate}
+.progcard .picart::before{content:"";position:absolute;inset:-20px;background:var(--pic) center/cover;filter:blur(18px) brightness(.45);z-index:-1}

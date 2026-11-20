@@ -1732,11 +1732,36 @@ test('the programmes the channels broadcast: one name per programme, read a day 
   mem.store.set('guideIdx', null);
   guide = [];
   for(let d = 0; d < 7; d++) for(let h = 0; h < 20; h++) guide.push({time: at(d, h), time_to: at(d, h) + 1800, name: `תוכנית ${'אבגדהוזחטיכלמנסעפצקרש'[h]}${d}`});
+  for(let d = 1; d < 5; d++) guide.push({time: at(d, 21) + 600, time_to: at(d, 22), name: 'סדרה חוזרת', descr: `פרק ${d}.`});
   asked.length = 0;
   const many = await make();
   await many.refreshGuide();
   for(const p of many.guideProgrammes()) assert.ok(p.eps.every(e => e.name === p.name), p.name);
-  assert.equal(many.guideProgrammes().length, guide.filter(x => x.time <= Date.now() / 1000).length);   // each its own programme (the future is not one yet)
+  assert.equal(many.guideProgrammes().length, new Set(guide.filter(x => x.time <= Date.now() / 1000).map(x => x.name)).size);   // each its own programme (the future is not one yet)
+  // what a programme is, from the household's guide-meta function (#487): its genre and picture override the rules,
+  // a one-off is not browsed, and a programme is asked about once
+  const sent = [];
+  const ai = await mini('providers/guide.js', {
+    'core/bridge.js': {fetchText: async () => '[]'}, 'core/dom.js': {esc: s => String(s)}, 'core/store.js': {store: mem.store},
+    'data/account.js': {signedIn: () => true, accessToken: async () => 't', call: async (p, {body, token}) => {
+      assert.equal(p, '/functions/v1/guide-meta'); assert.equal(token, 't');
+      sent.push(...body.items.map(i => i.key));
+      return {items: body.items.map(i => ({key: i.key, genre: 'drama', kind: i.key.startsWith('תוכנית א') ? 'event' : 'series', poster: 'https://x/p.jpg', title: 'X'}))};
+    }},
+    'data/known.js': {score: () => 0}, 'data/names.js': {channelName: n => n}, 'i18n.js': {tr: k => k},
+    'providers/live.js': {playLive(){}},
+    'providers/rtv.js': {RTV_EPG: id => id, hhmm: () => '', rtvArchiveProbe: async () => '', loadRtv: async () => []},
+  }, {document: {documentElement: {lang: 'he'}}, CSS: {escape: s => s}});
+  await ai.enrichGuide();
+  const known = ai.guideProgrammes().filter(p => p.kind);
+  assert.ok(known.length && known.every(p => p.genre === 'drama' && p.poster === 'https://x/p.jpg'));
+  // only what the page shows is asked about: a one-off is found by search and costs nothing
+  assert.ok(sent.length && sent.every(k => ai.guideProgrammes().find(p => p.key === k && (ai.hasEpisodes(p) || p.kind))));
+  assert.ok(!ai.guideProgrammes().some(p => p.eps.length === 1 && sent.includes(p.key)));
+  assert.match(ai.guideCard(known[0], 0), /picart/);
+  const once = sent.length;
+  await ai.enrichGuide();
+  assert.equal(sent.length, once);                                      // nothing asked twice
   // the index is the device's own: never a profile's key, so it is never sent to the account
   const store = await readFile(path.join(assets, 'js/core/store.js'), 'utf8');
   assert.doesNotMatch(store.match(/PROFILE_KEYS\s*=\s*\[[^\]]*\]/)?.[0] || '', /guideIdx/);
