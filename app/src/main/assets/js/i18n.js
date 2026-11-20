@@ -163,7 +163,6 @@ he: {
   'src.noService': 'לא בשירותים',
   'row.forYou': 'מומלץ בשבילך', 'row.forYouMovies': 'סרטים שמומלצים לך', 'row.forYouSeries': 'סדרות שמומלצות לך',
   'row.because': 'כי צפית ב־{name}',
- 
   'row.hotNow': 'הכי מעניין עכשיו', 'row.newHot': 'חדש ולוהט', 'row.docsHot': 'דוקו חם', 'row.rising': 'סדרות בעלייה',
   'row.nfxIL': 'טופ 10 של נטפליקס בישראל', 'row.ilNow': 'ישראלי עכשיו', 'row.ilSeries': 'סדרות ישראליות', 'row.ilMovies': 'סרטים ישראליים',
   'lib.count': '{n} כותרים · מיון: {by}', 'lib.hintCard': 'לחיצה פותחת את כרטיס הכותר', 'lib.hintOpen': 'לחיצה פותחת את התוכנית',
@@ -341,7 +340,6 @@ en: {
   'src.noService': 'Not streaming',
   'row.forYou': 'Recommended for you', 'row.forYouMovies': 'Movies for you', 'row.forYouSeries': 'Series for you',
   'row.because': 'Because you watched {name}',
- 
   'row.hotNow': 'Most interesting now', 'row.newHot': 'New and hot', 'row.docsHot': 'Hot documentaries', 'row.rising': 'Series on the rise',
   'row.nfxIL': 'Netflix Top 10 in Israel', 'row.ilNow': 'Israeli now', 'row.ilSeries': 'Israeli series', 'row.ilMovies': 'Israeli films',
   'lib.count': '{n} titles · sort: {by}', 'lib.hintCard': 'Press OK to open its page', 'lib.hintOpen': 'Press OK to open the programme',

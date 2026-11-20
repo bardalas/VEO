@@ -342,7 +342,7 @@ export async function enrichGuide(){
     const all = guideProgrammes().filter(p => !metaOf(p.key));
     const want = [...all.filter(hasEpisodes), ...all.filter(p => p.genre === 'movies')];
     let dropped = false;
-    const notify = () => { progs = null; told.forEach(fn => { try{ fn(); }catch(e){} }); };
+    const notify = () => told.forEach(fn => { try{ fn(); }catch(e){} });
     for(let i = 0; i < want.length; i += META_BATCH){
       const batch = want.slice(i, i + META_BATCH);
       const items = batch.map(p => ({key: p.key, name: p.name, descr: load().desc?.[p.key] || '', channel: chOf(p.eps[0].epg).name || ''}));
@@ -353,6 +353,7 @@ export async function enrichGuide(){
       store.lazy(META_KEY, meta);
       // an answered programme's description is no longer needed on the device
       for(const p of batch) if(meta[p.key] && idx.desc?.[p.key]){ delete idx.desc[p.key]; dropped = true; }
+      progs = null;                                   // every batch: whoever asks next gets what is known (only the drawing waits)
       // the page is drawn again after the first answers and then every few batches - not 40 cards at a time
       if(i === 0 || (i / META_BATCH) % 5 === 4) notify();
     }
