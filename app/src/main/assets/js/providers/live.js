@@ -88,8 +88,10 @@ export async function nowPlaying(c){
 /** Everything the Live TV page can show: RaspberryTV (if a key is set), official channels, the radio, own playlists. */
 export function liveSources(){
   // what the channels with an archive broadcast, by programme (providers/guide.js, #478), beside their channels
-  return [...(store.get('rtvKey', '') ? [{key: 'rtv', name: 'RaspberryTV'}, {key: 'progs', name: tr('guide.tab')}] : []),
-          {key: 'il', name: tr('live.il')}, {key: 'radio', name: tr('live.radio')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
+  // the built-in Israeli channels only where there is no subscription: RaspberryTV has them all (#484)
+  const rtv = !!store.get('rtvKey', '');
+  return [...(rtv ? [{key: 'rtv', name: tr('live.channels')}, {key: 'progs', name: tr('guide.tab')}] : [{key: 'il', name: tr('live.il')}]),
+          {key: 'radio', name: tr('live.radio')}, ...playlists.map(p => ({key: p.url, name: p.name}))];
 }
 export async function liveChannels(key){
   if(key === 'radio') return radioStations();

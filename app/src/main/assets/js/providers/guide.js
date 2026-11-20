@@ -27,7 +27,7 @@ const AT_ONCE = 3;
 /** Shorter than this is not a programme: a promo, a break, a headline. */
 const MIN_S = 8 * 60;
 /** What is on every channel every hour and is not looked for by name. */
-const NOT_A_PROGRAMME = /^(חדשות|מהדורה|מבזק|מבזקי|כותרות|תשדיר|פרסומות|הפסקה|סוף שידורים|שידורי ניסיון|לוח שידורים|news|headlines|weather|teleshopping|close ?down)(?![\p{L}\p{N}])/iu;   // \b knows no Hebrew letters
+const NOT_A_PROGRAMME = /^(חדשות|מהדורה|מבזק|מבזקי|כותרות|תשדיר|פרסומות|הפסקה|סוף שידורים|נשוב לשדר|נחזור לשדר|שידורי ניסיון|לוח שידורים|news|headlines|weather|teleshopping|close ?down)(?![\p{L}\p{N}])/iu;   // \b knows no Hebrew letters
 
 /* ---------- what a channel is ----------
    The guide says nothing of genre, but the channels do: a channel's name says what it shows. First match wins
@@ -44,7 +44,7 @@ const CATS = [
 ];
 export const channelCat = name => (CATS.find(([, re]) => re.test(name || '')) || ['general'])[0];
 /** The categories a viewer chooses between, in order. */
-export const GUIDE_CATS = ['kids', 'movies', 'series', 'docu', 'life'];
+export const GUIDE_CATS = ['general', 'kids', 'movies', 'series', 'docu', 'life'];   // general: Kan, Keshet, Reshet and the like
 const SKIP = new Set(['sport', 'news', 'music']);
 
 /** The name a programme is known by, whatever the guide wrapped around it: an episode's number, a season, a
@@ -326,23 +326,30 @@ export function openProgramme(p){
 }
 
 /* ---------- the page's rows ----------
-   Like Movies and Series: what was on today and yesterday first, then (on All) a row of each kind and a row of
-   each general channel, or (on a kind's tab) what was on most this week and a row of each of its channels. */
+   Like Movies and Series: what was on today and yesterday first, then (on All) a row of each kind - Kan, Keshet
+   and Reshet's first - or (on a kind's tab) a row of each of its channels. Only what comes back (recurring). */
 const ROW_MAX = 30, CHANNEL_ROWS = 24;
 export function guideRows(cat){
-  const all = guideProgrammes(), today = dayRange(dayOf(Date.now()))[0], yesterday = today - 86400;
+  const all = guideProgrammes().filter(recurring), today = dayRange(dayOf(Date.now()))[0], yesterday = today - 86400;
   const mine = cat ? all.filter(p => p.cat === cat) : all;
   const rows = [
     {title: tr('guide.today'), list: mine.filter(p => p.last >= today)},
     {title: tr('guide.yesterday'), list: mine.filter(p => p.last >= yesterday && p.last < today)},
   ];
-  if(!cat) for(const c of GUIDE_CATS) rows.push({title: tr('guide.cat.' + c), list: all.filter(p => p.cat === c)});
-  else rows.push({title: tr('guide.most'), list: [...mine].sort((a, b) => b.eps.length - a.eps.length || b.last - a.last)});
-  // a row of each channel, what it had on last first
-  for(const ch of guideChannels().filter(c => c.cat === (cat || 'general')).slice(0, CHANNEL_ROWS)){
+  if(!cat){
+    for(const c of GUIDE_CATS) rows.push({title: tr('guide.cat.' + c), list: all.filter(p => p.cat === c)});
+    return trim(rows);
+  }
+  // a row of each of the kind's channels, what it had on last first
+  for(const ch of guideChannels().filter(c => c.cat === cat).slice(0, CHANNEL_ROWS)){
     const lastOn = p => Math.max(...p.eps.filter(e => e.epg === ch.epg).map(e => e.t));
     const list = all.filter(p => p.eps.some(e => e.epg === ch.epg)).map(p => [p, lastOn(p)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     rows.push({title: channelName(ch.name), list});
   }
-  return rows.filter(r => r.list.length).map(r => ({...r, list: r.list.slice(0, ROW_MAX)}));
+  return trim(rows);
 }
+const trim = rows => rows.filter(r => r.list.length).map(r => ({...r, list: r.list.slice(0, ROW_MAX)}));
+/** What is worth a card: a programme that comes back - on three days of the week or more (a daily or weekly
+    show, a children's series) - or a film, which is on once by nature. A one-off is found by search alone. */
+export const RECUR_DAYS = 3;
+export const recurring = p => p.cat === 'movies' || new Set(p.eps.map(e => dayOf(e.t * 1000))).size >= RECUR_DAYS;

@@ -191,9 +191,10 @@ minutes, name index, note]]}. The guide answers per channel per day (`RTV_EPG(id
 `dayOf`/`dayRange` use Asia/Jerusalem whatever the device clock). `refreshGuide()` reads only `dueDays` - never read, or
 read before the day ended - today first, 3 at a time, saving every 60 days without renumbering names (`save(false)`;
 renumbering mid-reading gave programmes each other's names); a full first fill is ~900 small requests, under 2 minutes.
-`channelCat` sorts channels by name into kids/movies/series/docu/life/general; sport, news and music are not read.
+`channelCat` sorts channels by name into general (Kan, Keshet, Reshet...)/kids/movies/series/docu/life; sport, news and
+music are not read. Browsing shows only `recurring` programmes (on 3+ days of the week) and films; search finds all (#484).
 `progKey`/`progTitle` group broadcasts by name, `epNote` keeps an episode number or a film's year. The page is wheels
-(`guideRows`: today, yesterday, a row per kind or per channel) of wide `guideCard`s with the channel's logo; a film's
+(`guideRows`: today, yesterday, then a row per kind on All, or a row per channel on a kind's chip) of wide `guideCard`s with the channel's logo; a film's
 card takes its picture from `hebrewSearch` by name and year (`guideFilm` cache). OK opens the broadcasts, one plays
 from the archive (`rtvArchiveProbe`). Search shows them first ("שודר בערוצים"). Separate from the broadcasters' VOD.
 
