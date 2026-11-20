@@ -1,5 +1,17 @@
 # VEO Android changelog
 
+## 0.45.87 — 2026-11-20
+- **A programme's page.** A programme from the TV guide opens like a series: its picture, a season bar and its
+  episodes - each once, however many times or on however many channels it was broadcast; OK plays its latest
+  broadcast from the archive. (#490)
+- **Claude names programmes from their description**, not their Hebrew name (כבאי קליפורניה is Fire Country), and leaves
+  the picture out when unsure; the programmes are classified again once. (#490)
+- **TV and radio:** the search box is on the tabs' line (Left from the last tab), Down lands on the chosen chip, a text
+  field shows it holds the remote, and the programme rows sit closer. (#493)
+- **Home, Movies and Series:** rows closer together and tiles a little smaller. (#495)
+- A code sweep: dead code removed, the TV guide index and the broadcasters' rows ask and compute less, docs brought up
+  to date. (#492)
+
 ## 0.45.86 — 2026-11-20
 - **TV and radio.** The page is called "טלוויזיה ורדיו"; RaspberryTV's tab is "ערוצים חיים"; the built-in Israeli channels'
   tab is gone where there is a subscription, and the tabs fit one line. (#484)
