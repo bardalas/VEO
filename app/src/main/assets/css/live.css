@@ -51,6 +51,7 @@
 .livehead h1{margin:0}
 .livetabs{flex:1;min-width:0}                        /* the look of the source tabs (content.css): words, an accent line */
 .livetabs .srctab{font-size:16px}
+.livetabs #lq{margin-inline-start:auto}                 /* the search at the end of the tabs' line (#493) */
 .livehead #lq{width:220px;padding:8px 14px}
 .livesearch{display:flex}
 .live-groups{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
@@ -169,3 +170,6 @@ html[data-device="tv"] .radiopage .chmain{display:flex;flex-direction:column;ali
 /* a programme's page (#490): its picture behind it, or its channel's logo small where it has none */
 .backdrop.progback{background-size:cover;background-position:center 20%}
 .proglogo{height:1.1em;max-width:4em;object-fit:contain;vertical-align:-.15em;margin-inline-end:.4em;background:#ffffff14;border-radius:8px;padding:.1em .2em}
+/* a programme's card has no story under it (that room is the wheel's for films and series, #475): its rows sit close */
+.livepage .strip.reel,[data-layout="tv"] .livepage .strip.reel{padding-top:6px;padding-bottom:14px}
+.livepage .row h2{margin:10px 0 4px;line-height:1.15}
